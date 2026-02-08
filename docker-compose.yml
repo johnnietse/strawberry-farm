@@ -1,0 +1,196 @@
+version: '3.8'
+
+services:
+  # === INFRASTRUCTURE LAYER ===
+
+  # 1. TimescaleDB - Time-Series Optimized PostgreSQL
+  # Required by ELEC 490/498: "Knowledge of common database design (e.g., postgres)"
+  db:
+    image: timescale/timescaledb:latest-pg15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-researcher}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-epower_secret_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-strawberry_research}
+
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./gateway/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - gos_net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U researcher -d strawberry_research" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Mosquitto MQTT Broker - Industry Standard for IoT
+  # Required for Raspberry Pi → Gateway communication
+  mqtt:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./monitoring/mosquitto/config:/mosquitto/config
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    networks:
+      - gos_net
+    restart: unless-stopped
+
+  # === INGESTION & NETWORKING LAYER ===
+
+  # 3. MQTT-to-Database Bridge (For real hardware)
+  mqtt_bridge:
+    build: ./gateway
+    command: python services/mqtt_bridge.py
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:epower_secret_2026@db/strawberry_research}
+      - MQTT_BROKER=mqtt
+      - MQTT_PORT=1883
+    depends_on:
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
+    networks:
+      - gos_net
+    restart: unless-stopped
+
+  # 4. Phytotron Fleet Simulation (40 nRF52 nodes)
+  # Replace with mqtt_bridge for real hardware deployment
+  ingest:
+    build: ./gateway
+    command: python services/farm_sim.py
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:change_me_in_prod@db/strawberry_research}
+
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - gos_net
+
+  # 5. Met-Station Simulation (Radiation & Spectral Irradiance)
+  met_station:
+    build: ./gateway
+    command: python services/met_station.py
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:change_me_in_prod@db/strawberry_research}
+
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - gos_net
+
+  # 6. Research Support API (REST for Dashboard/GUI)
+  # Handles Group 2 GUI inputs: events, yield, LED schedules
+  api:
+    build: ./gateway
+    command: python services/api.py
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:change_me_in_prod@db/strawberry_research}
+
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - gos_net
+
+  # === DATA BACKBONE (ELEC 490/498 Core Requirement) ===
+
+  # 7. Synchronization Engine - Triple-Sync Data Curation
+  # "Design and implement a robust (pre)processing pipeline to ingest, 
+  #  validate, synchronize, and curate data"
+  sync_engine:
+    build: ./gateway
+    command: python services/sync.py
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:change_me_in_prod@db/strawberry_research}
+
+    depends_on:
+      - ingest
+      - met_station
+    networks:
+      - gos_net
+
+  # === ML & RL LAYER (Stretch Goal) ===
+
+  # 8. Plant Physiology Simulator (Physics-Informed Model)
+  biology_engine:
+    build: ./ml_engine
+    command: python plant_sim_c3.py
+    networks:
+      - gos_net
+
+  # 9. Reinforcement Learning Agent
+  # "Prototype a RL model to predict transpiration and recommend LED control"
+  ml_engine:
+    build: ./ml_engine
+    command: python agent_rl.py
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:change_me_in_prod@db/strawberry_research}
+
+    depends_on:
+      - biology_engine
+      - sync_engine
+    networks:
+      - gos_net
+    volumes:
+      - ./data:/app/data
+
+  # 10. LTL Safety Monitor
+  safety_monitor:
+    build: ./gateway
+    command: python services/safety_ltl.py
+    networks:
+      - gos_net
+
+  # === MONITORING & VISUALIZATION ===
+
+  # 11. Grafana - Professional Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-change_me_in_prod}
+
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - db
+    networks:
+      - gos_net
+
+  # === USER INTERFACE (Group 2 GUI) ===
+
+  # 12. G.O.S. Research Portal (Web Browser Based)
+  # "Fully functional, annotatable, user-friendly GUI"
+  dashboard:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./dashboard:/usr/share/nginx/html
+    networks:
+      - gos_net
+
+networks:
+  gos_net:
+    driver: bridge
+
+volumes:
+  timescale_data:
+  grafana_data:
+  mosquitto_data:
+  mosquitto_logs:

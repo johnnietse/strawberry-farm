@@ -1,0 +1,17 @@
+# G.O.S. ML Engine - Python Dependencies
+# For Docker container
+
+# Core Data Processing
+numpy>=1.24
+pandas>=2.0
+
+# Database
+psycopg2-binary>=2.9
+
+# ML / RL
+scikit-learn>=1.3
+gymnasium>=0.29
+
+# Optional: Deep RL (uncomment for advanced models)
+# stable-baselines3>=2.0
+# torch>=2.0

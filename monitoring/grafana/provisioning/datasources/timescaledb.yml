@@ -1,0 +1,23 @@
+# Grafana Datasource Provisioning
+# Auto-configures TimescaleDB connection on startup
+
+apiVersion: 1
+
+datasources:
+  - name: TimescaleDB
+    type: postgres
+    url: db:5432
+    database: strawberry_research
+    user: researcher
+    secureJsonData:
+      password: change_me_in_prod # Update via environment variable or volume mount
+
+    jsonData:
+      sslmode: disable
+      maxOpenConns: 10
+      maxIdleConns: 5
+      connMaxLifetime: 14400
+      postgresVersion: 1500
+      timescaledb: true
+    isDefault: true
+    editable: false
