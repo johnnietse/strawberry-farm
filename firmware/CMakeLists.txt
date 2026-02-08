@@ -1,0 +1,18 @@
+# G.O.S. Phytotron Node - CMakeLists.txt
+# Zephyr RTOS Build Configuration
+
+cmake_minimum_required(VERSION 3.20.0)
+
+find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
+project(gos_phytotron_node VERSION 2.0.0)
+
+# Source files
+target_sources(app PRIVATE
+    src/main.c
+    drivers/led_control.c
+)
+
+# Include directories
+target_include_directories(app PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)

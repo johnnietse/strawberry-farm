@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+Build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+
+# Environment Variables (Secrets)
+.env
+
+# Docker
+docker-compose.override.yml
+
+# Data directories (Local persistence)
+data/
+timescale_data/
+grafana_data/
+mosquitto_data/
+mosquitto_logs/
+
+# Build artifacts
+build/
+firmware/build/
+*.hex
+*.bin
+*.elf

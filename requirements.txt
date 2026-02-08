@@ -1,0 +1,26 @@
+# G.O.S. - Greenhouse Operating System
+# Master Requirements for Local Development
+# Queen's University ELEC 490/498
+
+# Database
+psycopg2-binary>=2.9
+
+# Data Processing & Validation
+pandas>=2.0
+numpy>=1.24
+pydantic>=2.0
+
+# ML (Stretch Goal)
+scikit-learn>=1.3
+gymnasium>=0.29
+
+# MQTT
+paho-mqtt>=2.0
+
+# API
+flask>=3.0
+flask-cors>=4.0
+
+# Utilities
+python-dotenv>=1.0
+requests>=2.31

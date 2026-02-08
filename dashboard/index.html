@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G.O.S. Local | Queen's University Greenhouse Operating System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body class="hyper-research-theme">
+    <div class="app-container">
+        <!-- Dashboard Sidebar -->
+        <nav class="research-sidebar">
+            <div class="lab-branding">
+                <div class="logo">G.O.S.</div>
+                <div class="title">ePOWER Lab x School of Computing</div>
+            </div>
+
+            <div class="sidebar-stats">
+                <div class="stat-item">
+                    <label>Thread Mesh Integrity</label>
+                    <span id="mesh-health">Nominal (99%)</span>
+                </div>
+                <div class="stat-item">
+                    <label>Curation Rate</label>
+                    <span id="sync-rate">1.0 Hz</span>
+                </div>
+                <div class="stat-item">
+                    <label>MACQ Learned Models</label>
+                    <span id="macq-count">12 Domains</span>
+                </div>
+            </div>
+
+            <ul class="nav-links">
+                <li class="active">Infrastructure Backbone</li>
+                <li>Thread Mesh Topology</li>
+                <li>Physics & RL Research</li>
+                <li>Bijective Tomography</li>
+                <li>LLM Research Assistant</li>
+                <li>BOM & Bench Procedures</li>
+            </ul>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="dashboard-viewport">
+            <header class="dashboard-header">
+                <h1>G.O.S. Local: <span style="color:var(--accent-blue)">Phytotron Research Backbone</span></h1>
+                <div class="header-actions">
+                    <span class="status-pill live">OTBR CONNECTED</span>
+                    <button class="btn btn-primary" onclick="alert('Exporting Synchronized Trace Library...')">Export
+                        Curation</button>
+                </div>
+            </header>
+
+            <div class="dashboard-grid">
+                <!-- Thread Topology View -->
+                <section class="card fleet-card">
+                    <div class="xaip-label">OpenThread | Zephyr RTOS Nodes</div>
+                    <h2>Mesh Topology: 40-Node Cluster</h2>
+                    <div class="thread-topology-view" id="topology_map"></div>
+                </section>
+
+                <!-- Bijective Tomography (Pahlevani Research) -->
+                <section class="card">
+                    <div class="xaip-label">Bijective Tomography (Nature 2022)</div>
+                    <h2>3D Spectral Distribution</h2>
+                    <div class="tomography-view" id="tom_viewer">
+                        <div class="tomography-grid" id="tom_grid"></div>
+                    </div>
+                </section>
+
+                <!-- LLM Research Assistant (Muise Research) -->
+                <section class="card llm-research-card">
+                    <div class="xaip-label">Plan4Dial Assistant</div>
+                    <h2>G.O.S. Intelligence Portal</h2>
+                    <div class="llm-chat-window" id="chat-window">
+                        <div class="msg bot">System initialized. I am monitoring the 40 nRF52 nodes using OpenThread.
+                            Would you like to annotate any physiological events today?</div>
+                    </div>
+                    <div class="llm-input-area">
+                        <input type="text" id="llm-input" placeholder="Query data or log event (e.g. 'Found mites')...">
+                        <button class="btn btn-primary" onclick="processLLMInput()">Analyze</button>
+                    </div>
+                </section>
+
+                <!-- Physics Validation -->
+                <section class="card">
+                    <div class="xaip-label">Physics-Informed RL (FvCB)</div>
+                    <h2>Physiology Validation</h2>
+                    <div class="causal-link-banner">
+                        <strong>Observer Insight:</strong> High transpiration detected in Sector 4B.
+                        <p>Cause: Localized PAR spike -> Stomatal Opening -> High H2O Flux.</p>
+                        <p class="physics-validation">> Adheres to Penman-Monteith Safety Bound.</p>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/llm_assistant.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,140 @@
+// ==============================================================
+// G.O.S. DEVICE TREE OVERLAY - nRF52840 Phytotron Node
+// ==============================================================
+// Board: Nordic nRF52840 DK (PCA10056) or Dongle (PCA10059)
+// Sensors: SHT4x (I2C), TSL2591 (I2C)
+// LEDs: Blue (P0.13), Red (P0.14) via PWM
+// ==============================================================
+
+/ {
+    chosen {
+        zephyr,console = &uart0;
+        zephyr,shell-uart = &uart0;
+    };
+
+    aliases {
+        led0-blue = &led_blue;
+        led1-red = &led_red;
+        sht4x = &sht4x_sensor;
+    };
+
+    leds {
+        compatible = "gpio-leds";
+        
+        led_blue: led_0 {
+            gpios = <&gpio0 13 GPIO_ACTIVE_LOW>;
+            label = "Blue Growth LED (450nm)";
+        };
+        
+        led_red: led_1 {
+            gpios = <&gpio0 14 GPIO_ACTIVE_LOW>;
+            label = "Red Growth LED (660nm)";
+        };
+    };
+
+    /* PWM for LED dimming control */
+    pwmleds {
+        compatible = "pwm-leds";
+        
+        pwm_led_blue: pwm_led_0 {
+            pwms = <&pwm0 0 PWM_MSEC(20) PWM_POLARITY_INVERTED>;
+        };
+        
+        pwm_led_red: pwm_led_1 {
+            pwms = <&pwm0 1 PWM_MSEC(20) PWM_POLARITY_INVERTED>;
+        };
+    };
+
+    /* Battery ADC monitoring */
+    battery_adc {
+        compatible = "voltage-divider";
+        io-channels = <&adc 0>;
+        output-ohms = <100000>;
+        full-ohms = <(100000 + 100000)>;
+    };
+};
+
+/* Enable I2C for sensors */
+&i2c0 {
+    status = "okay";
+    compatible = "nordic,nrf-twim";
+    pinctrl-0 = <&i2c0_default>;
+    pinctrl-1 = <&i2c0_sleep>;
+    pinctrl-names = "default", "sleep";
+    clock-frequency = <I2C_BITRATE_STANDARD>;
+
+    /* Sensirion SHT4x Temperature/Humidity Sensor */
+    sht4x_sensor: sht4x@44 {
+        compatible = "sensirion,sht4x";
+        reg = <0x44>;
+        repeatability = "high";
+    };
+
+    /* AMS TSL2591 Light Sensor */
+    tsl2591@29 {
+        compatible = "ams,tsl2591";
+        reg = <0x29>;
+        int-gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
+    };
+};
+
+/* Enable PWM for LED control */
+&pwm0 {
+    status = "okay";
+    pinctrl-0 = <&pwm0_default>;
+    pinctrl-names = "default";
+};
+
+/* Pin control definitions */
+&pinctrl {
+    i2c0_default: i2c0_default {
+        group1 {
+            psels = <NRF_PSEL(TWIM_SDA, 0, 26)>,
+                    <NRF_PSEL(TWIM_SCL, 0, 27)>;
+        };
+    };
+
+    i2c0_sleep: i2c0_sleep {
+        group1 {
+            psels = <NRF_PSEL(TWIM_SDA, 0, 26)>,
+                    <NRF_PSEL(TWIM_SCL, 0, 27)>;
+            low-power-enable;
+        };
+    };
+
+    pwm0_default: pwm0_default {
+        group1 {
+            psels = <NRF_PSEL(PWM_OUT0, 0, 13)>,
+                    <NRF_PSEL(PWM_OUT1, 0, 14)>;
+        };
+    };
+};
+
+/* Enable ADC for battery monitoring */
+&adc {
+    status = "okay";
+    #address-cells = <1>;
+    #size-cells = <0>;
+
+    channel@0 {
+        reg = <0>;
+        zephyr,gain = "ADC_GAIN_1_6";
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,input-positive = <NRF_SAADC_AIN0>;
+        zephyr,resolution = <12>;
+    };
+};
+
+/* Thread/OpenThread configuration */
+&ieee802154 {
+    status = "okay";
+};
+
+/* UART for debugging */
+&uart0 {
+    status = "okay";
+    current-speed = <115200>;
+    pinctrl-0 = <&uart0_default>;
+    pinctrl-names = "default";
+};
