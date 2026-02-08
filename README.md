@@ -417,12 +417,4 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 
 ---
 
-## 👥 Team
 
-- **Faculty:** Dr. Majid Pahlevani, Dr. Christian Muise
-- **Lab:** Queen's University ePOWER Lab
-- **Contact:** telesphore.marie@queensu.ca
-
----
-
-*Queen's University ePOWER Lab | 2026*
