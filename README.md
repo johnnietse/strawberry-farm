@@ -3,9 +3,6 @@
 
 **Illuminate & Automate: Reinforcement Learning + IoT Sensor Array for LED-Steered Transpiration in Greenhouse Strawberries**
 
-> Queen's University ELEC 490/498 Capstone Project  
-> Faculty Advisors: Dr. Majid Pahlevani (ePOWER Lab), Dr. Christian Muise (School of Computing)
-
 ---
 
 ## 📋 Table of Contents
