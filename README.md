@@ -401,7 +401,7 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 
 ---
 
-## ✅ ELEC 490/498 Requirements Matrix
+## Requirements, Implementation, and Status
 
 | Requirement | Implementation | Status |
 |:---|:---|:---:|
