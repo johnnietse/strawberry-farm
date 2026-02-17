@@ -15,8 +15,8 @@ This document is the "Hands-on" guide for researchers. It ensures every node in 
 *Requirement: Read simple schematics and use a multimeter/oscilloscope*
 1.  **Continuity Check**: Measure 0Ω between the **nRF52 Ground** and the **18650 Battery Negative**.
 2.  **Multimeter Power Rail**:
-    - With battery connected, measure **3.3V** at the output of the LDO regulator.
-    - Measure **1.8V** at the internal DEC4 pin of the nRF (ensures the internal DCDC is healthy).
+    - With battery connected, measure **3.3V** at the output of the **TPS62740 buck regulator**.
+    - Measure **1.3V** at the internal DEC4 pin of the nRF (ensures the internal REG1 is healthy).
 3.  **Oscilloscope Signal Integrity**:
     - Probe **P0.06 (UART TX)**. During boot, you should see a packet of 115200bps data pulses. 
     - Probe **P0.27 (I2C SCL)**. You should see a stable 100kHz clock during sensor polling.
