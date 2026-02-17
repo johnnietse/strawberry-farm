@@ -46,11 +46,11 @@ The G.O.S. Phytotron Sensor Node is a **battery-powered wireless environmental m
                     │                                          │
   18650 Battery ────┤  ┌─────────┐    ┌───────────────────┐   │
   (3.0-4.2V)        │  │ Battery │    │    nRF52840       │   │
-       │            │  │ Monitor │    │    (QFN-48)       │   │
+       │            │  │ Monitor │    │    (aQFN-73)      │   │
        │            │  │ (ADC +  │    │                   │   │
-       ├── Boost ───┤  │ divider)│    │ P0.26 ── I2C SDA │───┤── SHT4x (0x44)
-       │   3.3V     │  └────┬────┘    │ P0.27 ── I2C SCL │───┤── TSL2591 (0x29)
-       │            │       │         │                   │   │
+       ├── Boost ───┤  │ divider,│    │ P0.26 ── I2C SDA │───┤── SHT4x (0x44)
+       │   3.3V     │  │ gated)  │    │ P0.27 ── I2C SCL │───┤── TSL2591 (0x29)
+       │            │  └────┬────┘    │                   │   │
        │            │       │         │ P0.13 ── PWM CH0  │───┤── Blue LED Driver
        │            │       │         │ P0.14 ── PWM CH1  │───┤── Red LED Driver
        │            │       │         │                   │   │
@@ -130,7 +130,7 @@ The G.O.S. Phytotron Sensor Node is a **battery-powered wireless environmental m
 | Ref | Value | Dielectric | Pkg | Qty | Purpose |
 |-----|-------|-----------|-----|-----|---------|
 | C14-C15 | 12pF | C0G/NP0 | 0402 | 2 | 32MHz crystal load (CL=8pF, Cstray~2pF) |
-| C16-C17 | 10pF | C0G/NP0 | 0402 | 2 | 32.768kHz crystal load (CL=7pF, Cstray~2pF) |
+| C16-C17 | 6.8pF | C0G/NP0 | 0402 | 2 | 32.768kHz crystal load (CL=7pF, Cstray≈4pF) |
 
 ### 2.4 Power System Passives
 
@@ -139,7 +139,7 @@ The G.O.S. Phytotron Sensor Node is a **battery-powered wireless environmental m
 | C18 | 4.7µF | X5R, 10V | 0603 | 1 | TPS62740 input (CIN) |
 | C19 | 10µF | X5R, 10V | 0603 | 1 | TPS62740 output (COUT) |
 | C20 | 10µF | X5R, 10V | 0603 | 1 | BQ24075 input (PMID) |
-| C21 | 4.7µF | X5R, 10V | 0603 | 1 | BQ24075 output (BAT) |
+| C21 | 10µF | X5R, 10V | 0603 | 1 | BQ24075 output (BAT, TI recommends ≥4.7µF) |
 | C22 | 1µF | X7R | 0402 | 1 | BQ24075 bypass |
 | L1 | 2.2µH | Murata LQH2MCN2R2 | 0805 | 1 | TPS62740 inductor (Isat>500mA) |
 | FB1 | 600Ω@100MHz | Murata BLM15AG601 | 0402 | 1 | Analog VDD filter (ADC supply) |
@@ -380,7 +380,10 @@ VBATT ──┬── C18 (4.7µF) ── GND
         │   ├── VOUT ── VDD_3V3
         │   ├── EN ── VBATT (always on)
         │   ├── SW ──┤ L1 (2.2µH) ├── VOUT
-        │   ├── VSEL[1:4] ── set for 3.3V output
+        │   ├── VSEL1 = HIGH ┐
+        │   ├── VSEL2 = HIGH │ All HIGH = 3.3V output
+        │   ├── VSEL3 = HIGH │ (see TPS62740 Table 1)
+        │   ├── VSEL4 = HIGH ┘
         │   ├── PG ──┤ R7 (10kΩ) ├── VDD_3V3 (power good)
         │   └── GND
         │
@@ -479,17 +482,38 @@ DECUSB      4.7µF X5R        C12    < 3mm     Internal USB LDO
 GPIO        1µF X7R          C13    < 3mm     GPIO port decouple
 ```
 
+### 5.1a Thermal Pad (Exposed Pad) Connection
+
+> [!CAUTION]
+> The nRF52840 aQFN-73 has an exposed thermal/ground pad on the bottom.
+> This pad **MUST** be soldered to GND with thermal vias for proper heat
+> dissipation and RF ground return. Failure causes overheating and poor
+> radio performance.
+
+```
+Thermal Via Pattern (under nRF52840 epad):
+┌─────────────────┐
+│ ○  ○  ○  ○      │   ○ = thermal via (0.3mm drill, 0.6mm pad)
+│                  │
+│ ○  ○  ○  ○      │   Minimum: 9 vias in 3×3 grid
+│                  │   Recommended: 16 vias in 4×4 grid
+│ ○  ○  ○  ○      │   Connected to Layer 2 solid GND plane
+│                  │
+│ ○  ○  ○  ○      │   Via pitch: ~1.2mm
+└─────────────────┘   Fill epad region with solder paste (70-80%)
+```
+
 ### 5.2 Crystal Circuits
 
 **32MHz Main Crystal (Y1):**
 ```
-         12pF (C7)
+         12pF (C14)
 P0.00 ──┤├── GND
   │
   ├── XTAL (32MHz) ──┤
   │                   │
 P0.01 ──┤├── GND     │
-         12pF (C8)    │
+         12pF (C15)    │
 
 Layout Rules:
 - Traces < 8mm total
@@ -501,11 +525,11 @@ Layout Rules:
 
 **32.768kHz RTC Crystal (Y2):**
 ```
-XC1 ──┤├── GND      ←── 6.8pF (C9)
+XC1 ──┤├── GND      ←── 6.8pF (C16)
   │
   ├── XTAL (32.768kHz)
   │
-XC2 ──┤├── GND      ←── 6.8pF (C10)
+XC2 ──┤├── GND      ←── 6.8pF (C17)
 
 - Even MORE sensitive than 32MHz
 - Keep traces < 5mm
@@ -676,24 +700,40 @@ Component Values:
 Alternative: Use a constant-current LED driver IC (e.g., AL8860)
 ```
 
-### 7.3 Constant Current LED Driver Alternative
+### 7.3 Constant Current LED Driver (AL8860) — RECOMMENDED
+
+> [!WARNING]
+> The AL8860 has a **minimum input voltage of 4.5V**. It **cannot** be
+> powered from the 3.3V VDD_3V3 rail or directly from the 18650 battery
+> (max 4.2V). The AL8860 VIN **must** connect to the `LED_VIN` rail via
+> connector J6 (5-12V external supply).
 
 For production boards, replace the MOSFET + resistor with:
 
 ```
-PWM_BLUE ── AL8860 (350mA CC driver)
-              │
-              ├── VIN ── LED_VIN
-              ├── SW ── Inductor ── LED anode
-              ├── EN ── PWM_BLUE (from nRF52840)
-              ├── FB ── sense resistor
-              └── GND
+LED_VIN (5-12V, from J6) ──┬── C27 (10µF, 25V) ── GND
+                            │
+                            ├── AL8860 (U7, Blue channel)
+                            │   ├── VIN ── LED_VIN (NOT VDD_3V3!)
+                            │   ├── SW ── L2 (33µH) ── D1 anode (Blue)
+                            │   ├── CTRL ── PWM_BLUE (P0.13)
+                            │   ├── RS ── R20 (0.1Ω) ── GND
+                            │   │          → Iout = 0.1V / 0.1Ω = 1A
+                            │   └── GND ── C29 (47µF) ── LED cathode
+                            │
+                            └── AL8860 (U8, Red channel)
+                                ├── VIN ── LED_VIN
+                                ├── SW ── L3 (33µH) ── D2 anode (Red)
+                                ├── CTRL ── PWM_RED (P0.14)
+                                ├── RS ── R21 (0.1Ω) ── GND
+                                └── GND ── C30 (47µF) ── LED cathode
 
 Benefits:
-- 95% efficiency (vs ~60% with resistor)
+- 97% efficiency (vs ~60% with resistor)
 - No heat dissipation on current-sense resistor
 - Stable current regardless of LED temperature
-- Dimming via PWM on EN pin
+- Dimming via PWM on CTRL pin (drive <0.2V to disable)
+- R22-R23 (10kΩ pull-down) ensure LEDs OFF at power-up
 ```
 
 ---
@@ -782,17 +822,36 @@ battery_adc {
 };
 ```
 
-**Circuit:**
-```
-VBATT ──┤ R1 (100kΩ) ├──┬── AIN0 (P0.02) ── nRF52840 ADC
-                        │
-                   ┤ R2 (100kΩ) ├
-                        │
-                       GND
+**Circuit (Gated Divider — Low Power):**
 
-Divider ratio: 0.5
-ADC range: 0 - 3.6V (with 1/6 gain, internal ref = 0.6V)
-Measurable battery range: 0 - 7.2V (covers full 18650 range)
+> [!IMPORTANT]
+> The original always-on 100kΩ divider drew 21µA continuously — 24× more
+> than the MCU's 0.9µA sleep current. This gated design uses a P-MOSFET
+> to enable the divider only during ADC reads, reducing average divider
+> current to ~0.035µA.
+
+```
+                    Q4 (P-MOSFET, e.g. DMG2305UX)
+VBATT ──────────┤S     D├──┬── R1 (1MΩ) ──┬── AIN0 (P0.02)
+                │  Gate  │  │              │
+         R30    │        │  │         R2 (1MΩ)
+       (100kΩ)  │        │  │              │
+         │      │        │  │             GND
+BAT_EN ──┴──────┘        │  │
+(P0.03, GPIO)            │  └── C33 (100nF) ── GND  (anti-alias)
+                         │
+                        GND
+
+Operation:
+  1. Set P0.03 LOW  → Q4 turns ON → divider energized
+  2. Wait 1ms (RC settling: 1MΩ × 100nF = 100µs, use 10τ)
+  3. Read ADC (12-bit)
+  4. Set P0.03 HIGH → Q4 turns OFF → zero divider current
+
+Divider math (1MΩ + 1MΩ):
+  Ratio: 0.5
+  Always-on current: 0 µA (gated off in sleep)
+  During read: 4.2V / 2MΩ = 2.1µA × 1ms = negligible
 
 ADC Configuration (from overlay lines 119-126):
   Gain: ADC_GAIN_1_6 (÷6)
@@ -806,8 +865,10 @@ Voltage calculation:
 
 **Component Selection:**
 - Use **1% tolerance** resistors for accuracy
-- Use **100kΩ** value to minimize battery drain: I = 4.2V / 200kΩ = **21 µA**
-- Add **100nF cap** across R2 for noise filtering (optional, adds settling time)
+- Use **1MΩ** value (gated) — zero standby drain
+- Q4: DMG2305UX P-MOSFET (SOT-23, Vgs(th) < 1V, Rds(on) < 100mΩ)
+- R30 (100kΩ): pull-up ensures divider is OFF when GPIO is floating/reset
+- C33 (100nF): anti-aliasing filter on ADC input
 
 ### 9.2 Battery Protection
 
