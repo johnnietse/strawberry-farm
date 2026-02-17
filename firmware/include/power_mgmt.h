@@ -14,7 +14,7 @@ enum PowerState {
 class PowerManager {
 private:
   PowerState currentState;
-  float batteryVoltage; // 3.3V - 4.2V (LiPo)
+  float batteryVoltage; // 3.0V - 4.2V (18650 Li-Ion, DW01A cutoff at 2.4V)
 
 public:
   PowerManager() : currentState(SYSTEM_ON_LP), batteryVoltage(3.8f) {}
@@ -49,8 +49,9 @@ public:
   }
 
   float getBatteryPercent() {
-    // LiPo Discharge Curve Mapping (Simple Linear for Simulation)
-    return (batteryVoltage - 3.3f) / (4.2f - 3.3f) * 100.0f;
+    // 18650 Discharge Curve Mapping (Simple Linear for Simulation)
+    // Range: 3.0V (empty, TPS62740 min Vin) to 4.2V (fully charged)
+    return (batteryVoltage - 3.0f) / (4.2f - 3.0f) * 100.0f;
   }
 
   void simulateChargeDepletion(float hours) {
