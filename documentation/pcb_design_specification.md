@@ -146,7 +146,7 @@ The G.O.S. Phytotron Sensor Node is a **battery-powered wireless environmental m
 | D3 | Schottky | **PMEG2010AEH** | SOD-323 | 1 | Reverse polarity BAT protect |
 | D4 | Schottky | **PMEG2010AEH** | SOD-323 | 1 | LED_VIN reverse protect |
 | R7 | 10kΩ | 1% | 0402 | 1 | TPS62740 PG pull-up |
-| R8 | 2kΩ | 1% | 0402 | 1 | BQ24075 ISET (750mA charge) |
+| R8 | 1.2kΩ | 1% | 0402 | 1 | BQ24075 ISET (742mA charge, KISET=890) |
 | R9 | 10kΩ | 1% | 0402 | 1 | BQ24075 ILIM (500mA USB) |
 | R10 | 10kΩ | NTC | 0402 | 1 | BQ24075 TS (battery temp) |
 
@@ -428,7 +428,7 @@ USB VBUS (5V) ──── F1 (500mA PTC) ──┬── BQ24075
                                      │   ├── IN ── VBUS (after fuse)
      D3 (Schottky)                   │   ├── OUT ── VSYS (to TPS62740 VIN)
      ├──── VBATT ─── BAT pin ────────┤   ├── BAT ── VBATT (to 18650)
-                                     │   ├── ISET ── R8 (2kΩ to GND) → 750mA
+                                     │   ├── ISET ── R8 (1.2kΩ to GND) → 742mA
                                      │   ├── ILIM ── R9 (10kΩ to GND) → 500mA
                                      │   ├── TS ── R10 (10kΩ NTC) → battery temp
                                      │   ├── CE ── VDD_3V3 (charge enable)
@@ -452,7 +452,7 @@ The grow LEDs (Cree XP-E2) draw significant current:
 **This CANNOT come from the coin cell / 18650 during normal operation.**
 
 Options:
-1. **Separate LED power input** via J3 connector (5V USB or dedicated supply)
+1. **Separate LED power input** via J6 connector (5-12V dedicated supply)
 2. **PWM duty cycle limiting** — firmware already does this
 3. **For prototype/demo:** Brief LED pulses only (< 100ms), acceptable from 18650
 
@@ -612,7 +612,7 @@ From device tree overlay line 69: `reg = <0x44>`
  SDA ──┤ SDA  VDD ├── VDD_3V3
        │          │     │
  SCL ──┤ SCL  VSS ├── GND
-       │          │     ┤ C11 (100nF)
+       │          │     ┤ C23 (100nF)
        └──────────┘     │
                        GND
 
@@ -756,20 +756,20 @@ Benefits:
 The nRF52840 requires a specific matching network for the 2.4GHz antenna:
 
 ```
-                    L2 (10nH)
+                    L4 (3.9nH)
 ANT pin ──┤├──┬──────────── Antenna Feed
               │
-              C (0.8pF)    ← May be parasitic, depends on layout
+              C31 (0.8pF)  ← Shunt to GND (required per Nordic AN-032)
               │
              GND
 
-Nordic's recommended matching network values:
-- For PCB antenna: Follow Nordic's AN-032 application note
+Nordic's recommended matching network values (AN-032):
+- For PCB antenna: L4=3.9nH series, C31=0.8pF shunt
 - For u.FL connector: 50Ω trace to connector, matching network per datasheet
 
 Component specs:
-- L2: Murata LQW15AN10NJ00 (10nH, 0402, SRF > 3GHz)
-- C: May not be needed if PCB antenna is well-tuned
+- L4: Murata LQW15AN3N9C00 (3.9nH, 0402, SRF > 6GHz)
+- C31: Murata GJM1555C1HR80 (0.8pF, 0402, C0G)
 ```
 
 ### 8.2 Antenna Options
@@ -828,8 +828,8 @@ From overlay lines 49-54:
 battery_adc {
     compatible = "voltage-divider";
     io-channels = <&adc 0>;
-    output-ohms = <100000>;         // R_bottom = 100kΩ
-    full-ohms = <(100000 + 100000)>; // R_top + R_bottom = 200kΩ
+    output-ohms = <1000000>;         // R_bottom = 1MΩ (gated divider)
+    full-ohms = <(1000000 + 1000000)>; // R_top + R_bottom = 2MΩ
 };
 ```
 
@@ -894,7 +894,7 @@ VBATT ──┬── DW01A
         │
         └── FS8205 (dual N-MOSFET)
             └── Protects against:
-                - Over-discharge (< 2.5V cutoff)
+                - Over-discharge (< 2.4V cutoff, ±0.1V)
                 - Over-charge (> 4.25V cutoff)
                 - Short circuit (> 3A cutoff)
                 - Reverse polarity
@@ -986,7 +986,7 @@ Step 10: Connectors (USB, SWD, battery, I2C ext)
         │  ┌─USB─┐                               │
    ┌────┤  └─────┘  ┌──────────┐                 ├── SHT4x
    │    │            │  nRF52840│  ┌──── Y1 ──┐  │   (thermal
-   │    │  ┌─REG─┐  │  (QFN48) │  │  32MHz    │  │    island)
+   │    │  ┌─REG─┐  │  (aQFN-73) │  │  32MHz    │  │    island)
    │    │  │TPS    │ │          │  └──────────┘  │
    │    │  │62740  │ │  ┌─────┐│                 │
  100mm  │  └──────┘  │  │DeCap││   Y2 (32kHz)   │
@@ -1195,7 +1195,7 @@ Board clearance zones:
 
 ### 14.2 Assembly Notes
 
-**QFN-48 Soldering (nRF52840):**
+**aQFN-73 Soldering (nRF52840):**
 - REQUIRES reflow oven or hot air station
 - Stencil paste application recommended
 - Inspect for solder bridges under QFN with X-ray (production)
@@ -1208,7 +1208,7 @@ Board clearance zones:
 - Pin headers
 
 **Reflow Required:**
-- nRF52840 (QFN-48)
+- nRF52840 (aQFN-73)
 - SHT4x (DFN-4)
 - TSL2591 (DFN-6)
 - TPS62740 (DSBGA-9) — WARNING: BGA requires stencil!
@@ -1265,7 +1265,7 @@ gos_sensor_node/
 ├── libraries/
 │   ├── gos_symbols.kicad_sym          (Custom symbols)
 │   └── gos_footprints.pretty/         (Custom footprints)
-│       ├── nRF52840_QFN48.kicad_mod
+│       ├── nRF52840_aQFN73.kicad_mod
 │       ├── SHT4x_DFN4.kicad_mod
 │       ├── TSL2591_DFN6.kicad_mod
 │       ├── IFA_2.4GHz.kicad_mod       (PCB antenna)

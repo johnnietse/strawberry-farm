@@ -152,7 +152,7 @@ Dashboard ← API ← Phenotyping Engine ← Sync Engine ← Database
 | Radio TX | 8 mA | 20ms | 0.05 mAh |
 | **Total** | - | - | **0.57 mAh/day** |
 
-With a 2000mAh coin cell: **2000 / 0.57 = 3,508 days ≈ 9.6 years** theoretical battery life.
+With a 3000mAh 18650 Li-Ion cell: **3000 / 0.57 = 5,263 days ≈ 14.4 years** theoretical battery life (derated to ~10+ years with self-discharge).
 
 ### SHT4x Temperature/Humidity Sensor
 
