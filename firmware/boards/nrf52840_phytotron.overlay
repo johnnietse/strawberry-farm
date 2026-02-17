@@ -45,12 +45,12 @@
         };
     };
 
-    /* Battery ADC monitoring */
+    /* Battery ADC monitoring (gated divider via Q4 P-MOSFET) */
     battery_adc {
         compatible = "voltage-divider";
         io-channels = <&adc 0>;
-        output-ohms = <100000>;
-        full-ohms = <(100000 + 100000)>;
+        output-ohms = <1000000>;         /* R_bottom = 1MΩ (was 100kΩ in v1) */
+        full-ohms = <(1000000 + 1000000)>; /* R_top + R_bottom = 2MΩ */
     };
 };
 
