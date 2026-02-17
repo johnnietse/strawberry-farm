@@ -244,7 +244,7 @@ class PhenotypingEngine:
             'low_light_stress': par_umol < 100 and 6 <= datetime.now().hour <= 18,
             'high_light_stress': par_umol > 1500,
             'humidity_stress': humidity_pct > 90 or humidity_pct < 40,
-            'sensor_low_battery': battery_mv < 2800,
+            'sensor_low_battery': battery_mv < 3000,  # TPS62740 practical operating floor
             'vpd_value': vpd,
             'stress_score': 0
         }

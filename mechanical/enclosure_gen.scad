@@ -2,7 +2,7 @@
 // G.O.S. PHYTOTRON SENSOR NODE ENCLOSURE - PRODUCTION VERSION
 // ==============================================================
 // Material: ASA (UV Resistant) or PETG for prototypes
-// Hardware: nRF52840 DK/Dongle + SHT4x + TSL2591 + 18650 Battery
+// Hardware: Custom G.O.S. PCB (nRF52840 aQFN-73) + SHT4x + TSL2591 + 18650 Battery
 // Author: G.O.S. Team | Queen's University EPOWER Lab
 // ==============================================================
 
@@ -16,8 +16,8 @@ wall_thickness = 2.5;
 corner_radius = 5;
 
 // Component mounting dimensions
-pcb_width = 64;      // nRF52 DK width
-pcb_length = 100;    // nRF52 DK length
+pcb_width = 40;      // Custom G.O.S. PCB width (per PCB spec §12.1)
+pcb_length = 65;     // Custom G.O.S. PCB length
 battery_diameter = 19; // 18650 battery
 battery_length = 68;
 

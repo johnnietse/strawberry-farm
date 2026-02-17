@@ -82,7 +82,7 @@ class PhytotronSimulator:
             # Simulate battery drain (realistic: starts at 4200mV, drains slowly)
             runtime_hours = (datetime.now() - self.start_time).total_seconds() / 3600
             battery_mv = int(4200 - (runtime_hours * 0.5) + random.gauss(0, 20))
-            battery_mv = max(3200, min(4200, battery_mv))
+            battery_mv = max(3000, min(4200, battery_mv))  # 18650: 3.0V-4.2V
             
             # Simulate RSSI (signal strength)
             rssi = -50 - (node_index % 20) + random.randint(-5, 5)
