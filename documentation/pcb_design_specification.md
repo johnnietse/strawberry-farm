@@ -161,18 +161,18 @@ The G.O.S. Phytotron Sensor Node is a **battery-powered wireless environmental m
 | R12-R13 | 100Ω | 1% | 0402 | 2 | I2C series damping resistors |
 
 > [!TIP]
-> **Lesson from Jacob Chisholm's FRC experience:** When using multiple I2C
+> **Lesson from professional experience:** When using multiple I2C
 > sensors, beware of fixed-address conflicts. The SHT4x (0x44) and TSL2591
 > (0x29) have different addresses so they share one bus safely. If adding
 > more sensors with conflicting addresses, use an I2C multiplexer (TCA9548A)
-> or a secondary I2C bus. Jacob encountered this exact issue with REV Color
+> or a secondary I2C bus. A professional encountered this exact issue with REV Color
 > Sensors on FRC robots and had to use a Raspberry Pi as a second I2C master.
 
 ### 2.6 ESD & Protection Components
 
 > [!WARNING]
 > **Lesson from embedded engineering practice:** Every exposed connector
-> pin (USB, I2C ext, antenna) MUST have ESD protection. Jacob's experience
+> pin (USB, I2C ext, antenna) MUST have ESD protection. A professional's experience
 > with sensors showed that even internal pull-downs/pull-ups can fail under
 > ESD stress. Series resistors on GPIO lines limit current to internal
 > protection diodes.
@@ -191,7 +191,7 @@ The G.O.S. Phytotron Sensor Node is a **battery-powered wireless environmental m
 ### 2.7 Reset, Buttons & Debounce
 
 > [!NOTE]
-> **Lesson from Jacob's VHDL debouncer work:** Mechanical buttons "bounce"
+> **Lesson from A professional's VHDL debouncer work:** Mechanical buttons "bounce"
 > for ~5-20ms. Hardware debouncing (RC filter) is more reliable than
 > software-only debounce, especially during reset sequences where firmware
 > hasn't started. Use 100nF + 10kΩ = ~1ms time constant.
@@ -410,7 +410,7 @@ VBATT ──┬── C18 (4.7µF) ── GND
 > The BQ24075 provides power-path management: system runs from USB when
 > available, automatically switching to battery when USB is disconnected.
 > This prevents battery wear during development/testing. Lesson from
-> Jacob's experience: always plan for both powered and battery operation.
+> A professional's experience: always plan for both powered and battery operation.
 
 ```
 USB VBUS (5V) ──── F1 (500mA PTC) ──┬── BQ24075
@@ -1365,7 +1365,7 @@ Copper zones:
 ## 16. Design Engineering Insights
 
 > This section documents lessons learned from professional embedded systems
-> engineering, including analysis of Jacob Chisholm's portfolio (VEX Robotics,
+> engineering, including analysis of A professional's portfolio (VEX Robotics,
 > FRC, ESP32, STM32, FPGA projects) and industry best practices for PCB design.
 
 ### 16.1 I2C Bus Management (From FRC Robot Experience)
@@ -1419,7 +1419,7 @@ traces routed under sensor, and copper pour thermal relief on sensor pads.
 
 ### 16.7 Firmware-Hardware Co-Design Principles
 
-From Jacob's STM32/FreeRTOS and Zephyr experience:
+From A professional's STM32/FreeRTOS and Zephyr experience:
 
 | Principle | Hardware Implication |
 |-----------|---------------------|
@@ -1434,4 +1434,4 @@ From Jacob's STM32/FreeRTOS and Zephyr experience:
 *G.O.S. Phytotron Sensor Node PCB Design Specification v2.0. All pin
 assignments, dimensions, and specifications derived directly from project
 source code. Engineering insights from professional embedded systems
-practice and Jacob Chisholm's portfolio analysis.*
+practice and A professional's portfolio analysis.*
