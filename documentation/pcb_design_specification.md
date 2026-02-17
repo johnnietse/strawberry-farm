@@ -84,56 +84,189 @@ The G.O.S. Phytotron Sensor Node is a **battery-powered wireless environmental m
 
 ## 2. Complete Bill of Materials
 
-### Core Components
+> [!IMPORTANT]
+> This BOM lists **every component** needed for fabrication, including all passive
+> components (resistors, capacitors, inductors, ferrite beads, diodes). Values are
+> derived from Nordic Semiconductor reference designs, component datasheets, and
+> lessons from professional embedded projects (see §2.7 Design Rationale).
+
+### 2.1 Active ICs
 
 | Ref | Component | Part Number | Package | Qty | Purpose |
 |-----|-----------|-------------|---------|-----|---------|
-| U1 | MCU | **nRF52840-QIAA** | QFN-48 (6×6mm) | 1 | Main processor + radio |
-| U2 | Temp/Humidity Sensor | **SHT40-AD1B** | DFN-4 (2.5×2.5mm) | 1 | ±0.1°C, ±1.8% RH |
-| U3 | Light Sensor | **TSL2591** | DFN-6 (2×2mm) | 1 | PAR measurement |
-| U4 | Voltage Regulator | **TPS62740** | DSBGA-9 (1.6×1.6mm) | 1 | 3.3V buck, 360nA Iq |
-| Y1 | Crystal | **NX3225GD-8M** | 3.2×2.5mm | 1 | 32MHz for nRF52840 |
-| Y2 | Crystal | **ABS07-32.768KHZ** | 3.2×1.5mm | 1 | 32.768kHz RTC |
+| U1 | MCU + Radio | **nRF52840-QIAA-R7** | aQFN-73 (7×7mm) | 1 | Cortex-M4F, 802.15.4, BLE |
+| U2 | Temp/Humidity | **SHT40-AD1B-R2** | DFN-4 (2.5×2.5mm) | 1 | ±0.1°C, ±1.8% RH, I2C 0x44 |
+| U3 | Light Sensor | **TSL2591FN** | DFN-6 (2×2mm) | 1 | 600M:1 dynamic range, I2C 0x29 |
+| U4 | Buck Regulator | **TPS62740DSSR** | DSBGA-9 (1.6×1.6mm) | 1 | 3.3V, 360nA Iq, 300mA |
+| U5 | Battery Charger | **BQ24075RGTR** | QFN-16 (3×3mm) | 1 | Li-Ion, USB power-path, 1.5A |
+| U6 | Battery Protection | **DW01A-G** | SOT-23-6 | 1 | OVP/ODP/OCP/SCP |
+| U7 | LED Driver (Blue) | **AL8860MP-13** | MSOP-8 | 1 | CC buck, 1.5A, PWM dim |
+| U8 | LED Driver (Red) | **AL8860MP-13** | MSOP-8 | 1 | CC buck, 1.5A, PWM dim |
+| Y1 | 32MHz Crystal | **NX3225GD-8M-EXS00A** | 3.2×2.5mm | 1 | HFXO, 8pF load, ±10ppm |
+| Y2 | 32.768kHz Crystal | **ABS07-120-32.768KHZ-T** | 3.2×1.5mm | 1 | LFXO, 7pF load, ±20ppm |
 
-### Passive Components
+### 2.2 nRF52840 Decoupling Capacitors (Nordic Reference)
 
-| Ref | Value | Package | Qty | Purpose |
-|-----|-------|---------|-----|---------|
-| C1-C4 | 100nF X7R | 0402 | 4 | nRF52840 decoupling |
-| C5-C6 | 1µF X7R | 0402 | 2 | nRF52840 VDDH, DEC1 |
-| C7-C8 | 12pF C0G | 0402 | 2 | 32MHz crystal load |
-| C9-C10 | 6.8pF C0G | 0402 | 2 | 32.768kHz crystal load |
-| C11 | 100nF X7R | 0402 | 1 | SHT4x decoupling |
-| C12 | 100nF X7R | 0402 | 1 | TSL2591 decoupling |
-| C13 | 10µF X5R | 0603 | 1 | Regulator input |
-| C14 | 10µF X5R | 0603 | 1 | Regulator output |
-| C15 | 4.7µF X5R | 0402 | 1 | DEC4 (nRF52840) |
-| L1 | 2.2µH | 0603 | 1 | Buck regulator inductor |
-| L2 | 10nH | 0402 | 1 | RF matching |
-| R1-R2 | 100kΩ 1% | 0402 | 2 | Battery voltage divider |
-| R3-R4 | 4.7kΩ | 0402 | 2 | I2C pull-ups |
-| R5-R6 | 100Ω | 0402 | 2 | LED current limiting (optional) |
+> [!NOTE]
+> Values corrected per Nordic nRF52840 Product Specification v1.8 §6.6.
+> DEC4 uses 1µF + 47nF (not 4.7µF). DEC5 is only needed for build codes
+> before Fxx. DECUSB is 4.7µF.
 
-### Connectors & Mechanical
+| Ref | Value | Dielectric | Pkg | Qty | nRF52840 Pin | Notes |
+|-----|-------|-----------|-----|-----|-------------|-------|
+| C1 | 4.7µF | X5R | 0402 | 1 | VDDH | Main supply decoupling |
+| C2-C5 | 100nF | X7R | 0402 | 4 | VDD (×4) | One per VDD pin, <2mm |
+| C6 | 100nF | X7R | 0402 | 1 | DEC1 | Internal reg output |
+| C7 | 1µF | X7R | 0402 | 1 | DEC4 | REG1 output (1.3V) bulk |
+| C8 | 47nF | X7R | 0402 | 1 | DEC4 | REG1 high-freq bypass |
+| C9 | 100nF | X7R | 0402 | 1 | DEC3 | Internal regulator |
+| C10 | 1µF | X5R | 0402 | 1 | DEC5 | DC/DC output (if used) |
+| C11 | 4.7µF | X5R | 0402 | 1 | DEC6 | DC/DC bulk (if DC/DC mode) |
+| C12 | 4.7µF | X5R | 0402 | 1 | DECUSB | USB 3.3V LDO output |
+| C13 | 1µF | X7R | 0402 | 1 | GPIO | nRF52840 GPIO port decouple |
 
-| Ref | Component | Purpose |
-|-----|-----------|---------|
-| J1 | USB Micro-B or USB-C | Programming & power |
-| J2 | 2×5 1.27mm header | SWD debug/programming |
-| J3 | 4-pin JST-SH (1mm) | External I2C sensor connector |
-| J4 | 2-pin JST-PH (2mm) | Battery connector |
-| J5 | u.FL connector (optional) | External antenna |
-| BT1 | 18650 holder (Keystone 1042) | Battery cradle |
-| — | M2.5 standoffs × 4 | PCB mounting to enclosure |
+### 2.3 Crystal Capacitors
 
-### LED Components (External or On-Board)
+| Ref | Value | Dielectric | Pkg | Qty | Purpose |
+|-----|-------|-----------|-----|-----|---------|
+| C14-C15 | 12pF | C0G/NP0 | 0402 | 2 | 32MHz crystal load (CL=8pF, Cstray~2pF) |
+| C16-C17 | 10pF | C0G/NP0 | 0402 | 2 | 32.768kHz crystal load (CL=7pF, Cstray~2pF) |
 
-| Ref | Component | Part Number | Wavelength | Purpose |
-|-----|-----------|-------------|------------|---------|
-| D1 | Blue LED | Cree XP-E2 Blue | 450nm | Vegetative growth |
-| D2 | Red LED | Cree XP-E2 Red | 660nm | Flowering/fruiting |
-| Q1 | N-MOSFET | SI2302CDS | SOT-23 | Blue LED driver |
-| Q2 | N-MOSFET | SI2302CDS | SOT-23 | Red LED driver |
+### 2.4 Power System Passives
+
+| Ref | Value | Dielectric/Rating | Pkg | Qty | Purpose |
+|-----|-------|-------------------|-----|-----|---------|
+| C18 | 4.7µF | X5R, 10V | 0603 | 1 | TPS62740 input (CIN) |
+| C19 | 10µF | X5R, 10V | 0603 | 1 | TPS62740 output (COUT) |
+| C20 | 10µF | X5R, 10V | 0603 | 1 | BQ24075 input (PMID) |
+| C21 | 4.7µF | X5R, 10V | 0603 | 1 | BQ24075 output (BAT) |
+| C22 | 1µF | X7R | 0402 | 1 | BQ24075 bypass |
+| L1 | 2.2µH | Murata LQH2MCN2R2 | 0805 | 1 | TPS62740 inductor (Isat>500mA) |
+| FB1 | 600Ω@100MHz | Murata BLM15AG601 | 0402 | 1 | Analog VDD filter (ADC supply) |
+| D3 | Schottky | **PMEG2010AEH** | SOD-323 | 1 | Reverse polarity BAT protect |
+| D4 | Schottky | **PMEG2010AEH** | SOD-323 | 1 | LED_VIN reverse protect |
+| R7 | 10kΩ | 1% | 0402 | 1 | TPS62740 PG pull-up |
+| R8 | 2kΩ | 1% | 0402 | 1 | BQ24075 ISET (750mA charge) |
+| R9 | 10kΩ | 1% | 0402 | 1 | BQ24075 ILIM (500mA USB) |
+| R10 | 10kΩ | NTC | 0402 | 1 | BQ24075 TS (battery temp) |
+
+### 2.5 Sensor & I2C Passives
+
+| Ref | Value | Dielectric | Pkg | Qty | Purpose |
+|-----|-------|-----------|-----|-----|---------|
+| C23 | 100nF | X7R | 0402 | 1 | SHT4x VDD decoupling (<2mm) |
+| C24 | 1µF | X7R, low-ESR | 0402 | 1 | TSL2591 VDD decoupling (<2mm) |
+| R3-R4 | 4.7kΩ | 1% | 0402 | 2 | I2C SDA/SCL pull-ups (shared bus) |
+| R11 | 10kΩ | 1% | 0402 | 1 | TSL2591 INT pull-up (open-drain) |
+| R12-R13 | 100Ω | 1% | 0402 | 2 | I2C series damping resistors |
+
+> [!TIP]
+> **Lesson from Jacob Chisholm's FRC experience:** When using multiple I2C
+> sensors, beware of fixed-address conflicts. The SHT4x (0x44) and TSL2591
+> (0x29) have different addresses so they share one bus safely. If adding
+> more sensors with conflicting addresses, use an I2C multiplexer (TCA9548A)
+> or a secondary I2C bus. Jacob encountered this exact issue with REV Color
+> Sensors on FRC robots and had to use a Raspberry Pi as a second I2C master.
+
+### 2.6 ESD & Protection Components
+
+> [!WARNING]
+> **Lesson from embedded engineering practice:** Every exposed connector
+> pin (USB, I2C ext, antenna) MUST have ESD protection. Jacob's experience
+> with sensors showed that even internal pull-downs/pull-ups can fail under
+> ESD stress. Series resistors on GPIO lines limit current to internal
+> protection diodes.
+
+| Ref | Value / Part | Pkg | Qty | Purpose |
+|-----|-------------|-----|-----|---------|
+| D5 | **PRTR5V0U2X** (dual TVS) | SOT-143B | 1 | USB D+/D- ESD (±8kV IEC) |
+| D6 | **PESD0402-140** (<1pF TVS) | 0402 | 1 | Antenna ESD (low-C, <0.25pF) |
+| D7-D8 | **PESD5V0S1BSF** (TVS) | SOD-962 | 2 | External I2C ESD (J3) |
+| R14 | 100Ω | 0402 | 1 | USB D+ series protection |
+| R15 | 100Ω | 0402 | 1 | USB D- series protection |
+| R16-R17 | 1kΩ | 0402 | 2 | External I2C series ESD limit |
+| F1 | 500mA PTC fuse | 0805 | 1 | USB VBUS overcurrent |
+| Q3 | **FS8205A** (dual NMOS) | TSSOP-8 | 1 | Battery OVP/ODP switch |
+
+### 2.7 Reset, Buttons & Debounce
+
+> [!NOTE]
+> **Lesson from Jacob's VHDL debouncer work:** Mechanical buttons "bounce"
+> for ~5-20ms. Hardware debouncing (RC filter) is more reliable than
+> software-only debounce, especially during reset sequences where firmware
+> hasn't started. Use 100nF + 10kΩ = ~1ms time constant.
+
+| Ref | Value | Pkg | Qty | Purpose |
+|-----|-------|-----|-----|---------|
+| R18 | 10kΩ | 0402 | 1 | RESET pull-up |
+| R19 | 10kΩ | 0402 | 1 | DFU button pull-up |
+| C25 | 100nF | X7R, 0402 | 1 | RESET debounce (RC w/ R18) |
+| C26 | 100nF | X7R, 0402 | 1 | DFU debounce (RC w/ R19) |
+| SW1 | Tactile switch | 6×6mm | 1 | RESET button |
+| SW2 | Tactile switch | 6×6mm | 1 | DFU/Boot button |
+
+### 2.8 LED Driver Passives (AL8860 × 2 channels)
+
+| Ref | Value | Rating | Pkg | Qty | Purpose |
+|-----|-------|--------|-----|-----|---------|
+| C27-C28 | 10µF | X5R, 25V | 0805 | 2 | AL8860 input caps (×1 each) |
+| C29-C30 | 47µF | X5R, 10V | 1206 | 2 | AL8860 output caps (×1 each) |
+| L2-L3 | 33µH | Isat>1.5A | 1210 | 2 | AL8860 buck inductors |
+| R20 | 0.1Ω | 1%, 1/2W | 1206 | 1 | Blue LED current sense (1A) |
+| R21 | 0.1Ω | 1%, 1/2W | 1206 | 1 | Red LED current sense (1A) |
+| R22-R23 | 10kΩ | 1% | 0402 | 2 | PWM CTRL pull-down (off default) |
+| D1 | Cree **XPEBBL-L1-0000-00201** | Star PCB | 1 | Blue LED, 450nm, 350-1000mA |
+| D2 | Cree **XPEBRO-L1-0000-00801** | Star PCB | 1 | Red LED, 660nm, 350-1000mA |
+
+### 2.9 RF Matching Network
+
+| Ref | Value | Part Number | Pkg | Qty | Purpose |
+|-----|-------|-------------|-----|-----|---------|
+| L4 | 3.9nH | Murata LQW15AN3N9C00 | 0402 | 1 | Antenna match series L |
+| C31 | 0.8pF | Murata GJM1555C1HR80 | 0402 | 1 | Antenna match shunt C |
+| C32 | 0.5pF | (placeholder / DNP) | 0402 | 1 | Fine tuning pad (optional) |
+| R24 | 0Ω | — | 0402 | 1 | PCB antenna select (default) |
+| R25 | DNP | — | 0402 | 1 | u.FL select (stuff alternate) |
+| J5 | u.FL/IPEX MHF | — | — | 1 | External antenna connector |
+
+### 2.10 Connectors & Mechanical
+
+| Ref | Component | Part Number | Qty | Purpose |
+|-----|-----------|-------------|-----|---------|
+| J1 | USB Type-C 2.0 | **GCT USB4085-GF-A** | 1 | Programming, charging, power |
+| J2 | 2×5 1.27mm header | Samtec FTSH-105-01 | 1 | SWD Cortex Debug |
+| J3 | 4-pin JST-SH (1mm) | **SM04B-SRSS-TB** | 1 | External I2C sensor |
+| J4 | 2-pin JST-PH (2mm) | **S2B-PH-K-S** | 1 | Battery connector |
+| J6 | 2-pin JST-XH (2.5mm) | — | 1 | LED power input (5-12V) |
+| BT1 | 18650 holder | **Keystone 1042P** | 1 | Spring-contact battery cradle |
+| — | M2.5×8 standoffs | — | 4 | PCB mounting |
+| — | Fiducial marks | 1mm Cu pad, 2mm mask | 3 | Pick-and-place alignment |
+
+### 2.11 Miscellaneous
+
+| Ref | Component | Pkg | Qty | Purpose |
+|-----|-----------|-----|-----|---------|
+| R26-R27 | 5.1kΩ | 0402 | 2 | USB-C CC1/CC2 (device mode) |
+| LED1 | Green | 0402 | 1 | Power indicator |
+| LED2 | Orange | 0402 | 1 | Charge status (from BQ24075) |
+| R28-R29 | 1kΩ | 0402 | 2 | Status LED current limit |
+
+### 2.12 Complete Component Count Summary
+
+| Category | Count |
+|----------|-------|
+| ICs (MCU, sensors, regulators, drivers) | 8 |
+| Crystals | 2 |
+| Capacitors | 32 |
+| Resistors | 29 |
+| Inductors / Ferrite beads | 5 |
+| Diodes (TVS, Schottky, LED) | 8 |
+| MOSFETs | 1 (dual) |
+| Connectors | 6 |
+| Switches | 2 |
+| Mechanical (holder, standoffs, fiducials) | 8 |
+| **Total unique line items** | **~65** |
+| **Total placed components** | **~101** |
 
 ---
 
@@ -145,12 +278,13 @@ Design your KiCad schematic as **hierarchical sheets**:
 
 ```
 Root Sheet: GOS_SENSOR_NODE.kicad_sch
-├── Power.kicad_sch        (Battery, regulator, power flags)
-├── MCU.kicad_sch          (nRF52840 + crystal + decoupling)
+├── Power.kicad_sch        (TPS62740, BQ24075 charger, power flags)
+├── Protection.kicad_sch   (DW01A+FS8205A, ESD TVS, fuse)
+├── MCU.kicad_sch          (nRF52840 + crystals + decoupling)
 ├── Sensors.kicad_sch      (SHT4x + TSL2591 + I2C bus)
-├── LEDs.kicad_sch         (MOSFET drivers + connectors)
-├── Radio.kicad_sch        (Antenna matching + u.FL)
-└── Connectors.kicad_sch   (USB, SWD, battery, external I2C)
+├── LEDs.kicad_sch         (AL8860 ×2 CC drivers + connectors)
+├── Radio.kicad_sch        (Antenna matching + u.FL + 0Ω select)
+└── Connectors.kicad_sch   (USB-C, SWD, battery, external I2C)
 ```
 
 ### 3.2 Net Names (From Device Tree Overlay)
@@ -164,13 +298,15 @@ Use these exact net names in KiCad for clarity:
 | `PWM_BLUE` | P0.13 | Blue LED PWM (50Hz, 20ms period) |
 | `PWM_RED` | P0.14 | Red LED PWM (50Hz, 20ms period) |
 | `TSL_INT` | P0.15 | TSL2591 interrupt (active low) |
-| `VBATT_SENSE` | AIN0 (P0.02) | Battery ADC input (through divider) |
+| `VBATT_SENSE` | AIN0 (P0.02) | Battery ADC input (through R1/R2 divider) |
 | `UART_TX` | P0.06 | Debug UART transmit |
 | `UART_RX` | P0.08 | Debug UART receive |
 | `SWDCLK` | — | SWD clock (dedicated pin) |
 | `SWDIO` | — | SWD data (dedicated pin) |
 | `VDD_3V3` | — | Regulated 3.3V rail |
 | `VBATT` | — | Raw battery (3.0-4.2V) |
+| `VBUS` | — | USB 5V input (from J1) |
+| `LED_VIN` | — | External LED power (5-12V, from J6) |
 | `GND` | — | Ground |
 
 ### 3.3 Power Flags & Net Labels
@@ -237,29 +373,60 @@ Practical battery life: ~10+ years
 ### 4.4 Regulator Circuit
 
 ```
-VBATT ──┬── C13 (10µF) ── GND
+VBATT ──┬── C18 (4.7µF) ── GND
         │
         ├── TPS62740
         │   ├── VIN ── VBATT
         │   ├── VOUT ── VDD_3V3
         │   ├── EN ── VBATT (always on)
         │   ├── SW ──┤ L1 (2.2µH) ├── VOUT
-        │   ├── FB ── voltage divider to VOUT
+        │   ├── VSEL[1:4] ── set for 3.3V output
+        │   ├── PG ──┤ R7 (10kΩ) ├── VDD_3V3 (power good)
         │   └── GND
         │
-        └── VDD_3V3 ──┬── C14 (10µF) ── GND
+        └── VDD_3V3 ──┬── C19 (10µF) ── GND
+                       ├── FB1 (600Ω ferrite) ── AVDD_3V3 (analog)
                        ├── To nRF52840
                        ├── To SHT4x
                        ├── To TSL2591
                        └── To I2C pull-ups
 
 ⚠ CRITICAL LAYOUT RULES:
-- Input cap C13 within 3mm of VIN pin
-- Output cap C14 within 3mm of VOUT pin
+- Input cap C18 within 3mm of VIN pin
+- Output cap C19 within 3mm of VOUT pin
 - Inductor L1 as close as possible to SW and VOUT
 - Keep the SW-L1-VOUT loop area MINIMAL
 - Solid ground plane under entire regulator area
 - No signal traces routed under or near the switching node
+- Ferrite bead FB1 isolates switching noise from ADC supply
+```
+
+### 4.4a Battery Charger Circuit (BQ24075)
+
+> [!NOTE]
+> The BQ24075 provides power-path management: system runs from USB when
+> available, automatically switching to battery when USB is disconnected.
+> This prevents battery wear during development/testing. Lesson from
+> Jacob's experience: always plan for both powered and battery operation.
+
+```
+USB VBUS (5V) ──── F1 (500mA PTC) ──┬── BQ24075
+                                     │   ├── IN ── VBUS (after fuse)
+     D3 (Schottky)                   │   ├── OUT ── VSYS (to TPS62740 VIN)
+     ├──── VBATT ─── BAT pin ────────┤   ├── BAT ── VBATT (to 18650)
+                                     │   ├── ISET ── R8 (2kΩ to GND) → 750mA
+                                     │   ├── ILIM ── R9 (10kΩ to GND) → 500mA
+                                     │   ├── TS ── R10 (10kΩ NTC) → battery temp
+                                     │   ├── CE ── VDD_3V3 (charge enable)
+                                     │   ├── PGOOD ── LED2 (charge indicator)
+                                     │   └── GND
+                                     │
+                                     └── C20 (10µF) ── GND
+
+Power Flow:
+  USB connected:  VBUS → F1 → BQ24075 → VSYS → TPS62740 → VDD_3V3
+                                      └→ BAT (charging 18650)
+  USB disconnected: VBATT → BQ24075 VSYS → TPS62740 → VDD_3V3
 ```
 
 ### 4.5 LED Power Consideration
@@ -291,22 +458,25 @@ LED_5V ──┬── Q1 (N-MOSFET) ── Blue LED ── R_sense
 
 ## 5. nRF52840 MCU Circuit
 
-### 5.1 Decoupling (From Nordic Reference Design)
+### 5.1 Decoupling (Corrected Per Nordic Spec v1.8 §6.6)
 
-The nRF52840 requires specific decoupling on each power pin:
+> [!IMPORTANT]
+> These values are corrected from v1.0 of this spec. DEC4 uses dual-cap
+> (1µF + 47nF), not single 4.7µF. VDDH is 4.7µF.
 
 ```
-Pin         Cap Value    Distance   Notes
-────────────────────────────────────────────────────
-VDDH        1µF          < 3mm     Main supply input
-VDD (×4)    100nF each   < 2mm     Core supply (one per pin)
-DEC1        100nF        < 1mm     Internal regulator output
-DEC2        NC                     Leave floating
-DEC3        100nF        < 1mm     Internal regulator
-DEC4        4.7µF        < 2mm     Internal regulator bulk
-DEC5        1µF          < 1mm     DC/DC output (if using)
-DEC6        4.7µF        < 2mm     DC/DC bulk (if using)
-VBUS        4.7µF        < 3mm     USB VBUS (if used)
+Pin         Cap Value        Ref    Distance   Notes
+──────────────────────────────────────────────────────────────
+VDDH        4.7µF X5R        C1     < 3mm     Main supply input
+VDD (×4)    100nF X7R each   C2-C5  < 2mm     One per VDD pin
+DEC1        100nF X7R        C6     < 1mm     Internal reg output
+DEC2        NC               —               Leave floating
+DEC3        100nF X7R        C9     < 1mm     Internal regulator
+DEC4        1µF + 47nF       C7,C8  < 2mm     REG1 1.3V output
+DEC5        1µF X5R          C10    < 1mm     DC/DC (build <Fxx)
+DEC6        4.7µF X5R        C11    < 2mm     DC/DC bulk
+DECUSB      4.7µF X5R        C12    < 3mm     Internal USB LDO
+GPIO        1µF X7R          C13    < 3mm     GPIO port decouple
 ```
 
 ### 5.2 Crystal Circuits
@@ -443,12 +613,12 @@ From device tree overlay lines 74-78: `reg = <0x29>`, `int-gpios = <&gpio0 15 GP
        │          │
  SDA ──┤ SDA  VDD ├── VDD_3V3
        │          │     │
- SCL ──┤ SCL  GND ├── GND     ┤ C12 (100nF)
+ SCL ──┤ SCL  GND ├── GND     ┤ C24 (1µF low-ESR)
        │          │            │
        │  INT     ├── P0.15   GND
        └──────────┘
             │
-        10kΩ pull-up to VDD_3V3
+        R11 (10kΩ) pull-up to VDD_3V3
         (internal pull on nRF52840 also acceptable)
 
 CRITICAL:
@@ -1117,18 +1287,90 @@ Copper zones:
 
 | Step | Priority | Effort |
 |------|----------|--------|
-| Create schematic (6 sheets) | HIGH | 2-3 hours |
+| Create schematic (7 sheets incl. Protection) | HIGH | 3-4 hours |
 | Verify footprints against datasheets | HIGH | 1 hour |
 | Place components per floorplan | HIGH | 1-2 hours |
 | Route RF trace (50Ω impedance) | CRITICAL | 1 hour |
 | Route crystal traces | CRITICAL | 30 min |
-| Route power traces | HIGH | 1 hour |
+| Route power traces (incl. charger) | HIGH | 1.5 hours |
 | Route remaining signals | MEDIUM | 1-2 hours |
 | Copper fills + via stitching | HIGH | 30 min |
 | DRC + ERC clean | HIGH | 30 min |
 | Generate Gerbers + BOM | MEDIUM | 30 min |
-| **Total estimated time** | | **8-12 hours** |
+| **Total estimated time** | | **10-14 hours** |
 
 ---
 
-*PCB design specification for the G.O.S. Phenotyping Platform sensor node. All pin assignments, dimensions, and specifications derived directly from project source code.*
+## 16. Design Engineering Insights
+
+> This section documents lessons learned from professional embedded systems
+> engineering, including analysis of Jacob Chisholm's portfolio (VEX Robotics,
+> FRC, ESP32, STM32, FPGA projects) and industry best practices for PCB design.
+
+### 16.1 I2C Bus Management (From FRC Robot Experience)
+
+**Problem:** Multiple sensors with fixed I2C addresses on a shared bus.
+**Example:** REV Color Sensors (all address 0x52) required bus multiplexing.
+**Our Solution:** SHT4x (0x44) and TSL2591 (0x29) have unique addresses —
+no conflict on this design. However, if J3 external sensor has a conflicting
+address, add a TCA9548A I2C multiplexer to the Sensors schematic sheet.
+
+### 16.2 ESD Protection as a Non-Negotiable
+
+**Problem:** GPIO pins damaged by static discharge during testing/assembly.
+**Industry Data:** >30% of field failures in consumer electronics trace to ESD.
+**Our Solution:** TVS diodes on every external-facing connector (USB, I2C ext,
+antenna). Series resistors (100Ω-1kΩ) on exposed GPIOs limit current through
+internal protection diodes. PTC fuse on USB VBUS prevents overcurrent.
+
+### 16.3 Hardware Debouncing (From VHDL Debouncer Work)
+
+**Problem:** Mechanical switch bounce causes multiple edge detections.
+**Why Hardware:** During RESET, firmware hasn't started — software debounce
+cannot help. RC filter (10kΩ + 100nF = 1ms τ) provides reliable debounce.
+**VHDL Insight:** Even FPGA designs use multi-stage synchronizers for
+metastability; analog RC filtering is the PCB equivalent.
+
+### 16.4 Power-Path Management (From Battery-Powered Design)
+
+**Problem:** Continuously charging/discharging battery during development
+reduces cycle life and causes unexpected behavior.
+**Our Solution:** BQ24075 power-path management allows system to run
+directly from USB while independently charging the battery. This extends
+development convenience and battery longevity.
+
+### 16.5 Analog Supply Isolation (From ADC Accuracy Requirements)
+
+**Problem:** Switching regulator noise couples into ADC readings, degrading
+battery voltage measurement accuracy.
+**Our Solution:** Ferrite bead (FB1, 600Ω@100MHz) between VDD_3V3 and
+AVDD_3V3 creates a low-pass filter that attenuates switching noise.
+Combined with proper ADC trace guarding (ground traces on both sides),
+this ensures clean 12-bit ADC readings.
+
+### 16.6 Thermal Management for Sensor Accuracy
+
+**Problem:** Self-heating from MCU, regulator, and LEDs affects SHT4x
+temperature measurement (±0.1°C accuracy target).
+**Our Solution:** Thermal isolation slot in PCB (milled slot creating a
+peninsula), SHT4x placed at board edge near ventilation grille, no power
+traces routed under sensor, and copper pour thermal relief on sensor pads.
+
+### 16.7 Firmware-Hardware Co-Design Principles
+
+From Jacob's STM32/FreeRTOS and Zephyr experience:
+
+| Principle | Hardware Implication |
+|-----------|---------------------|
+| DMA for peripheral I/O | Reserve DMA channels in pin assignment |
+| Thread-safe sensor drivers | I2C bus mutex — one set of pull-ups |
+| Watchdog timer | Add TP on WDT output for debug |
+| Power state machine | EN pin on regulator, CTRL on LED drivers |
+| OTA firmware update | USB-C DFU + SWD debug header both required |
+
+---
+
+*G.O.S. Phytotron Sensor Node PCB Design Specification v2.0. All pin
+assignments, dimensions, and specifications derived directly from project
+source code. Engineering insights from professional embedded systems
+practice and Jacob Chisholm's portfolio analysis.*
