@@ -48,8 +48,8 @@ The G.O.S. Phytotron Sensor Node is a **battery-powered wireless environmental m
   (3.0-4.2V)        │  │ Battery │    │    nRF52840       │   │
        │            │  │ Monitor │    │    (aQFN-73)      │   │
        │            │  │ (ADC +  │    │                   │   │
-       ├── Boost ───┤  │ divider,│    │ P0.26 ── I2C SDA │───┤── SHT4x (0x44)
-       │   3.3V     │  │ gated)  │    │ P0.27 ── I2C SCL │───┤── TSL2591 (0x29)
+       │            │  │ divider,│    │ P0.26 ── I2C SDA │───┤── SHT4x (0x44)
+       │   Buck  ───┤  │ gated)  │    │ P0.27 ── I2C SCL │───┤── TSL2591 (0x29)
        │            │  └────┬────┘    │                   │   │
        │            │       │         │ P0.13 ── PWM CH0  │───┤── Blue LED Driver
        │            │       │         │ P0.14 ── PWM CH1  │───┤── Red LED Driver
@@ -251,22 +251,33 @@ The G.O.S. Phytotron Sensor Node is a **battery-powered wireless environmental m
 | LED2 | Orange | 0402 | 1 | Charge status (from BQ24075) |
 | R28-R29 | 1kΩ | 0402 | 2 | Status LED current limit |
 
+### 2.11a Battery Monitoring Components (Gated Divider)
+
+| Ref | Component | Pkg | Qty | Purpose |
+|-----|-----------|-----|-----|---------|
+| R1 | 1MΩ, 1% | 0402 | 1 | Battery divider top (gated) |
+| R2 | 1MΩ, 1% | 0402 | 1 | Battery divider bottom (gated) |
+| R30 | 100kΩ | 0402 | 1 | Q4 gate pull-up (divider OFF at reset) |
+| C33 | 100nF, X7R | 0402 | 1 | ADC anti-aliasing filter |
+| Q4 | **DMG2305UX** (P-MOSFET) | SOT-23 | 1 | Battery divider gate switch |
+
 ### 2.12 Complete Component Count Summary
 
 | Category | Count |
 |----------|-------|
-| ICs (MCU, sensors, regulators, drivers) | 8 |
+| ICs (MCU, sensors, regulators, drivers, protection) | 8 |
 | Crystals | 2 |
-| Capacitors | 32 |
-| Resistors | 29 |
+| Capacitors | 33 |
+| Resistors | 32 |
 | Inductors / Ferrite beads | 5 |
 | Diodes (TVS, Schottky, LED) | 8 |
-| MOSFETs | 1 (dual) |
+| MOSFETs | 2 (1 dual + 1 P-ch) |
 | Connectors | 6 |
 | Switches | 2 |
+| LEDs (indicator) | 2 |
 | Mechanical (holder, standoffs, fiducials) | 8 |
-| **Total unique line items** | **~65** |
-| **Total placed components** | **~101** |
+| **Total unique line items** | **~70** |
+| **Total placed components** | **~108** |
 
 ---
 
