@@ -1,0 +1,57 @@
+{
+  "id": "gos_sensor_node_pcb-04",
+  "seq": "04",
+  "title": "Fix ERC errors: Duplicate net names and label conflicts",
+  "status": "pending",
+  "depends_on": ["01"],
+  "parallel": true,
+  "suggested_agent": "HardwareEngineer",
+  "context_files": [
+    {
+      "path": "pcbs/gos_sensor_node/WIRING_GUIDE.md",
+      "lines": "334-342",
+      "reason": "ERC verification checklist"
+    }
+  ],
+  "reference_files": [
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_sch",
+    "pcbs/gos_sensor_node/power.kicad_sch",
+    "pcbs/gos_sensor_node/MCU.kicad_sch",
+    "pcbs/gos_sensor_node/sensors.kicad_sch",
+    "pcbs/gos_sensor_node/radio.kicad_sch",
+    "pcbs/gos_sensor_node/leds.kicad_sch",
+    "pcbs/gos_sensor_node/protection.kicad_sch",
+    "pcbs/gos_sensor_node/connectors.kicad_sch"
+  ],
+  "acceptance_criteria": [
+    "Run netlist export: `kicad-cli sch export netlist`",
+    "Check for duplicate net names across hierarchical sheets",
+    "Verify global labels match hierarchical labels on root sheet",
+    "Key nets to verify: VBUS, VSYS, VDD_3V3, VBATT, AVDD_3V3, LED_VIN, VBATT_SENSE, BAT_EN",
+    "I2C nets: I2C0_SDA, I2C0_SCL (not I2C_SDA/I2C_SCL mismatch)",
+    "SPI nets: SX1262_NSS, SX1262_SCK, SX1262_MISO, SX1262_MOSI, SX1262_BUSY, SX1262_DIO1, SX1262_DIO2, SX1262_DIO3, SX1262_NRESET",
+    "UART nets: UART_TX, UART_RX (debug), L76K_TXD, L76K_RXD, L76K_PPS",
+    "PWM nets: PWM_BLUE, PWM_RED",
+    "ADC nets: VBATT_SENSE, VBUS_SENSE, VSYS_SENSE",
+    "No duplicate net name errors in ERC",
+    "All inter-sheet references resolve correctly"
+  ],
+  "deliverables": [
+    "netlist.net (exported netlist)",
+    "net_duplicates_check.md (verification report)"
+  ],
+  "bounded_context": "hardware",
+  "module": "gos_sensor_node",
+  "vertical_slice": "pcb-validation",
+  "contracts": [
+    {
+      "type": "hardware",
+      "name": "PinAssignmentContract",
+      "path": "pcbs/gos_sensor_node/WIRING_GUIDE.md"
+    }
+  ],
+  "design_components": [
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_sch"
+  ],
+  "related_adrs": []
+}

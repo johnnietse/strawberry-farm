@@ -1,0 +1,54 @@
+{
+  "id": "gos_sensor_node_pcb-07",
+  "seq": "07",
+  "title": "Run DRC and resolve all PCB layout violations",
+  "status": "pending",
+  "depends_on": ["06"],
+  "parallel": false,
+  "suggested_agent": "HardwareEngineer",
+  "context_files": [
+    {
+      "path": "pcbs/gos_sensor_node/WIRING_GUIDE.md",
+      "lines": "343-344",
+      "reason": "DRC verification checklist"
+    },
+    {
+      "path": "pcbs/gos_sensor_node/PROJECT_CONTEXT.md",
+      "lines": "86-88",
+      "reason": "Board outline specs: 40x65mm, 2-layer, 1.6mm FR4, 3mm radius corners"
+    }
+  ],
+  "reference_files": [
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_pcb"
+  ],
+  "acceptance_criteria": [
+    "Run: kicad-cli pcb drc --output drc.txt gos_sensor_node.kicad_pcb",
+    "DRC report shows 0 errors",
+    "DRC report shows 0 warnings (or only acceptable warnings documented)",
+    "Verify board outline: 40mm x 65mm, 1.6mm FR4, 3mm corner radius",
+    "Verify: 2-layer stackup (F.Cu, B.Cu)",
+    "Check: Minimum trace width ≥ 0.15mm (6mil) for signals, ≥ 0.3mm (12mil) for power",
+    "Check: Minimum clearance ≥ 0.15mm (6mil)",
+    "Check: Minimum via size 0.3mm drill, 0.5mm annular ring",
+    "Check: Power nets (VBUS, VSYS, VDD_3V3, VBATT) have adequate copper pour",
+    "Check: RF trace (ANT) impedance controlled (50Ω target)",
+    "Check: Crystal traces (Y1, Y2) kept short with guard rings",
+    "Check: Decoupling capacitors placed close to IC power pins",
+    "Check: Thermal vias under TPS62740, BQ24075, AL8860 packages",
+    "Check: Ground plane stitching vias throughout",
+    "Save DRC report as drc_report.txt"
+  ],
+  "deliverables": [
+    "drc_report.txt (KiCad DRC output)",
+    "DRC pass confirmation",
+    "Updated gos_sensor_node.kicad_pcb with fixes"
+  ],
+  "bounded_context": "hardware",
+  "module": "gos_sensor_node",
+  "vertical_slice": "pcb-validation",
+  "contracts": [],
+  "design_components": [
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_pcb"
+  ],
+  "related_adrs": []
+}

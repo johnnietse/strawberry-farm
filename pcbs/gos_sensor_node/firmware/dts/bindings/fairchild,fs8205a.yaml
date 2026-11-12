@@ -1,0 +1,12 @@
+description: Fairchild FS8205A Dual N-MOSFET
+compatible: "fairchild,fs8205a"
+include: [gpio-device.yaml]
+properties:
+  gate1-gpios:
+    type: phandle-array
+    required: true
+    description: Gate 1 control
+  gate2-gpios:
+    type: phandle-array
+    required: true
+    description: Gate 2 control

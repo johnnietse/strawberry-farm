@@ -1,0 +1,54 @@
+description: Semtech SX1262 LoRa Transceiver
+compatible: "semtech,sx1262"
+include: [spi-device.yaml]
+properties:
+  spi-max-frequency:
+    type: int
+    default: 8000000
+    description: SPI max frequency in Hz
+  nss-gpios:
+    type: phandle-array
+    required: true
+    description: NSS (Chip Select) GPIO
+  busy-gpios:
+    type: phandle-array
+    required: true
+    description: BUSY pin
+  dio1-gpios:
+    type: phandle-array
+    required: true
+    description: DIO1 interrupt
+  dio2-gpios:
+    type: phandle-array
+    description: DIO2 GPIO
+  dio3-gpios:
+    type: phandle-array
+    description: DIO3 GPIO
+  nreset-gpios:
+    type: phandle-array
+    required: true
+    description: Reset GPIO
+  frequency:
+    type: int
+    required: true
+    description: RF frequency in Hz
+  spreading-factor:
+    type: int
+    required: true
+    description: Spreading factor (7-12)
+  bandwidth:
+    type: int
+    required: true
+    description: Bandwidth in Hz
+  coding-rate:
+    type: int
+    required: true
+    description: Coding rate (1=4/5, 2=4/6, 3=4/7, 4=4/8)
+  preamble-length:
+    type: int
+    default: 8
+    description: Preamble length
+  tx-power:
+    type: int
+    default: 22
+    description: TX power in dBm

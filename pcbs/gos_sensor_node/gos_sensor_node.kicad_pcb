@@ -78,5 +78,77 @@
 		)
 	)
 	(net 0 "")
+	(net 1 "GND")
+	(net 2 "+3.3V")
+	(net 3 "VBATT")
+	(gr_rect
+		(start 0 0)
+		(end 40 65)
+		(stroke (width 0.15) (type default))
+		(fill (type none))
+		(layer "Edge.Cuts")
+		(uuid "b0100001-0001-0001-0001-000000000001")
+	)
+
+	; ================================================================
+	; Mounting Holes: M2.5, 3mm from edges (4 corners)
+	; ================================================================
+	(footprint "MountingHole:MountingHole_2.7mm_M2.5"
+		(layer "F.Cu")
+		(uuid "f0100001-0001-0001-0001-000000000001")
+		(at 3 3)
+		(property "Reference" "H1" (at 0 -2.5 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))
+		(property "Value" "MountingHole" (at 0 2.5 0) (layer "F.Fab") (effects (font (size 1 1) (thickness 0.15))))
+		(pad "" thru_hole circle (at 0 0) (size 2.7 2.7) (drill 2.7) (layers "*.Cu" "*.Mask"))
+	)
+	(footprint "MountingHole:MountingHole_2.7mm_M2.5"
+		(layer "F.Cu")
+		(uuid "f0100002-0001-0001-0001-000000000001")
+		(at 37 3)
+		(property "Reference" "H2" (at 0 -2.5 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))
+		(property "Value" "MountingHole" (at 0 2.5 0) (layer "F.Fab") (effects (font (size 1 1) (thickness 0.15))))
+		(pad "" thru_hole circle (at 0 0) (size 2.7 2.7) (drill 2.7) (layers "*.Cu" "*.Mask"))
+	)
+	(footprint "MountingHole:MountingHole_2.7mm_M2.5"
+		(layer "F.Cu")
+		(uuid "f0100003-0001-0001-0001-000000000001")
+		(at 3 62)
+		(property "Reference" "H3" (at 0 -2.5 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))
+		(property "Value" "MountingHole" (at 0 2.5 0) (layer "F.Fab") (effects (font (size 1 1) (thickness 0.15))))
+		(pad "" thru_hole circle (at 0 0) (size 2.7 2.7) (drill 2.7) (layers "*.Cu" "*.Mask"))
+	)
+	(footprint "MountingHole:MountingHole_2.7mm_M2.5"
+		(layer "F.Cu")
+		(uuid "f0100004-0001-0001-0001-000000000001")
+		(at 37 62)
+		(property "Reference" "H4" (at 0 -2.5 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))
+		(property "Value" "MountingHole" (at 0 2.5 0) (layer "F.Fab") (effects (font (size 1 1) (thickness 0.15))))
+		(pad "" thru_hole circle (at 0 0) (size 2.7 2.7) (drill 2.7) (layers "*.Cu" "*.Mask"))
+	)
+
+	; ================================================================
+	; Ground Pour - Front Copper
+	; ================================================================
+	(zone
+		(net 1) (net_name "GND") (layer "F.Cu") (uuid "z0100001-0001-0001-0001-000000000001")
+		(hatch edge 0.5)
+		(connect_pads (clearance 0.3))
+		(min_thickness 0.2)
+		(fill yes (thermal_gap 0.3) (thermal_bridge_width 0.3))
+		(polygon (pts (xy 0 0) (xy 40 0) (xy 40 65) (xy 0 65)))
+	)
+
+	; ================================================================
+	; Ground Pour - Back Copper
+	; ================================================================
+	(zone
+		(net 1) (net_name "GND") (layer "B.Cu") (uuid "z0100002-0001-0001-0001-000000000001")
+		(hatch edge 0.5)
+		(connect_pads (clearance 0.3))
+		(min_thickness 0.2)
+		(fill yes (thermal_gap 0.3) (thermal_bridge_width 0.3))
+		(polygon (pts (xy 0 0) (xy 40 0) (xy 40 65) (xy 0 65)))
+	)
+
 	(embedded_fonts no)
 )

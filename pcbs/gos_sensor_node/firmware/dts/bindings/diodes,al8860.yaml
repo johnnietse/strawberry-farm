@@ -1,0 +1,22 @@
+description: Diodes AL8860 LED Driver
+compatible: "diodes,al8860"
+include: [pwm-device.yaml]
+properties:
+  pwms:
+    type: phandle-array
+    required: true
+    description: PWM control input
+  fb-gpios:
+    type: phandle-array
+    description: Feedback pin
+  en-gpios:
+    type: phandle-array
+    description: Enable pin
+  current-ma:
+    type: int
+    required: true
+    description: LED current in mA
+  pwm-frequency:
+    type: int
+    default: 100000
+    description: PWM frequency in Hz

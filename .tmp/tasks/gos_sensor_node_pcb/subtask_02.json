@@ -1,0 +1,62 @@
+{
+  "id": "gos_sensor_node_pcb-02",
+  "seq": "02",
+  "title": "Fix ERC errors: Power flags missing on all power domains",
+  "status": "pending",
+  "depends_on": ["01"],
+  "parallel": false,
+  "suggested_agent": "HardwareEngineer",
+  "context_files": [
+    {
+      "path": "pcbs/gos_sensor_node/WIRING_GUIDE.md",
+      "lines": "50-58, 334-342",
+      "reason": "Power flag requirements and locations"
+    },
+    {
+      "path": "pcbs/gos_sensor_node/PROJECT_CONTEXT.md",
+      "lines": "198-215",
+      "reason": "Power domain mapping table"
+    }
+  ],
+  "reference_files": [
+    "pcbs/gos_sensor_node/power.kicad_sch",
+    "pcbs/gos_sensor_node/MCU.kicad_sch",
+    "pcbs/gos_sensor_node/sensors.kicad_sch",
+    "pcbs/gos_sensor_node/radio.kicad_sch",
+    "pcbs/gos_sensor_node/leds.kicad_sch",
+    "pcbs/gos_sensor_node/protection.kicad_sch",
+    "pcbs/gos_sensor_node/connectors.kicad_sch"
+  ],
+  "acceptance_criteria": [
+    "PWR_FLAG on VBUS (near J2 USB-C)",
+    "PWR_FLAG on VSYS (near BQ24075 OUT / TPS62740 VIN)",
+    "PWR_FLAG on VDD_3V3 (near TPS62740 VOUT)",
+    "PWR_FLAG on VBATT (near battery connector J1 / DW01A VCC)",
+    "PWR_FLAG on AVDD_3V3 (near ferrite bead FB1 / SX1262 VDD)",
+    "PWR_FLAG on LED_VIN (near Q4 load switch / AL8860 VIN)",
+    "PWR_FLAG on VBATT_SENSE (near ADC divider)",
+    "PWR_FLAG on BAT_EN (near DW01A control)"
+  ],
+  "deliverables": [
+    "Updated schematic sheets with PWR_FLAG symbols",
+    "ERC re-run confirmation (0 errors)"
+  ],
+  "bounded_context": "hardware",
+  "module": "gos_sensor_node",
+  "vertical_slice": "pcb-validation",
+  "contracts": [
+    {
+      "type": "hardware",
+      "name": "PowerDomainContract",
+      "path": "pcbs/gos_sensor_node/PROJECT_CONTEXT.md"
+    }
+  ],
+  "design_components": [
+    "pcbs/gos_sensor_node/power.kicad_sch",
+    "pcbs/gos_sensor_node/MCU.kicad_sch",
+    "pcbs/gos_sensor_node/radio.kicad_sch",
+    "pcbs/gos_sensor_node/leds.kicad_sch",
+    "pcbs/gos_sensor_node/protection.kicad_sch"
+  ],
+  "related_adrs": []
+}
