@@ -1,0 +1,16 @@
+description: Texas Instruments BQ24075 Battery Charger
+compatible: "ti,bq24075"
+include: [i2c-device.yaml]
+properties:
+  pg-gpios:
+    type: phandle-array
+    description: Power Good output
+  stat-gpios:
+    type: phandle-array
+    description: Status output
+  ce-gpios:
+    type: phandle-array
+    description: Charge Enable input
+  ts-gpios:
+    type: phandle-array
+    description: Thermistor input

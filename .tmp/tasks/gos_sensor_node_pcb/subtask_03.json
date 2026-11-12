@@ -1,0 +1,51 @@
+{
+  "id": "gos_sensor_node_pcb-03",
+  "seq": "03",
+  "title": "Fix ERC errors: Unconnected pins and no-connect flags",
+  "status": "pending",
+  "depends_on": ["01"],
+  "parallel": true,
+  "suggested_agent": "HardwareEngineer",
+  "context_files": [
+    {
+      "path": "pcbs/gos_sensor_node/WIRING_GUIDE.md",
+      "lines": "334-342",
+      "reason": "ERC verification checklist"
+    }
+  ],
+  "reference_files": [
+    "pcbs/gos_sensor_node/power.kicad_sch",
+    "pcbs/gos_sensor_node/MCU.kicad_sch",
+    "pcbs/gos_sensor_node/sensors.kicad_sch",
+    "pcbs/gos_sensor_node/radio.kicad_sch",
+    "pcbs/gos_sensor_node/leds.kicad_sch",
+    "pcbs/gos_sensor_node/protection.kicad_sch",
+    "pcbs/gos_sensor_node/connectors.kicad_sch"
+  ],
+  "acceptance_criteria": [
+    "All explicitly unconnected pins marked with 'No Connect' (X) symbol",
+    "BQ24075: PGOOD (pin 8), TMR (pin 9) - verify NC is intentional",
+    "TPS62740: PG (pin 8) - verify NC is intentional (not monitored by MCU)",
+    "SX1262: TCXO (pin 28) - tied to GND per design (internal XO used)",
+    "L76K: Pins 6-16 (GND) - all connected to GND",
+    "AL8860: BOOT (pin 6) - verify connection or NC",
+    "DW01A: TD (pin 4) - connected to delay capacitor R2",
+    "No 'pin not connected' ERC errors remaining",
+    "All NC pins documented in schematic with text notes"
+  ],
+  "deliverables": [
+    "Updated schematic sheets with NC flags",
+    "erc_fixes_nc.md (list of pins marked NC with justification)"
+  ],
+  "bounded_context": "hardware",
+  "module": "gos_sensor_node",
+  "vertical_slice": "pcb-validation",
+  "contracts": [],
+  "design_components": [
+    "pcbs/gos_sensor_node/power.kicad_sch",
+    "pcbs/gos_sensor_node/radio.kicad_sch",
+    "pcbs/gos_sensor_node/leds.kicad_sch",
+    "pcbs/gos_sensor_node/protection.kicad_sch"
+  ],
+  "related_adrs": []
+}

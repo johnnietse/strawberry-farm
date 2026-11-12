@@ -1,0 +1,105 @@
+{
+  "id": "gos_sensor_node_pcb",
+  "name": "G.O.S. Sensor Node PCB Rev 2.0 - Validation & Production Readiness",
+  "status": "active",
+  "objective": "Complete schematic ERC fixes, PCB layout validation, component footprint verification, firmware integration readiness, and production preparation for G.O.S. Sensor Node Rev 2.0",
+  "context_files": [
+    "pcbs/gos_sensor_node/PROJECT_CONTEXT.md",
+    "pcbs/gos_sensor_node/WIRING_GUIDE.md",
+    ".opencode/context/core/standards/code-quality.md",
+    ".opencode/context/core/standards/security-patterns.md"
+  ],
+  "reference_files": [
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_sch",
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_pcb",
+    "pcbs/gos_sensor_node/power.kicad_sch",
+    "pcbs/gos_sensor_node/MCU.kicad_sch",
+    "pcbs/gos_sensor_node/sensors.kicad_sch",
+    "pcbs/gos_sensor_node/radio.kicad_sch",
+    "pcbs/gos_sensor_node/leds.kicad_sch",
+    "pcbs/gos_sensor_node/protection.kicad_sch",
+    "pcbs/gos_sensor_node/connectors.kicad_sch",
+    "pcbs/gos_sensor_node/libraries/Custom.kicad_sym",
+    "firmware/prj.conf",
+    "firmware/boards/nrf52840_phytotron.overlay",
+    "firmware/src/main.c",
+    "firmware/drivers/led_control.c",
+    "firmware/include/protocol.h"
+  ],
+  "exit_criteria": [
+    "ERC passes with 0 errors and 0 warnings on all 8 schematic sheets",
+    "DRC passes with 0 errors on PCB layout",
+    "All component footprints validated against datasheets",
+    "Netlist matches between schematic and PCB",
+    "Firmware builds successfully with Zephyr RTOS",
+    "All critical hardware interfaces verified (I2C, SPI, UART, PWM, ADC, RF)",
+    "Production BOM generated with verified MPNs",
+    "Assembly documentation complete (pick-and-place, BOM, fabrication notes)"
+  ],
+  "subtask_count": 24,
+  "completed_count": 0,
+  "created_at": "2026-07-18T11:55:00Z",
+  "bounded_context": "hardware",
+  "module": "gos_sensor_node",
+  "vertical_slice": "pcb-validation",
+  "contracts": [
+    {
+      "type": "hardware",
+      "name": "PinAssignmentContract",
+      "path": "pcbs/gos_sensor_node/WIRING_GUIDE.md",
+      "status": "defined",
+      "description": "Pin-to-net mapping for nRF52840 AQFN-73"
+    },
+    {
+      "type": "hardware",
+      "name": "PowerDomainContract",
+      "path": "pcbs/gos_sensor_node/PROJECT_CONTEXT.md",
+      "status": "defined",
+      "description": "Power domain mapping: VBUS, VSYS, VDD_3V3, VBATT, AVDD_3V3, LED_VIN"
+    },
+    {
+      "type": "firmware",
+      "name": "DevicetreeOverlayContract",
+      "path": "firmware/boards/nrf52840_phytotron.overlay",
+      "status": "defined",
+      "description": "Zephyr devicetree overlay for custom board"
+    }
+  ],
+  "design_components": [
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_sch",
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_pcb",
+    "pcbs/gos_sensor_node/WIRING_GUIDE.md"
+  ],
+  "related_adrs": [
+    {
+      "id": "ADR-001",
+      "path": "docs/adr/001-nrf52840-selection.md",
+      "title": "Select nRF52840 as primary MCU for Thread/BLE/LoRa"
+    },
+    {
+      "id": "ADR-002",
+      "path": "docs/adr/002-thread-mesh-networking.md",
+      "title": "Use OpenThread (Thread 1.2) for mesh networking"
+    },
+    {
+      "id": "ADR-003",
+      "path": "docs/adr/003-zephyr-rtos.md",
+      "title": "Adopt Zephyr RTOS v3.x for firmware development"
+    }
+  ],
+  "rice_score": {
+    "reach": 50,
+    "impact": 5,
+    "confidence": 90,
+    "effort": 3,
+    "score": 7500
+  },
+  "wsjf_score": {
+    "business_value": 9,
+    "time_criticality": 8,
+    "risk_reduction": 9,
+    "job_size": 4,
+    "score": 6.5
+  },
+  "release_slice": "v2.0-hardware-validation"
+}

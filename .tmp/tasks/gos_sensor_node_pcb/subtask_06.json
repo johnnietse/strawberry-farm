@@ -1,0 +1,43 @@
+{
+  "id": "gos_sensor_node_pcb-06",
+  "seq": "06",
+  "title": "Update PCB from schematic (F8) and verify netlist sync",
+  "status": "pending",
+  "depends_on": ["05"],
+  "parallel": false,
+  "suggested_agent": "HardwareEngineer",
+  "context_files": [
+    {
+      "path": "pcbs/gos_sensor_node/WIRING_GUIDE.md",
+      "lines": "342-343",
+      "reason": "F8 update PCB command reference"
+    }
+  ],
+  "reference_files": [
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_pcb",
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_sch"
+  ],
+  "acceptance_criteria": [
+    "Run: kicad-cli sch export netlist --format kicadsexpr --output netlist.net gos_sensor_node.kicad_sch",
+    "In PCB editor: Tools → Update PCB from Schematic (F8)",
+    "Verify: No 'new footprints' added unexpectedly",
+    "Verify: No 'deleted footprints' unless intentional",
+    "Verify: All nets from schematic appear in PCB",
+    "Verify: No 'unconnected' nets in PCB that should be connected",
+    "Check: Net count matches between schematic and PCB",
+    "Save updated PCB file"
+  ],
+  "deliverables": [
+    "Updated gos_sensor_node.kicad_pcb",
+    "netlist.net (exported netlist)",
+    "F8 sync confirmation log"
+  ],
+  "bounded_context": "hardware",
+  "module": "gos_sensor_node",
+  "vertical_slice": "pcb-validation",
+  "contracts": [],
+  "design_components": [
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_pcb"
+  ],
+  "related_adrs": []
+}

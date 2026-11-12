@@ -1,0 +1,58 @@
+{
+  "id": "gos_sensor_node_pcb-08",
+  "seq": "08",
+  "title": "Validate RF layout: SX1262 matching network and antenna path",
+  "status": "pending",
+  "depends_on": ["07"],
+  "parallel": true,
+  "suggested_agent": "RFEngineer",
+  "context_files": [
+    {
+      "path": "pcbs/gos_sensor_node/PROJECT_CONTEXT.md",
+      "lines": "178-180",
+      "reason": "RF pin assignments and antenna net"
+    },
+    {
+      "path": "pcbs/gos_sensor_node/PROJECT_CONTEXT.md",
+      "lines": "196-202",
+      "reason": "RF matching network components"
+    },
+    {
+      "path": "pcbs/gos_sensor_node/WIRING_GUIDE.md",
+      "lines": "196-203",
+      "reason": "RF matching network wiring guide"
+    }
+  ],
+  "reference_files": [
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_pcb",
+    "pcbs/gos_sensor_node/radio.kicad_sch"
+  ],
+  "acceptance_criteria": [
+    "SX1262 RF_OUT (pin 3) → L4 (3.9nH) → C31 (0.8pF) → ANT net → J3 test point",
+    "SX1262 RF_IN (pin 2) → C32 (1pF to GND shunt) → ANT net",
+    "RF trace impedance: 50Ω coplanar waveguide with ground pour on both sides",
+    "RF trace length minimized (< 5mm ideal)",
+    "No vias on RF trace between SX1262 and antenna",
+    "Ground pour around RF trace with stitching vias (λ/20 spacing ~ 3mm at 915MHz)",
+    "L4 (3.9nH) and C31 (0.8pF) footprints: 0402, placed close to SX1262 pins",
+    "C32 (1pF) shunt to GND placed at RF_IN pin",
+    "Antenna test point J3 accessible for u.FL connector option",
+    "SX1262 VDD pins (12-22) have decoupling: 100nF + 1µF + 4.7µF near pins",
+    "TCXO pin (28) tied to GND (using internal 32MHz XO per design)",
+    "DIO1/DIO2/DIO3 routed to MCU with minimal length"
+  ],
+  "deliverables": [
+    "RF layout validation checklist (signed)",
+    "Annotated PCB screenshots of RF section",
+    "Impedance calculation notes"
+  ],
+  "bounded_context": "hardware",
+  "module": "gos_sensor_node",
+  "vertical_slice": "pcb-validation",
+  "contracts": [],
+  "design_components": [
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_pcb",
+    "pcbs/gos_sensor_node/radio.kicad_sch"
+  ],
+  "related_adrs": []
+}

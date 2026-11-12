@@ -1,0 +1,51 @@
+{
+  "id": "gos_sensor_node_pcb-01",
+  "seq": "01",
+  "title": "Run ERC on all 8 schematic sheets and document errors",
+  "status": "pending",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "HardwareEngineer",
+  "context_files": [
+    {
+      "path": "pcbs/gos_sensor_node/WIRING_GUIDE.md",
+      "lines": "334-361",
+      "reason": "ERC verification checklist and kicad-cli commands"
+    },
+    {
+      "path": ".opencode/context/core/standards/code-quality.md",
+      "lines": "1-50",
+      "reason": "Quality standards for validation"
+    }
+  ],
+  "reference_files": [
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_sch",
+    "pcbs/gos_sensor_node/power.kicad_sch",
+    "pcbs/gos_sensor_node/MCU.kicad_sch",
+    "pcbs/gos_sensor_node/sensors.kicad_sch",
+    "pcbs/gos_sensor_node/radio.kicad_sch",
+    "pcbs/gos_sensor_node/leds.kicad_sch",
+    "pcbs/gos_sensor_node/protection.kicad_sch",
+    "pcbs/gos_sensor_node/connectors.kicad_sch"
+  ],
+  "acceptance_criteria": [
+    "Run `kicad-cli sch erc` on root schematic and all 8 sheets",
+    "Document all errors and warnings with sheet, component, and net references",
+    "Zero ERC errors required for pass",
+    "Zero ERC warnings preferred (document any acceptable warnings)",
+    "All power nets have PWR_FLAG symbols",
+    "No unconnected pins (except explicitly NC)"
+  ],
+  "deliverables": [
+    "erc_report.txt (full ERC output)",
+    "erc_errors_summary.md (categorized error list with fixes)"
+  ],
+  "bounded_context": "hardware",
+  "module": "gos_sensor_node",
+  "vertical_slice": "pcb-validation",
+  "contracts": [],
+  "design_components": [
+    "pcbs/gos_sensor_node/gos_sensor_node.kicad_sch"
+  ],
+  "related_adrs": []
+}
