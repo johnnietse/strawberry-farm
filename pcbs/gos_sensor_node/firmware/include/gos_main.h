@@ -1,48 +1,34 @@
 #ifndef GOS_MAIN_H
 #define GOS_MAIN_H
 
-#include <zephyr/kernel.h>
-#include <zephyr/device.h>
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+
+#include <zephyr/sys/util.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/* Bits of gos_sensor_data.valid: set when that reading succeeded */
+#define GOS_VALID_CLIMATE BIT(0)
+#define GOS_VALID_LIGHT   BIT(1)
+#define GOS_VALID_BATTERY BIT(2)
+#define GOS_VALID_CHARGER BIT(3)
+
 struct gos_sensor_data {
-    float temp_c;
-    float humidity_pct;
-    float pressure_hpa;
-    float lux;
-    int16_t battery_mv;
-    uint32_t timestamp;
+	int temp_mc;        /* air temperature, 0.001 degC */
+	int humidity_mpct;  /* relative humidity, 0.001 % */
+	int light_lux;      /* TSL2591 combined reading, lux */
+	int battery_mv;     /* cell voltage at VBAT, mV */
+	bool usb_power;     /* charger reports good USB power */
+	bool charging;      /* charger reports charge in progress */
+	uint8_t valid;      /* GOS_VALID_* */
+	int64_t uptime_ms;
 };
 
-struct gos_system_config {
-    uint32_t sensor_interval_ms;
-    uint32_t coap_interval_ms;
-    uint32_t log_interval_ms;
-    uint8_t spectral_blue_pct;
-    uint8_t spectral_red_pct;
-    int8_t tx_power_dbm;
-    uint8_t spreading_factor;
-    uint8_t bandwidth;
-    uint8_t coding_rate;
-};
-
-extern struct gos_sensor_data g_sensor_data;
-extern struct gos_system_config g_system_config;
-extern struct k_mutex sensor_data_mutex;
-
-int gos_system_init(void);
-int gos_sensor_thread_start(void);
-int gos_radio_thread_start(void);
-int gos_power_thread_start(void);
-int gos_led_thread_start(void);
-
-void gos_sensor_data_lock(void);
-void gos_sensor_data_unlock(void);
+/* Set the two LED-board PWM channels, 0 to 100 % each. */
+int gos_set_spectral_mix(uint8_t blue_pct, uint8_t red_pct);
 
 #ifdef __cplusplus
 }
