@@ -1,3 +1,5 @@
+> **Superseded.** This file describes rev 2 hardware and firmware. Rev 3 pin map, power tree, firmware layout and sources are in [HARDWARE.md](HARDWARE.md).
+
 # G.O.S. Sensor Node - Complete Wiring Guide
 
 This guide provides exact pin-to-label mappings for wiring all 8 schematic sheets in KiCAD UI.

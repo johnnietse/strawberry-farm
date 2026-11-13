@@ -1,3 +1,5 @@
+> **Superseded.** This file describes rev 2 hardware and firmware. Rev 3 pin map, power tree, firmware layout and sources are in [HARDWARE.md](HARDWARE.md).
+
 # G.O.S. Sensor Node — Project Context Document
 
 > **Project**: G.O.S. (Growth Optimization System) Sensor Node  
