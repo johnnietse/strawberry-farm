@@ -603,20 +603,8 @@
       "Sensors"
     ],
     [
-      "320038e9-843e-44b2-834d-741380968427",
-      "LEDs"
-    ],
-    [
-      "49086b45-c442-4250-a326-03a58e023e67",
-      "Radio"
-    ],
-    [
       "8aa840d5-f7bd-4929-a259-30ad40fabe7f",
       "Connectors"
-    ],
-    [
-      "111d27e8-c6f5-49b7-93da-5a15b28128a4",
-      "Protection"
     ]
   ],
   "text_variables": {}
