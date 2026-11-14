@@ -49,3 +49,6 @@ firmware/build/
 *.hex
 *.bin
 *.elf
+
+# Thread network key for the sensor node firmware
+pcbs/gos_sensor_node/firmware/credentials.conf

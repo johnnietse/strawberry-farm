@@ -1,0 +1,28 @@
+menu "G.O.S. sensor node"
+
+config GOS_NODE_INDEX
+	int "Node index (phytotron position)"
+	range 1 40
+	default 1
+	help
+	  Sent in byte 1 of every research packet. Give each node its own value.
+
+config GOS_UPLINK_PEER_ADDR
+	string "IPv6 address the uplink is sent to"
+	default "ff03::1"
+	help
+	  Default is the realm-local all-nodes multicast address, which reaches
+	  every Thread device including the border router, so no gateway address
+	  has to be known. Set a unicast address to send to one host only.
+
+config GOS_UPLINK_PEER_PORT
+	int "UDP port the uplink is sent to"
+	default 5683
+
+config GOS_UPLINK_URI_PATH
+	string "CoAP URI path for the uplink"
+	default "telemetry"
+
+endmenu
+
+source "Kconfig.zephyr"

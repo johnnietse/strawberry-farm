@@ -147,12 +147,39 @@ west build -b raytac_mdbt50q_db_40/nrf52840
 | File | Role |
 |---|---|
 | `boards/raytac_mdbt50q_db_40_nrf52840.overlay` | turns the demo board into this board: pins, sensors, battery divider, charger status |
-| `src/main.c` | every 60 s reads SHT40, TSL2591, battery voltage and charger status and logs them; feeds the watchdog; holds both LED-board PWM channels at 0 % |
-| `prj.conf` | driver subsystems only |
+| `src/main.c` | every 60 s reads SHT40, TSL2591, battery voltage and charger status, logs them and sends them over Thread; feeds the watchdog; holds both LED-board PWM channels at 0 % |
+| `src/uplink.c` | builds the 22-byte PACKET_V2 research packet and sends it as a non-confirmable CoAP POST |
+| `Kconfig` | node index (1 to 40), uplink address, port and CoAP path |
+| `credentials.conf` | Thread network key; git-ignored, copy from `credentials.conf.example`. Without it the node cannot join. |
+| `prj.conf` | driver subsystems; Thread as a sleepy end device polling every 1 s, channel 15, PAN 0x1234, name GOS_PHYTOTRON |
 
 It uses Zephyr's own SHT4x, TSL2591 and voltage-divider drivers. There are no project drivers or bindings.
 
-Not implemented: Thread / CoAP uplink, low-power sleep, any use of the user button or the TSL2591 interrupt.
+### Uplink
+
+| Setting | Default | Change with |
+|---|---|---|
+| Destination | `ff03::1` (all Thread devices, including the border router) port 5683 | `CONFIG_GOS_UPLINK_PEER_ADDR`, `CONFIG_GOS_UPLINK_PEER_PORT` |
+| CoAP path | `/telemetry` | `CONFIG_GOS_UPLINK_URI_PATH` |
+| Node index | 1 | `CONFIG_GOS_NODE_INDEX` |
+
+Payload, 22 bytes, all fields little-endian, decode with Python `struct.unpack("<BBQffHH", payload)`:
+
+| Offset | Field | Notes |
+|---|---|---|
+| 0 | version | always 2 |
+| 1 | node index | |
+| 2 | EUI-64 | factory address as an integer, first EUI byte most significant |
+| 10 | temperature, float, degC | NaN if the read failed |
+| 14 | humidity, float, %RH | NaN if the read failed |
+| 18 | light, lux | clamped to 65534; 65535 if the read failed |
+| 20 | battery, mV | 65535 if the read failed |
+
+This follows `documentation/hardware_protocol.md`. That document does not say how the EUI-64 is ordered or what marks a failed reading; the choices above are this firmware's.
+
+Nothing in `gateway/` receives this yet: `otbr_gateway.py` is a simulator with no CoAP listener.
+
+Not implemented: low-power sleep (the TSL2591 stays awake at 275 uA), any use of the user button or the TSL2591 interrupt.
 
 ## Sources
 
@@ -176,4 +203,5 @@ Not implemented: Thread / CoAP uplink, low-power sleep, any use of the user butt
 - Battery life is an estimate from datasheet figures (see Power budget), not a measurement.
 - FS8205A: the Fortune Semiconductor part (LCSC C16052) is listed as discontinued and unavailable. Parts with the same name from other makers are stocked (for example TECH PUBLIC, LCSC C2830320). Their pinout has not been checked against this footprint.
 - The board is not laid out. `gos_sensor_node.kicad_pcb` is still the empty rev 2 file.
-- The firmware compiles (Zephyr `main` at f8da8ea, 2026-11-12, SDK 1.0.1, GCC 14.3) with no errors or warnings: 48 KB flash, 8.6 KB RAM. It has never run on hardware. Built without `dtc`, so the overlay was parsed by Zephyr's Python devicetree tooling only.
+- The firmware compiles (Zephyr `main` at f8da8ea, 2026-11-12, SDK 1.0.1, GCC 14.3) with no compiler warnings: 211 KB flash, 62 KB RAM with Thread. The packet encoder was also checked on a PC against the Python decode. It has never run on hardware or joined a Thread network.
+- Zephyr warns that keys stored in flash, including the Thread network key, are protected only by a key derived from the chip ID. Anyone with the board and a debugger can read them. Built without `dtc`, so the overlay was parsed by Zephyr's Python devicetree tooling only.
