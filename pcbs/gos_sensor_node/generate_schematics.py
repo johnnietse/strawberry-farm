@@ -28,7 +28,7 @@ FPDIR = os.environ.get("KICAD9_FOOTPRINT_DIR", KICAD + r"\share\kicad\footprints
 KICAD_CLI = os.environ.get("KICAD_CLI", KICAD + r"\bin\kicad-cli.exe")
 
 PROJECT = "gos_sensor_node"
-REV = "3.0"
+REV = "3.1"
 ROOT_UUID = "c897bbcf-82b3-4b94-b14c-2b8219114053"
 GENERATOR = "gos_sensor_node_generator"
 
@@ -465,7 +465,7 @@ def build():
            " -> TPS62740 (3.3 V, all four VSEL high)\n"
            "USB500 mode: EN2 = GND, EN1 high only while VBUS is present (no battery drain through the EN pull-down).\n"
            "Charge 494 mA (ISET 1.8k), safety timer 9.1 h (TMR 68k), termination 10 % (ITERM open).\n"
-           "TH1 must sit against the cell holder. Without a thermistor fit a fixed 10k instead.", 25.4, 20.32)
+           "TH1 sits beside J5: it senses board temperature next to the cell, not the cell itself. Without a thermistor fit a fixed 10k.", 25.4, 20.32)
     s.part("U1", "Battery_Management:BQ24074RGT", 101.6, 81.28, "BQ24074RGT",
            "Package_DFN_QFN:VQFN-16-1EP_3x3mm_P0.5mm_EP1.6x1.6mm",
            {"13": "VBUS", "OUT": "VSYS", "BAT": "VBAT", "VSS": "GND", "4": "GND", "5": "GND",
@@ -500,10 +500,13 @@ def build():
 
     s.text("Cell protection. BAT_N is the cell negative, NOT system GND: the FS8205A sits between them.\n"
            "DW01A trips: overcharge 4.30 V, overdischarge 2.40 V (release 3.0 V), overcurrent 150 mV across both FETs (about 2.5 A).\n"
-           "Q2 blocks a cell inserted backwards. After fitting a cell, plug USB in once to wake the DW01A.", 25.4, 195.58)
+           "The 18650 sits in the enclosure cradle and plugs into J5 (pin 1 = positive). Q2 blocks a reversed lead.\n"
+           "After connecting a cell, plug USB in once to wake the DW01A.", 25.4, 195.58)
     y = 223.52
-    s.part("BT1", "Device:Battery_Cell", 45.72, y, "18650 holder", "Battery:BatteryHolder_Keystone_1042_1x18650",
-           {"1": "BAT_P", "2": "BAT_N"}, MPN="1042", Manufacturer="Keystone")
+    s.part("J5", "Connector_Generic:Conn_01x02", 48.26, y, "Battery JST-PH",
+           "Connector_JST:JST_PH_S2B-PH-K_1x02_P2.00mm_Horizontal",
+           {"1": "BAT_P", "2": "BAT_N"}, stub=2.54, MPN="S2B-PH-K-S", Manufacturer="JST",
+           Description="Battery lead connector, pin 1 = cell positive. The 18650 sits in the enclosure cradle.")
     s.part("Q2", "Transistor_FET:AO3401A", 83.82, y, "AO3401A", "Package_TO_SOT_SMD:SOT-23",
            {"1": "BAT_N", "2": "VBAT", "3": "BAT_P"}, MPN="AO3401A", Manufacturer="Alpha & Omega")
     s.R("100R", "VBAT", "DW_VCC", 116.84, y)
@@ -555,7 +558,8 @@ def build():
     # ---------------- sensors
     s = sens
     s.text("I2C addresses: SHT40 0x44, TSL2591 0x29. Place U5 away from the charger and buck (self-heating).\n"
-           "U6 needs a clear view of the light: no part taller than it nearby.", 25.4, 25.4)
+           "U6 needs a clear view of the light: no part taller than it nearby. U6 needs at least 2.7 V and is rated -30 to 70 C.\n"
+           "No copper under U5 other than its four pads (Sensirion land pattern); its centre pad stays unsoldered.", 25.4, 25.4)
     s.part("U5", "Sensor_Humidity:SHT4x", 76.2, 88.9, "SHT40-AD1B",
            "Sensor_Humidity:Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad",
            {"SDA": "I2C_SDA", "SCL": "I2C_SCL", "VDD": "+3V3", "VSS": "GND"},
@@ -572,7 +576,8 @@ def build():
     # ---------------- connectors
     s = conn
     s.text("J1: USB 2.0 device. 5.1k on each CC pin asks the host for 5 V.\n"
-           "J4 feeds the separate LED driver board from VSYS (battery or USB). 100k pull-downs keep the drivers off during reset.\n"
+           "J4 carries only the two PWM signals to the separate LED driver board, which has its own 5 to 12 V supply\n"
+           "(AL8860 needs at least 4.5 V; do not power it from this board). 100k pull-downs hold the signals low during reset.\n"
            "J2: standard 10-pin 1.27 mm Cortex debug header.", 25.4, 20.32)
     s.part("J1", "Connector:USB_C_Receptacle_USB2.0_16P", 60.96, 86.36, "USB-C USB4105-GF-A",
            "Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal",
@@ -594,8 +599,8 @@ def build():
             "10": "NRESET"}, nc=["7", "8"])
     s.part("J3", "Connector_Generic:Conn_01x04", 317.5, 71.12, "I2C", "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
            {"1": "+3V3", "2": "GND", "3": "I2C_SDA", "4": "I2C_SCL"}, stubs={"1": 7.62})
-    s.part("J4", "Connector_Generic:Conn_01x06", 317.5, 121.92, "LED board", "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical",
-           {"1": "VSYS", "2": "VSYS", "3": "GND", "4": "GND", "5": "PWM_BLUE_C", "6": "PWM_RED_C"})
+    s.part("J4", "Connector_Generic:Conn_01x04", 317.5, 121.92, "LED board PWM", "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+           {"1": "GND", "2": "PWM_BLUE_C", "3": "PWM_RED_C", "4": "GND"})
     s.R("100R", "PWM_BLUE", "PWM_BLUE_C", 259.08, 142.24)
     s.R("100R", "PWM_RED", "PWM_RED_C", 276.86, 142.24)
     s.R("100k", "PWM_BLUE_C", "GND", 259.08, 180.34)
@@ -620,7 +625,8 @@ def write_all():
     root = Sheet("root", "Root", PROJECT + ".kicad_sch", None, "A4", "G.O.S. sensor node")
     root.text("G.O.S. sensor node rev %s\n\n"
               "18650 cell + USB-C charging, nRF52840 module (Thread / BLE), SHT40 and TSL2591 over I2C.\n"
-              "LED drivers live on a separate board fed through J4. LoRa and GNSS are not fitted.\n\n"
+              "LED drivers live on a separate, separately powered board; J4 gives it the two PWM signals.\n"
+              "The 18650 sits in the enclosure and plugs into J5. LoRa and GNSS are not fitted.\n\n"
               "Sheets share nets through global labels and power symbols; the sheet symbols below carry no pins.\n"
               "Pin map, power tree and datasheet sources: HARDWARE.md" % REV, 25.4, 25.4, 1.524)
     for i, sh in enumerate(sheets):
