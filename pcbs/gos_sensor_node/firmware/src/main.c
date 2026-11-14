@@ -8,7 +8,9 @@
  * After each sample a PACKET_V2 research packet goes out over Thread
  * (src/uplink.c).
  *
- * Not implemented: low-power sleep.
+ * Between samples all threads sleep, so Zephyr idles the CPU in System ON
+ * sleep. The light sensor is powered only while it is read. For a field
+ * build without the debug console, add -DEXTRA_CONF_FILE=low_power.conf.
  */
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
@@ -18,6 +20,7 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/sys/util.h>
 
 #include <stdlib.h>
@@ -89,19 +92,27 @@ static int read_light(struct gos_sensor_data *d)
 		return -ENODEV;
 	}
 	/*
+	 * The TSL2591 draws 275 uA awake and 2.3 uA asleep, so it is powered
+	 * up only for the reading. TSL2591_FETCH_WAIT makes the fetch wait
+	 * for one full integration after power-up.
+	 */
+	err = pm_device_action_run(tsl2591, PM_DEVICE_ACTION_RESUME);
+	if (err && err != -EALREADY) {
+		return err;
+	}
+	/*
 	 * The Zephyr TSL2591 driver reports lux only on SENSOR_CHAN_ALL.
 	 * SENSOR_CHAN_LIGHT is the raw visible channel, a relative value.
 	 */
 	err = sensor_sample_fetch_chan(tsl2591, SENSOR_CHAN_ALL);
-	if (err) {
-		return err;
+	if (!err) {
+		err = sensor_channel_get(tsl2591, SENSOR_CHAN_ALL, &lux);
 	}
-	err = sensor_channel_get(tsl2591, SENSOR_CHAN_ALL, &lux);
-	if (err) {
-		return err;
+	if (!err) {
+		d->light_lux = lux.val1;
 	}
-	d->light_lux = lux.val1;
-	return 0;
+	(void)pm_device_action_run(tsl2591, PM_DEVICE_ACTION_SUSPEND);
+	return err;
 }
 
 static int read_battery(struct gos_sensor_data *d)
@@ -278,6 +289,10 @@ int main(void)
 	err = gos_set_spectral_mix(0, 0);
 	if (err) {
 		LOG_ERR("LED board PWM init failed: %d", err);
+	}
+	if (device_is_ready(tsl2591)) {
+		/* the driver powers the sensor on at boot; keep it off until needed */
+		(void)pm_device_action_run(tsl2591, PM_DEVICE_ACTION_SUSPEND);
 	}
 	err = watchdog_start();
 	if (err) {
