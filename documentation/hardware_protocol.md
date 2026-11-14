@@ -15,6 +15,13 @@ Sent via UDP (MQTT-SN / CoAP) from the nRF52 node to the Raspberry Pi.
 | **0x12** | LUX_LEVEL    | uint16 | lux | TSL2591 Light Level |
 | **0x14** | BATT_VOLTAGE | uint16 | mV | ADC reading of 18650 cell |
 
+### Transport and encoding (as implemented)
+
+- Node firmware `pcbs/gos_sensor_node/firmware/src/uplink.c` sends the packet as a non-confirmable CoAP POST to `/telemetry`, UDP 5683, default destination `ff03::1`.
+- All fields are little-endian. The EUI-64 is an integer whose most significant byte is the first byte of the EUI-64. Decode with `struct.unpack("<BBQffHH", payload)`.
+- A failed reading is sent as NaN (floats) or 0xFFFF (integers) and stored as NULL.
+- The gateway receiver is `gateway/services/coap_receiver.py`. It writes `node_id = RF-NODE-<index>`, `sample_identity = EUI64:<16 hex digits>`, temperature, humidity and battery to `raw_telemetry`. Lux goes in `payload.light_lux`; `par_umol` stays NULL because the node measures lux, not PAR.
+
 ## 🔗 2. The Database Sink (Integration)
 The Gateway translates the binary packet above into the following SQL Insert:
 

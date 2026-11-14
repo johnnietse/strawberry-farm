@@ -177,7 +177,7 @@ Payload, 22 bytes, all fields little-endian, decode with Python `struct.unpack("
 
 This follows `documentation/hardware_protocol.md`. That document does not say how the EUI-64 is ordered or what marks a failed reading; the choices above are this firmware's.
 
-Nothing in `gateway/` receives this yet: `otbr_gateway.py` is a simulator with no CoAP listener.
+The gateway receiver is `gateway/services/coap_receiver.py` (Docker Compose service `coap_receiver`, started with `docker compose --profile hardware up` on the border router host). It stores each packet in `raw_telemetry`; lux goes in `payload.light_lux` because `par_umol` is PAR, which the node does not measure.
 
 Not implemented: low-power sleep (the TSL2591 stays awake at 275 uA), any use of the user button or the TSL2591 interrupt.
 
