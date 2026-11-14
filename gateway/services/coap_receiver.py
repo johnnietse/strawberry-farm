@@ -22,6 +22,7 @@ Environment:
 
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import math
@@ -50,8 +51,13 @@ CODE_BAD_REQUEST = 0x80     # 4.00
 CODE_NOT_FOUND = 0x84       # 4.04
 CODE_METHOD_NOT_ALLOWED = 0x85  # 4.05
 OPTION_URI_PATH = 11
-# RFC 7252 section 4.5: drop a repeated message ID from the same sender.
-# NON_LIFETIME (145 s) covers retransmits and network duplicates.
+# RFC 7252 section 4.5: drop a repeated message from the same sender.
+# NON_LIFETIME (145 s) covers retransmits and network duplicates. A packet
+# counts as a repeat only if source address, port, message ID, token and
+# payload all match, so a spoofed packet reusing a node's next message ID
+# cannot suppress the real one. Only stored packets are remembered.
+# The uplink itself is not authenticated: anyone on the Thread network can
+# still send packets that look like a node's.
 DEDUP_SECONDS = 145
 DEDUP_MAX_ENTRIES = 4096
 
@@ -194,12 +200,12 @@ class CoapReceiver(asyncio.DatagramProtocol):
         self.rejected = 0
         self.duplicates = 0
         self._clock = clock
-        self._seen = OrderedDict()  # (source, message id) -> (time, reply)
+        self._seen = OrderedDict()  # (source, port, message id) -> (time, fingerprint, reply)
 
     def _seen_reply(self, key):
         now = self._clock()
         while self._seen:
-            oldest_key, (t, _) = next(iter(self._seen.items()))
+            oldest_key, (t, _, _) = next(iter(self._seen.items()))
             if now - t <= DEDUP_SECONDS and len(self._seen) <= DEDUP_MAX_ENTRIES:
                 break
             del self._seen[oldest_key]
@@ -209,11 +215,11 @@ class CoapReceiver(asyncio.DatagramProtocol):
         self.transport = transport
 
     def datagram_received(self, data, addr):
-        reply = self.handle(data, addr[0])
+        reply = self.handle(data, addr[0], addr[1])
         if reply is not None and self.transport is not None:
             self.transport.sendto(reply, addr)
 
-    def handle(self, data: bytes, source: str) -> Optional[bytes]:
+    def handle(self, data: bytes, source: str, port: int = 0) -> Optional[bytes]:
         """Process one datagram. Returns the reply to send, if any."""
         try:
             msg = parse_coap(data)
@@ -225,15 +231,17 @@ class CoapReceiver(asyncio.DatagramProtocol):
             return None
         confirmable = msg.mtype == TYPE_CON
 
-        key = (source, msg.message_id)
+        key = (source, port, msg.message_id)
+        fingerprint = (msg.token, hashlib.sha256(msg.payload).digest())
         seen = self._seen_reply(key)
-        if seen is not None:
+        if seen is not None and seen[1] == fingerprint:
             self.duplicates += 1
-            return seen[1]  # same answer as the first time, nothing stored again
+            return seen[2]  # same answer as the first time, nothing stored again
 
+        stored_before = self.stored
         reply = self._handle_new(msg, source, confirmable)
-        if reply is not False:
-            self._seen[key] = (self._clock(), reply)
+        if self.stored > stored_before:
+            self._seen[key] = (self._clock(), fingerprint, reply)
         return reply or None
 
     def _handle_new(self, msg: CoapMessage, source: str, confirmable: bool):
