@@ -52,3 +52,6 @@ firmware/build/
 
 # Thread network key for the sensor node firmware
 pcbs/gos_sensor_node/firmware/credentials.conf
+
+# Sensor node signing keys (gateway/tools/provision_node.py)
+gateway/secrets/

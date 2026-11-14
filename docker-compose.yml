@@ -72,6 +72,10 @@ services:
       - COAP_PORT=5683
       - COAP_MULTICAST_GROUP=ff03::1
       - COAP_INTERFACE=${THREAD_INTERFACE:-wpan0}
+      - GOS_NODE_KEYS=/run/gos/node_keys.json
+    volumes:
+      # written by: python gateway/tools/provision_node.py --index N
+      - ./gateway/secrets/node_keys.json:/run/gos/node_keys.json:ro
     depends_on:
       db:
         condition: service_healthy

@@ -42,10 +42,105 @@ class Recorder:
 
 def test_decodes_firmware_packet():
     r = rx.decode_packet(FIRMWARE_GOOD)
-    assert r == {
+    assert {k: r[k] for k in ("node_id", "node_index", "sample_identity", "temp_c", "humidity_pct",
+                              "light_lux", "battery_mv", "authenticated")} == {
         "node_id": "RF-NODE-07", "node_index": 7, "sample_identity": "EUI64:F4CE360011223344",
         "temp_c": -1.25, "humidity_pct": 55.5, "light_lux": 65534, "battery_mv": 3712,
+        "authenticated": False,
     }
+
+
+# Body produced by the firmware's signed-packet builder (src/uplink.c,
+# gos_uplink_build_body) compiled on a PC: same reading, counter epoch 5,
+# sequence 3. The tag is added here with the reference signer.
+FIRMWARE_V3_BODY = bytes.fromhex("0307443322110036cef40000a0bf00005e42feff800e03000500")
+KEY = bytes.fromhex("00112233445566778899aabbccddeeff")
+EUI = "F4CE360011223344"
+
+
+def keys(**kwargs):
+    entry = {"key": KEY.hex(), **kwargs}
+    return rx.NodeKeys({"7": entry})
+
+
+def signed(counter=None, body=FIRMWARE_V3_BODY, key=KEY):
+    if counter is not None:
+        body = body[:22] + struct.pack("<I", counter)
+    return rx.sign_packet(body, key)
+
+
+def flip(payload, i):
+    """Change one bit of byte i."""
+    return payload[:i] + bytes([payload[i] ^ 1]) + payload[i + 1:]
+
+
+class CountingStore(Recorder):
+    def __init__(self, last=None):
+        super().__init__()
+        self.last = last
+
+    def last_counter(self, node_id):
+        return self.last
+
+
+def test_signed_packet_from_firmware_body_is_accepted():
+    r = rx.decode_packet(signed(), keys(eui64=EUI))
+    assert r["authenticated"] and r["counter"] == (5 << 16) | 3 and r["battery_mv"] == 3712
+    assert len(signed()) == rx.V3_LEN == 42
+
+
+@pytest.mark.parametrize("payload, keyset, why", [
+    (signed(key=bytes(16)), None, "bad signature"),                 # wrong key
+    (flip(signed(), 41), None, "bad signature"),                    # tag altered
+    (flip(signed(), 12), None, "bad signature"),                    # reading altered
+    (signed(), rx.NodeKeys({"8": {"key": KEY.hex()}}), "has no key"),  # unregistered node
+    (signed(), "pinned", "is not the registered"),                    # EUI-64 mismatch
+    (FIRMWARE_GOOD, None, "unsigned"),                               # v2 with keys configured
+])
+def test_unauthenticated_packets_are_rejected(payload, keyset, why):
+    if keyset is None:
+        keyset = keys()
+    elif keyset == "pinned":
+        keyset = keys(eui64="0000000000000001")
+    with pytest.raises(rx.AuthError, match=why):
+        rx.decode_packet(payload, keyset)
+
+
+def test_receiver_stores_signed_and_answers_unauthorized():
+    store = CountingStore()
+    r = rx.CoapReceiver(store, keys=keys())
+    assert r.handle(coap(signed(), mtype=rx.TYPE_CON, mid=1), "x")[1] == rx.CODE_CHANGED
+    assert r.handle(coap(signed(key=bytes(16), counter=999999), mtype=rx.TYPE_CON, mid=2), "x")[1] == rx.CODE_UNAUTHORIZED
+    assert r.handle(coap(FIRMWARE_GOOD, mtype=rx.TYPE_CON, mid=3), "x")[1] == rx.CODE_UNAUTHORIZED
+    assert len(store.rows) == 1 and store.rows[0][0]["authenticated"] and r.unauthorized == 2
+
+
+def test_replayed_or_old_counter_is_rejected():
+    store = CountingStore()
+    r = rx.CoapReceiver(store, keys=keys())
+    r.handle(coap(signed(counter=10), mid=1), "x")
+    r.handle(coap(signed(counter=10), mid=2), "x")   # exact replay, new CoAP message ID
+    r.handle(coap(signed(counter=9), mid=3), "x")    # older
+    r.handle(coap(signed(counter=11), mid=4), "x")   # next one: fine
+    assert [row[0]["counter"] for row in store.rows] == [10, 11] and r.unauthorized == 2
+
+
+def test_counter_survives_receiver_restart_via_store():
+    store = CountingStore(last=500)  # database already holds counter 500 for this node
+    r = rx.CoapReceiver(store, keys=keys())
+    r.handle(coap(signed(counter=500), mid=1), "x")
+    r.handle(coap(signed(counter=501), mid=2), "x")
+    assert [row[0]["counter"] for row in store.rows] == [501]
+
+
+def test_failed_store_does_not_advance_counter():
+    store = CountingStore()
+    store.fail = True
+    r = rx.CoapReceiver(store, keys=keys())
+    r.handle(coap(signed(counter=20), mid=1), "x")
+    store.fail = False
+    r.handle(coap(signed(counter=20), mid=2), "x")  # same packet retried after the outage
+    assert [row[0]["counter"] for row in store.rows] == [20]
 
 
 def test_failed_readings_become_null():
@@ -194,3 +289,25 @@ def test_end_to_end_over_udp():
     reply = asyncio.run(scenario())
     assert reply[1] == rx.CODE_CHANGED
     assert store.rows[0][0]["battery_mv"] == 3712
+
+
+def test_provisioning_tool_round_trip(tmp_path, capsys):
+    """Key written by the tool verifies a packet signed with the key it prints for the firmware."""
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
+    import provision_node
+
+    keyfile = str(tmp_path / "node_keys.json")
+    assert provision_node.main(["--index", "7", "--keys", keyfile]) == 0
+    conf = capsys.readouterr().out
+    key_hex = conf.split('CONFIG_GOS_UPLINK_KEY="')[1].split('"')[0]
+    assert "CONFIG_GOS_NODE_INDEX=7" in conf and len(key_hex) == 32
+
+    with pytest.raises(SystemExit):  # refuses to overwrite silently
+        provision_node.main(["--index", "7", "--keys", keyfile])
+    assert provision_node.main(["--index", "7", "--keys", keyfile, "--eui64", EUI.lower()]) == 0
+
+    registry = rx.NodeKeys.load(keyfile)
+    good = rx.decode_packet(signed(key=bytes.fromhex(key_hex)), registry)
+    assert good["authenticated"]
+    with pytest.raises(rx.AuthError):
+        rx.decode_packet(signed(), registry)  # some other key

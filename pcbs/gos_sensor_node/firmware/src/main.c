@@ -5,8 +5,8 @@
  * status, log them, flash the status LED. The two PWM channels to the LED
  * driver board start at 0 %.
  *
- * After each sample a PACKET_V2 research packet goes out over Thread
- * (src/uplink.c).
+ * After each sample a signed PACKET_V3 research packet goes out over
+ * Thread (src/uplink.c).
  *
  * Between samples all threads sleep, so Zephyr idles the CPU in System ON
  * sleep. The light sensor is powered only while it is read. For a field
@@ -298,6 +298,11 @@ int main(void)
 	if (err) {
 		LOG_ERR("watchdog not started: %d", err);
 	}
+	err = gos_uplink_init();
+	if (err) {
+		LOG_ERR("uplink not started: %d; readings will be logged only", err);
+	}
+	gos_uplink_log_identity();
 
 	while (1) {
 		gpio_pin_set_dt(&status_led, 1);
@@ -306,7 +311,7 @@ int main(void)
 		err = gos_uplink_send(&data);
 		if (err == -ENOTCONN) {
 			LOG_INF("not attached to Thread yet, sample not sent");
-		} else if (err) {
+		} else if (err && err != -EACCES) {
 			LOG_WRN("uplink failed: %d", err);
 		}
 		gpio_pin_set_dt(&status_led, 0);

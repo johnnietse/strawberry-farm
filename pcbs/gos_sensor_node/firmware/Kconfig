@@ -19,6 +19,14 @@ config GOS_UPLINK_PEER_PORT
 	int "UDP port the uplink is sent to"
 	default 5683
 
+config GOS_UPLINK_KEY
+	string "Uplink signing key (32 hex digits)"
+	default ""
+	help
+	  128-bit HMAC-SHA256 key unique to this node. Set it in the git-ignored
+	  credentials.conf; gateway/tools/provision_node.py generates it and
+	  registers it with the gateway. With no valid key the node sends nothing.
+
 config GOS_UPLINK_URI_PATH
 	string "CoAP URI path for the uplink"
 	default "telemetry"

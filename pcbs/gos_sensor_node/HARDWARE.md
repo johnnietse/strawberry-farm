@@ -150,7 +150,7 @@ west build -b raytac_mdbt50q_db_40/nrf52840
 | `src/main.c` | every 60 s reads SHT40, TSL2591, battery voltage and charger status, logs them and sends them over Thread; feeds the watchdog; holds both LED-board PWM channels at 0 % |
 | `src/uplink.c` | builds the 22-byte PACKET_V2 research packet and sends it as a non-confirmable CoAP POST |
 | `Kconfig` | node index (1 to 40), uplink address, port and CoAP path |
-| `credentials.conf` | Thread network key; git-ignored, copy from `credentials.conf.example`. Without it the node cannot join. |
+| `credentials.conf` | Thread network key, node index and the node's own signing key; git-ignored. `gateway/tools/provision_node.py --index N` prints it. Without a valid signing key the node sends nothing. |
 | `prj.conf` | driver subsystems; Thread as a sleepy end device polling every 1 s, channel 15, PAN 0x1234, name GOS_PHYTOTRON |
 
 It uses Zephyr's own SHT4x, TSL2591 and voltage-divider drivers. There are no project drivers or bindings.
@@ -163,19 +163,29 @@ It uses Zephyr's own SHT4x, TSL2591 and voltage-divider drivers. There are no pr
 | CoAP path | `/telemetry` | `CONFIG_GOS_UPLINK_URI_PATH` |
 | Node index | 1 | `CONFIG_GOS_NODE_INDEX` |
 
-Payload, 22 bytes, all fields little-endian, decode with Python `struct.unpack("<BBQffHH", payload)`:
+Payload, 42 bytes, all fields little-endian, decode with Python `struct.unpack("<BBQffHHI16s", payload)`:
 
 | Offset | Field | Notes |
 |---|---|---|
-| 0 | version | always 2 |
+| 0 | version | 3 (signed) |
 | 1 | node index | |
 | 2 | EUI-64 | factory address as an integer, first EUI byte most significant |
 | 10 | temperature, float, degC | NaN if the read failed |
 | 14 | humidity, float, %RH | NaN if the read failed |
 | 18 | light, lux | clamped to 65534; 65535 if the read failed |
 | 20 | battery, mV | 65535 if the read failed |
+| 22 | counter, u32 | boot epoch (kept in flash) << 16, plus a sequence number; never repeats |
+| 26 | tag, 16 bytes | first 16 bytes of HMAC-SHA256(node key, bytes 0 to 25) |
 
-This follows `documentation/hardware_protocol.md`. That document does not say how the EUI-64 is ordered or what marks a failed reading; the choices above are this firmware's.
+### Packet authentication
+
+Each node has its own 128-bit key. `gateway/tools/provision_node.py --index N` generates it, stores it in `gateway/secrets/node_keys.json` (git-ignored, mounted read-only into the receiver) and prints the node's `credentials.conf`. After the node's first boot, rerun the tool with `--eui64` (the node logs its EUI-64 at boot) to pin that chip to the index.
+
+The receiver stores a packet only if the tag verifies with that node's key, the EUI-64 matches when pinned, and the counter is higher than the last one stored for the node. The last counter is read back from the database after a restart, so recorded packets cannot be replayed. Rejected packets get CoAP 4.01 when confirmable and are otherwise dropped. `GOS_ALLOW_UNSIGNED=1` turns all of this off for bench testing.
+
+What this does not cover: anyone who can read a node's flash (with a debugger) gets its key, and readings are signed, not encrypted. Thread's own network encryption still protects them in transit.
+
+This extends `documentation/hardware_protocol.md` (PACKET_V2) with the counter and tag.
 
 The gateway receiver is `gateway/services/coap_receiver.py` (Docker Compose service `coap_receiver`, started with `docker compose --profile hardware up` on the border router host). It stores each packet in `raw_telemetry`; lux goes in `payload.light_lux` because `par_umol` is PAR, which the node does not measure.
 

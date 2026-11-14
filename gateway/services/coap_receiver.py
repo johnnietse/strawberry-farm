@@ -1,16 +1,24 @@
 """
 G.O.S. CoAP Receiver
 ====================
-Receives PACKET_V2 research packets that sensor nodes send over Thread and
-stores them in raw_telemetry.
+Receives signed PACKET_V3 research packets that sensor nodes send over Thread,
+checks each one against that node's key, and stores it in raw_telemetry.
 
 Nodes send a CoAP POST to /telemetry on UDP 5683, by default to the
 realm-local all-nodes multicast address ff03::1. Run this on the Thread
 border router host (network_mode: host) so it can see the Thread interface.
 
-Packet (documentation/hardware_protocol.md, firmware src/uplink.c), 22 bytes,
-little-endian: version u8 (=2), node index u8, EUI-64 u64, temperature f32 degC,
-humidity f32 %RH, light u16 lux, battery u16 mV. NaN / 0xFFFF = failed reading.
+Packet (documentation/hardware_protocol.md, firmware src/uplink.c), 42 bytes,
+little-endian: version u8 (=3), node index u8, EUI-64 u64, temperature f32 degC,
+humidity f32 %RH, light u16 lux, battery u16 mV, counter u32, then a 16-byte tag
+= first 16 bytes of HMAC-SHA256(node key, first 26 bytes). NaN / 0xFFFF =
+failed reading.
+
+A packet is stored only if
+  - its node index has a key in the key file and the tag matches,
+  - its EUI-64 matches the one registered for that index (when registered),
+  - its counter is higher than the last one stored for that node (replays
+    are rejected; after a restart the last counter is read from the database).
 
 Environment:
   DATABASE_URL          postgresql://... (required unless --dry-run)
@@ -21,15 +29,16 @@ Environment:
                         other interface are ignored. Empty = listen on all
                         interfaces (local testing only; also needed on
                         Windows, which cannot restrict by interface).
-
-Security: packets are not authenticated. Restricting to the Thread interface
-keeps the LAN and internet out, but any device on the Thread network can
-still send packets that look like a node's.
+  GOS_NODE_KEYS         key file written by tools/provision_node.py
+                        (default /run/gos/node_keys.json). Required.
+  GOS_ALLOW_UNSIGNED    "1" accepts unsigned v2 packets and skips all checks.
+                        For bench testing only; never on a real deployment.
 """
 
 import argparse
 import asyncio
 import hashlib
+import hmac
 import json
 import logging
 import math
@@ -44,9 +53,13 @@ from typing import Callable, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [COAP-RX] %(message)s")
 logger = logging.getLogger("CoapReceiver")
 
-PACKET_FORMAT = "<BBQffHH"
-PACKET_LEN = struct.calcsize(PACKET_FORMAT)  # 22
-PACKET_VERSION = 2
+V2_FORMAT = "<BBQffHH"                      # unsigned, bench testing only
+V2_LEN = struct.calcsize(V2_FORMAT)          # 22
+V3_FORMAT = "<BBQffHHI16s"                   # signed
+V3_LEN = struct.calcsize(V3_FORMAT)          # 42
+V3_BODY_LEN = V3_LEN - 16                    # bytes covered by the tag
+TAG_LEN = 16
+KEY_LEN = 16
 U16_INVALID = 0xFFFF
 
 # CoAP (RFC 7252)
@@ -55,6 +68,7 @@ TYPE_CON, TYPE_NON, TYPE_ACK, TYPE_RST = 0, 1, 2, 3
 CODE_POST = 0x02            # 0.02
 CODE_CHANGED = 0x44         # 2.04
 CODE_BAD_REQUEST = 0x80     # 4.00
+CODE_UNAUTHORIZED = 0x81    # 4.01
 CODE_NOT_FOUND = 0x84       # 4.04
 CODE_METHOD_NOT_ALLOWED = 0x85  # 4.05
 OPTION_URI_PATH = 11
@@ -63,14 +77,50 @@ OPTION_URI_PATH = 11
 # counts as a repeat only if source address, port, message ID, token and
 # payload all match, so a spoofed packet reusing a node's next message ID
 # cannot suppress the real one. Only stored packets are remembered.
-# The uplink itself is not authenticated: anyone on the Thread network can
-# still send packets that look like a node's.
 DEDUP_SECONDS = 145
 DEDUP_MAX_ENTRIES = 4096
 
 
 class CoapError(ValueError):
     pass
+
+
+class AuthError(ValueError):
+    """Packet failed authentication or replay checks."""
+
+
+class NodeKeys:
+    """Per-node signing keys: {"nodes": {"7": {"key": "<32 hex>", "eui64": "<16 hex>"}}}.
+    eui64 is optional; when present the packet's EUI-64 must match it."""
+
+    def __init__(self, nodes: dict):
+        self.nodes = {}
+        for index, entry in nodes.items():
+            key = bytes.fromhex(entry["key"])
+            if len(key) != KEY_LEN:
+                raise ValueError(f"node {index}: key must be {KEY_LEN} bytes")
+            eui = entry.get("eui64")
+            self.nodes[int(index)] = (key, eui.upper() if eui else None)
+
+    @classmethod
+    def load(cls, path: str) -> "NodeKeys":
+        with open(path, encoding="utf-8") as f:
+            return cls(json.load(f)["nodes"])
+
+    def verify(self, payload: bytes, index: int, eui: int, tag: bytes) -> None:
+        if index not in self.nodes:
+            raise AuthError(f"node {index} has no key")
+        key, pinned = self.nodes[index]
+        expected = hmac.new(key, payload[:V3_BODY_LEN], hashlib.sha256).digest()[:TAG_LEN]
+        if not hmac.compare_digest(expected, tag):
+            raise AuthError(f"node {index}: bad signature")
+        if pinned and pinned != f"{eui:016X}":
+            raise AuthError(f"node {index}: EUI-64 {eui:016X} is not the registered {pinned}")
+
+
+def sign_packet(body: bytes, key: bytes) -> bytes:
+    """Reference signer (same as the firmware); used by tests and tools."""
+    return body + hmac.new(key, body, hashlib.sha256).digest()[:TAG_LEN]
 
 
 @dataclass
@@ -143,13 +193,28 @@ def build_reply(request: CoapMessage, code: int) -> bytes:
     return bytes([first, code]) + struct.pack(">H", request.message_id) + request.token
 
 
-def decode_packet(payload: bytes) -> dict:
-    if len(payload) != PACKET_LEN:
-        raise ValueError(f"expected {PACKET_LEN} bytes, got {len(payload)}")
-    version, index, eui, temp, hum, lux, batt = struct.unpack(PACKET_FORMAT, payload)
-    if version != PACKET_VERSION:
-        raise ValueError(f"unsupported packet version {version}")
+def decode_packet(payload: bytes, keys: Optional[NodeKeys] = None) -> dict:
+    """Decode a research packet. With keys, only a correctly signed v3 packet
+    from a registered node is accepted (raises AuthError otherwise). Without
+    keys (bench mode), v2 and v3 are decoded with no checks."""
+    version = payload[0] if payload else None
+    if version == 3 and len(payload) == V3_LEN:
+        _, index, eui, temp, hum, lux, batt, counter, tag = struct.unpack(V3_FORMAT, payload)
+        if keys is not None:
+            keys.verify(payload, index, eui, tag)
+        authenticated = keys is not None
+    elif version == 2 and len(payload) == V2_LEN:
+        if keys is not None:
+            raise AuthError("unsigned v2 packet")
+        _, index, eui, temp, hum, lux, batt = struct.unpack(V2_FORMAT, payload)
+        counter, authenticated = None, False
+    else:
+        raise ValueError(f"not a v2 ({V2_LEN} bytes) or v3 ({V3_LEN} bytes) packet: "
+                         f"version {version}, {len(payload)} bytes")
     return {
+        "packet_version": version,
+        "counter": counter,
+        "authenticated": authenticated,
         "node_id": f"RF-NODE-{index:02d}",
         "node_index": index,
         "sample_identity": f"EUI64:{eui:016X}",
@@ -188,7 +253,10 @@ class PostgresStore:
                         None,  # the node measures lux, not PAR; see payload.light_lux
                         reading["battery_mv"],
                         json.dumps({"light_lux": reading["light_lux"], "source": source,
-                                    "node_index": reading["node_index"], "packet_version": PACKET_VERSION}),
+                                    "node_index": reading["node_index"],
+                                    "packet_version": reading["packet_version"],
+                                    "counter": reading["counter"],
+                                    "authenticated": reading["authenticated"]}),
                     ),
                 )
             self._conn.commit()
@@ -196,16 +264,33 @@ class PostgresStore:
             self._conn.rollback()
             raise
 
+    def last_counter(self, node_id: str) -> Optional[int]:
+        """Highest authenticated counter stored for this node, or None."""
+        if self._conn is None or self._conn.closed:
+            self._conn = self._connect()
+        with self._conn.cursor() as cur:
+            cur.execute(
+                "SELECT max((payload->>'counter')::bigint) FROM raw_telemetry "
+                "WHERE node_id = %s AND payload->>'authenticated' = 'true'",
+                (node_id,),
+            )
+            row = cur.fetchone()
+        self._conn.commit()
+        return None if row is None or row[0] is None else int(row[0])
+
 
 class CoapReceiver(asyncio.DatagramProtocol):
     def __init__(self, store: Callable[[dict, str], None], uri_path: str = "telemetry",
-                 clock: Callable[[], float] = time.monotonic):
+                 clock: Callable[[], float] = time.monotonic, keys: Optional[NodeKeys] = None):
         self.store = store
         self.uri_path = uri_path.strip("/")
+        self.keys = keys
         self.transport = None
         self.stored = 0
         self.rejected = 0
+        self.unauthorized = 0
         self.duplicates = 0
+        self._counters = {}  # node_id -> last accepted counter
         self._clock = clock
         self._seen = OrderedDict()  # (source, port, message id) -> (time, fingerprint, reply)
 
@@ -260,23 +345,44 @@ class CoapReceiver(asyncio.DatagramProtocol):
             code = CODE_METHOD_NOT_ALLOWED
         else:
             try:
-                reading = decode_packet(msg.payload)
+                reading = decode_packet(msg.payload, self.keys)
+                if reading["authenticated"]:
+                    self._check_counter(reading)
+            except AuthError as e:
+                self.unauthorized += 1
+                logger.warning(f"Rejected packet from {source}: {e}")
+                code = CODE_UNAUTHORIZED
             except ValueError as e:
                 self.rejected += 1
                 logger.warning(f"Bad packet from {source}: {e}")
                 code = CODE_BAD_REQUEST
+            except Exception as e:  # counter lookup failed: database down
+                logger.error(f"Counter lookup failed for {source}: {e}")
+                return False
             else:
                 try:
                     self.store(reading, source)
                 except Exception as e:  # keep receiving if the database is down
                     logger.error(f"Store failed for {reading['node_id']}: {e}")
                     return False  # no ACK and not remembered, so a retry is processed
+                if reading["authenticated"]:
+                    self._counters[reading["node_id"]] = reading["counter"]
                 self.stored += 1
                 logger.info(f"{reading['node_id']} {reading['sample_identity']}: "
                             f"{reading['temp_c']} C, {reading['humidity_pct']} %RH, "
                             f"{reading['light_lux']} lux, {reading['battery_mv']} mV")
                 code = CODE_CHANGED
         return build_reply(msg, code) if confirmable else None
+
+
+    def _check_counter(self, reading: dict) -> None:
+        node = reading["node_id"]
+        if node not in self._counters:
+            lookup = getattr(self.store, "last_counter", None)
+            self._counters[node] = lookup(node) if lookup else None
+        last = self._counters[node]
+        if last is not None and reading["counter"] <= last:
+            raise AuthError(f"{node}: counter {reading['counter']} not above {last} (replay)")
 
 
 def open_socket(port: int, group: str, interface: str) -> socket.socket:
@@ -303,10 +409,10 @@ def open_socket(port: int, group: str, interface: str) -> socket.socket:
     return sock
 
 
-async def run(store, port: int, uri_path: str, group: str, interface: str):
+async def run(store, port: int, uri_path: str, group: str, interface: str, keys: Optional[NodeKeys]):
     loop = asyncio.get_running_loop()
     sock = open_socket(port, group, interface)
-    await loop.create_datagram_endpoint(lambda: CoapReceiver(store, uri_path), sock=sock)
+    await loop.create_datagram_endpoint(lambda: CoapReceiver(store, uri_path, keys=keys), sock=sock)
     logger.info(f"Listening for CoAP POST /{uri_path.strip('/')} on UDP {port}")
     await asyncio.Event().wait()
 
@@ -315,6 +421,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     parser.add_argument("--dry-run", action="store_true", help="log packets, do not touch the database")
     args = parser.parse_args()
+
+    if os.getenv("GOS_ALLOW_UNSIGNED") == "1":
+        keys = None
+        logger.warning("GOS_ALLOW_UNSIGNED=1: accepting unsigned packets with no checks (bench testing only)")
+    else:
+        keys_path = os.getenv("GOS_NODE_KEYS", "/run/gos/node_keys.json")
+        try:
+            keys = NodeKeys.load(keys_path)
+        except (OSError, ValueError, KeyError) as e:
+            logger.error(f"Cannot load node keys from {keys_path}: {e}")
+            raise SystemExit(1)
+        logger.info(f"Loaded keys for {len(keys.nodes)} node(s) from {keys_path}")
 
     if args.dry_run:
         store = lambda reading, source: None  # noqa: E731
@@ -331,6 +449,7 @@ def main():
         os.getenv("COAP_URI_PATH", "telemetry"),
         os.getenv("COAP_MULTICAST_GROUP", "ff03::1"),
         os.getenv("COAP_INTERFACE", "wpan0"),
+        keys,
     ))
 
 

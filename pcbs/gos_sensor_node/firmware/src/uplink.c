@@ -1,11 +1,10 @@
 /*
- * Thread / CoAP uplink: sends one PACKET_V2 research packet per sample.
+ * Thread / CoAP uplink: sends one signed research packet (PACKET_V3) per sample.
  *
- * Packet layout (documentation/hardware_protocol.md), 22 bytes, every field
- * little-endian:
+ * Packet, 42 bytes, every field little-endian:
  *
  *   offset  size  field
- *   0x00    1     protocol version, always 0x02
+ *   0x00    1     protocol version, 0x03
  *   0x01    1     node index (CONFIG_GOS_NODE_INDEX)
  *   0x02    8     factory EUI-64 as an unsigned integer; byte 0 of the
  *                 EUI-64 is the most significant byte
@@ -13,8 +12,20 @@
  *   0x0E    4     relative humidity, float, %RH       (NaN if the read failed)
  *   0x12    2     light, lux, clamped to 65534        (0xFFFF if the read failed)
  *   0x14    2     battery, mV                         (0xFFFF if the read failed)
+ *   0x16    4     message counter: boot epoch << 16 | sequence. Strictly
+ *                 increasing for the life of the node, so the gateway can
+ *                 reject replayed packets.
+ *   0x1A    16    tag: first 16 bytes of HMAC-SHA256(node key, bytes 0x00..0x19)
  *
- * Python decode: struct.unpack("<BBQffHH", payload)
+ * Python decode: struct.unpack("<BBQffHHI16s", payload)
+ *
+ * The node key (CONFIG_GOS_UPLINK_KEY, 32 hex digits) comes from the
+ * git-ignored credentials.conf and must match the gateway's key file
+ * (gateway/tools/provision_node.py writes both). Without a valid key the
+ * node does not send at all.
+ *
+ * The boot epoch is kept in flash (settings key "gos/epoch") and written once
+ * per boot and once every 65536 packets, not once per packet.
  *
  * Sent as a non-confirmable CoAP POST so a sleepy end device does not have
  * to stay awake for an acknowledgement.
@@ -24,7 +35,11 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/settings/settings.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/util.h>
+
+#include <psa/crypto.h>
 
 #include <openthread.h>
 #include <openthread/coap.h>
@@ -37,9 +52,19 @@
 
 LOG_MODULE_REGISTER(gos_uplink, LOG_LEVEL_INF);
 
-#define PACKET_VERSION 0x02
-#define PACKET_LEN     22
+#define PACKET_VERSION 0x03
+#define BODY_LEN       26
+#define TAG_LEN        16
+#define PACKET_LEN     (BODY_LEN + TAG_LEN)
+#define KEY_LEN        16
 #define U16_INVALID    0xFFFFU
+#define EPOCH_KEY      "gos/epoch"
+#define EPOCH_MAX      0xFFFFU
+
+static psa_key_id_t key_id;
+static bool ready;
+static uint32_t epoch;
+static uint32_t sequence;
 
 static void put_float(float v, uint8_t *dst)
 {
@@ -57,8 +82,9 @@ static uint16_t clamp_u16(int v)
 	return v >= (int)U16_INVALID ? (uint16_t)(U16_INVALID - 1U) : (uint16_t)v;
 }
 
-static void build_packet(uint8_t pkt[PACKET_LEN], const otExtAddress *eui,
-			 const struct gos_sensor_data *d)
+/* Fills bytes 0..BODY_LEN-1. Exposed for the host-side packet test. */
+void gos_uplink_build_body(uint8_t body[BODY_LEN], const otExtAddress *eui,
+			   const struct gos_sensor_data *d, uint32_t counter)
 {
 	bool climate = d->valid & GOS_VALID_CLIMATE;
 	uint64_t id = 0;
@@ -67,13 +93,89 @@ static void build_packet(uint8_t pkt[PACKET_LEN], const otExtAddress *eui,
 		id = (id << 8) | eui->m8[i];
 	}
 
-	pkt[0] = PACKET_VERSION;
-	pkt[1] = CONFIG_GOS_NODE_INDEX;
-	sys_put_le64(id, &pkt[2]);
-	put_float(climate ? d->temp_mc / 1000.0f : NAN, &pkt[10]);
-	put_float(climate ? d->humidity_mpct / 1000.0f : NAN, &pkt[14]);
-	sys_put_le16((d->valid & GOS_VALID_LIGHT) ? clamp_u16(d->light_lux) : U16_INVALID, &pkt[18]);
-	sys_put_le16((d->valid & GOS_VALID_BATTERY) ? clamp_u16(d->battery_mv) : U16_INVALID, &pkt[20]);
+	body[0] = PACKET_VERSION;
+	body[1] = CONFIG_GOS_NODE_INDEX;
+	sys_put_le64(id, &body[2]);
+	put_float(climate ? d->temp_mc / 1000.0f : NAN, &body[10]);
+	put_float(climate ? d->humidity_mpct / 1000.0f : NAN, &body[14]);
+	sys_put_le16((d->valid & GOS_VALID_LIGHT) ? clamp_u16(d->light_lux) : U16_INVALID, &body[18]);
+	sys_put_le16((d->valid & GOS_VALID_BATTERY) ? clamp_u16(d->battery_mv) : U16_INVALID, &body[20]);
+	sys_put_le32(counter, &body[22]);
+}
+
+static int epoch_load(const char *key, size_t len, settings_read_cb read_cb, void *cb_arg, void *param)
+{
+	ARG_UNUSED(key);
+	if (len != sizeof(uint32_t)) {
+		return 0;
+	}
+	return read_cb(cb_arg, param, len) == (ssize_t)len ? 0 : -EIO;
+}
+
+static int epoch_advance(void)
+{
+	if (epoch >= EPOCH_MAX) {
+		LOG_ERR("message counter exhausted; re-provision this node");
+		return -ENOSPC;
+	}
+	epoch++;
+	sequence = 0;
+	return settings_save_one(EPOCH_KEY, &epoch, sizeof(epoch));
+}
+
+int gos_uplink_init(void)
+{
+	static const char key_hex[] = CONFIG_GOS_UPLINK_KEY;
+	psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+	uint8_t key[KEY_LEN];
+	int err;
+
+	if (strlen(key_hex) != 2 * KEY_LEN || hex2bin(key_hex, 2 * KEY_LEN, key, sizeof(key)) != KEY_LEN) {
+		LOG_ERR("CONFIG_GOS_UPLINK_KEY missing or not 32 hex digits: uplink disabled");
+		return -EINVAL;
+	}
+
+	if (psa_crypto_init() != PSA_SUCCESS) {
+		return -EIO;
+	}
+	psa_set_key_type(&attr, PSA_KEY_TYPE_HMAC);
+	psa_set_key_bits(&attr, 8 * KEY_LEN);
+	psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_SIGN_MESSAGE);
+	psa_set_key_algorithm(&attr, PSA_ALG_HMAC(PSA_ALG_SHA_256));
+	err = psa_import_key(&attr, key, sizeof(key), &key_id) == PSA_SUCCESS ? 0 : -EIO;
+	memset(key, 0, sizeof(key));
+	if (err) {
+		return err;
+	}
+
+	err = settings_subsys_init();
+	if (!err) {
+		err = settings_load_subtree_direct(EPOCH_KEY, epoch_load, &epoch);
+	}
+	if (!err) {
+		err = epoch_advance();
+	}
+	if (err) {
+		LOG_ERR("cannot store the message counter (%d): uplink disabled", err);
+		return err;
+	}
+
+	ready = true;
+	LOG_INF("uplink signing ready, counter epoch %u", epoch);
+	return 0;
+}
+
+static int sign(uint8_t pkt[PACKET_LEN])
+{
+	uint8_t mac[PSA_HASH_LENGTH(PSA_ALG_SHA_256)];
+	size_t mac_len;
+
+	if (psa_mac_compute(key_id, PSA_ALG_HMAC(PSA_ALG_SHA_256), pkt, BODY_LEN,
+			    mac, sizeof(mac), &mac_len) != PSA_SUCCESS || mac_len < TAG_LEN) {
+		return -EIO;
+	}
+	memcpy(&pkt[BODY_LEN], mac, TAG_LEN);
+	return 0;
 }
 
 int gos_uplink_send(const struct gos_sensor_data *d)
@@ -86,6 +188,9 @@ int gos_uplink_send(const struct gos_sensor_data *d)
 	otError err;
 	int ret = 0;
 
+	if (!ready) {
+		return -EACCES;
+	}
 	if (ot == NULL) {
 		return -ENODEV;
 	}
@@ -97,8 +202,21 @@ int gos_uplink_send(const struct gos_sensor_data *d)
 		goto out;
 	}
 
+	if (sequence > 0xFFFFU) {
+		ret = epoch_advance();
+		if (ret) {
+			ready = false;
+			goto out;
+		}
+	}
+
 	otLinkGetFactoryAssignedIeeeEui64(ot, &eui);
-	build_packet(pkt, &eui, d);
+	gos_uplink_build_body(pkt, &eui, d, (epoch << 16) | sequence);
+	sequence++; /* never reuse a counter, even if the send below fails */
+	ret = sign(pkt);
+	if (ret) {
+		goto out;
+	}
 
 	memset(&info, 0, sizeof(info));
 	if (otIp6AddressFromString(CONFIG_GOS_UPLINK_PEER_ADDR, &info.mPeerAddr) != OT_ERROR_NONE) {
@@ -134,4 +252,19 @@ int gos_uplink_send(const struct gos_sensor_data *d)
 out:
 	openthread_mutex_unlock();
 	return ret;
+}
+
+void gos_uplink_log_identity(void)
+{
+	otInstance *ot = openthread_get_default_instance();
+	otExtAddress eui;
+
+	if (ot == NULL) {
+		return;
+	}
+	openthread_mutex_lock();
+	otLinkGetFactoryAssignedIeeeEui64(ot, &eui);
+	openthread_mutex_unlock();
+	LOG_INF("node %d, EUI-64 %02X%02X%02X%02X%02X%02X%02X%02X", CONFIG_GOS_NODE_INDEX,
+		eui.m8[0], eui.m8[1], eui.m8[2], eui.m8[3], eui.m8[4], eui.m8[5], eui.m8[6], eui.m8[7]);
 }
