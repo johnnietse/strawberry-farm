@@ -540,7 +540,8 @@ def build():
            used, nc=sorted(names - set(used)), stubs={"VDDH": 7.62, "VBUS": 12.7},
            MPN="MDBT50Q-1MV2", Manufacturer="Raytac")
     s.part("Y1", "Device:Crystal", 50.8, 60.96, "32.768kHz 9pF", "Crystal:Crystal_SMD_3215-2Pin_3.2x1.5mm",
-           {"1": "XL1", "2": "XL2"}, stub=2.54)
+           {"1": "XL1", "2": "XL2"}, stub=2.54, MPN="ABS07-32.768KHZ-9-T", Manufacturer="Abracon",
+           Description="32.768 kHz crystal, 9 pF load, +/-20 ppm, ESR 70 kOhm max, 3.2 x 1.5 mm")
     s.C("12pF C0G", "XL1", "GND", 40.64, 83.82)
     s.C("12pF C0G", "XL2", "GND", 60.96, 83.82)
     s.C10u("+3V3", "GND", 40.64, 119.38)
