@@ -28,6 +28,8 @@ import math
 import os
 import socket
 import struct
+import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -48,6 +50,10 @@ CODE_BAD_REQUEST = 0x80     # 4.00
 CODE_NOT_FOUND = 0x84       # 4.04
 CODE_METHOD_NOT_ALLOWED = 0x85  # 4.05
 OPTION_URI_PATH = 11
+# RFC 7252 section 4.5: drop a repeated message ID from the same sender.
+# NON_LIFETIME (145 s) covers retransmits and network duplicates.
+DEDUP_SECONDS = 145
+DEDUP_MAX_ENTRIES = 4096
 
 
 class CoapError(ValueError):
@@ -179,12 +185,25 @@ class PostgresStore:
 
 
 class CoapReceiver(asyncio.DatagramProtocol):
-    def __init__(self, store: Callable[[dict, str], None], uri_path: str = "telemetry"):
+    def __init__(self, store: Callable[[dict, str], None], uri_path: str = "telemetry",
+                 clock: Callable[[], float] = time.monotonic):
         self.store = store
         self.uri_path = uri_path.strip("/")
         self.transport = None
         self.stored = 0
         self.rejected = 0
+        self.duplicates = 0
+        self._clock = clock
+        self._seen = OrderedDict()  # (source, message id) -> (time, reply)
+
+    def _seen_reply(self, key):
+        now = self._clock()
+        while self._seen:
+            oldest_key, (t, _) = next(iter(self._seen.items()))
+            if now - t <= DEDUP_SECONDS and len(self._seen) <= DEDUP_MAX_ENTRIES:
+                break
+            del self._seen[oldest_key]
+        return self._seen.get(key)
 
     def connection_made(self, transport):
         self.transport = transport
@@ -206,6 +225,20 @@ class CoapReceiver(asyncio.DatagramProtocol):
             return None
         confirmable = msg.mtype == TYPE_CON
 
+        key = (source, msg.message_id)
+        seen = self._seen_reply(key)
+        if seen is not None:
+            self.duplicates += 1
+            return seen[1]  # same answer as the first time, nothing stored again
+
+        reply = self._handle_new(msg, source, confirmable)
+        if reply is not False:
+            self._seen[key] = (self._clock(), reply)
+        return reply or None
+
+    def _handle_new(self, msg: CoapMessage, source: str, confirmable: bool):
+        """Returns the reply (or None), or False if the store failed and a retry must be accepted."""
+
         if msg.uri_path != self.uri_path:
             code = CODE_NOT_FOUND
         elif msg.code != CODE_POST:
@@ -222,7 +255,7 @@ class CoapReceiver(asyncio.DatagramProtocol):
                     self.store(reading, source)
                 except Exception as e:  # keep receiving if the database is down
                     logger.error(f"Store failed for {reading['node_id']}: {e}")
-                    return None  # no ACK, so a confirmable sender retries
+                    return False  # no ACK and not remembered, so a retry is processed
                 self.stored += 1
                 logger.info(f"{reading['node_id']} {reading['sample_identity']}: "
                             f"{reading['temp_c']} C, {reading['humidity_pct']} %RH, "

@@ -110,6 +110,42 @@ def test_database_failure_does_not_ack_or_crash():
     assert r.stored == 0
 
 
+def test_duplicate_message_id_is_stored_once():
+    store = Recorder()
+    r = rx.CoapReceiver(store)
+    r.handle(coap(FIRMWARE_GOOD, mid=5), "fd00::7")
+    r.handle(coap(FIRMWARE_GOOD, mid=5), "fd00::7")
+    r.handle(coap(FIRMWARE_GOOD, mid=5), "fd00::9")  # same ID, other node: new
+    r.handle(coap(FIRMWARE_GOOD, mid=6), "fd00::7")  # next message: new
+    assert len(store.rows) == 3 and r.duplicates == 1
+
+
+def test_duplicate_confirmable_gets_same_ack_again():
+    r = rx.CoapReceiver(Recorder())
+    first = r.handle(coap(FIRMWARE_GOOD, mtype=rx.TYPE_CON, mid=9), "x")
+    again = r.handle(coap(FIRMWARE_GOOD, mtype=rx.TYPE_CON, mid=9), "x")
+    assert first == again and r.stored == 1
+
+
+def test_duplicate_window_expires():
+    now = [0.0]
+    store = Recorder()
+    r = rx.CoapReceiver(store, clock=lambda: now[0])
+    r.handle(coap(FIRMWARE_GOOD, mid=5), "x")
+    now[0] = rx.DEDUP_SECONDS + 1
+    r.handle(coap(FIRMWARE_GOOD, mid=5), "x")  # message IDs wrap; old entry forgotten
+    assert len(store.rows) == 2
+
+
+def test_retry_after_database_failure_is_stored():
+    store = Recorder(fail=True)
+    r = rx.CoapReceiver(store)
+    assert r.handle(coap(FIRMWARE_GOOD, mtype=rx.TYPE_CON, mid=3), "x") is None
+    store.fail = False
+    assert r.handle(coap(FIRMWARE_GOOD, mtype=rx.TYPE_CON, mid=3), "x")[1] == rx.CODE_CHANGED
+    assert len(store.rows) == 1
+
+
 def test_garbage_is_ignored():
     r = rx.CoapReceiver(Recorder())
     assert r.handle(b"\x00", "x") is None and r.rejected == 1
