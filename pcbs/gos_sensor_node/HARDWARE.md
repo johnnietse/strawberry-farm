@@ -220,7 +220,7 @@ python generate_pcb.py
 python route_pcb.py
 ```
 
-Freerouting 2.0.1 runs on Java 21 or later; 2.2 and later need Java 25. Its result differs between runs, so `route_pcb.py` retries (up to 4 times) when connections are left unrouted. A typical clean result: about 900 track segments, 1.9 m of track, 100 vias.
+Freerouting 2.0.1 runs on Java 21 or later; 2.2 and later need Java 25. 2.5.0 (Java 25) was tried on 2026-11-14 with the same script: the LED board came out clean but with 20 vias instead of 13, and the sensor board was left with 17 unrouted connections. The committed boards are routed with 2.0.1. Its result differs between runs, so `route_pcb.py` retries (up to 4 times) when connections are left unrouted. A typical clean result: about 900 track segments, 1.9 m of track, 100 vias.
 
 Current result: KiCad DRC at every severity, with schematic parity: 0 violations, 0 unconnected items, 0 parity issues.
 
