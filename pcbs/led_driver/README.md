@@ -11,7 +11,29 @@ The schematic is generated:
 
 `--verify` checks ERC at every severity, the exported netlist against the declared nets, and
 that every symbol pin has a footprint pad. Outputs: `led_driver.kicad_sch`,
-`led_driver_schematic.pdf`, `led_driver_bom.csv`. **No board layout yet.**
+`led_driver_schematic.pdf`, `led_driver_bom.csv`.
+
+## Board
+
+60 x 45 mm, two layers, four M3 holes 4 mm in from the corners. Generated, then autorouted:
+
+```
+"C:\Program Files\KiCad\9.0in\python.exe" generate_pcb.py
+"C:\Program Files\KiCad\9.0in\python.exe" ..\gos_sensor_nodeoute_pcb.py .
+```
+
+`route_pcb.py` needs `FREEROUTING_JAR` (and `JAVA` if the default java is too old); see the sensor
+node's `HARDWARE.md`, Board layout. It routes with Freerouting, adds thermal vias in each AL8860
+exposed pad, pours GND on both layers, runs DRC with schematic parity and writes `fab/` (Gerbers,
+drill files, pick-and-place, upload zip).
+
+Layout: 24 V jack on the left edge; blue channel (U1) in the top half and red (U2) in the bottom;
+each channel's diode and inductor in a row from the AL8860 SW pins to its LED terminal on the right
+edge; PWM header J2 on the bottom edge. Power nets (VIN, SW, SET, LEDK, GND) are 0.4 mm, signals
+0.25 mm.
+
+Current result: DRC at every severity with schematic parity: 0 violations, 0 unconnected, 0 parity
+issues.
 
 ## Design choices
 
@@ -59,4 +81,4 @@ input capacitor close to VIN, 25 to 75 % recommended duty cycle.
 - The AL8860 CTRL pin's internal pull-up strength is not in the datasheet; 2.2 kOhm was chosen to
   overpower any plausible internal source. Confirm on the bench that the LEDs stay dark with J2
   unplugged.
-- No board layout, no thermal check of the AL8860 at 333 mA (well under its 1.5 A rating).
+- The board routing is a machine result that no one has reviewed by hand, and no board has been made. No thermal check of the AL8860 at 333 mA (well under its 1.5 A rating).

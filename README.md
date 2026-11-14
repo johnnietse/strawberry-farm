@@ -305,6 +305,7 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 |:---|:---|
 | `HARDWARE.md` | Design reference: pin map, power, signing, sources |
 | `generate_schematics.py`, `generate_pcb.py` | Generate the KiCad schematic and board |
+| `route_pcb.py` | Autoroute (Freerouting), pour ground, DRC, write Gerbers and drill files to `fab/` |
 | `firmware/` | Zephyr firmware to build and flash (`raytac_mdbt50q_db_40/nrf52840`) |
 
 ### firmware/ - Legacy rev 2 research firmware (does not build for current hardware; see `firmware/README.md`)
