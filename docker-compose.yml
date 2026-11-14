@@ -59,6 +59,24 @@ services:
       - gos_net
     restart: unless-stopped
 
+  # 3b. CoAP receiver for real sensor nodes (Thread / PACKET_V2)
+  # Runs on the Thread border router host: host networking so it can join
+  # ff03::1 on the Thread interface. Start with: docker compose --profile hardware up
+  coap_receiver:
+    build: ./gateway
+    command: python services/coap_receiver.py
+    network_mode: host
+    profiles: ["hardware"]
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:epower_secret_2026@localhost/strawberry_research}
+      - COAP_PORT=5683
+      - COAP_MULTICAST_GROUP=ff03::1
+      - COAP_INTERFACE=${THREAD_INTERFACE:-wpan0}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   # 4. Phytotron Fleet Simulation (40 nRF52 nodes)
   # Replace with mqtt_bridge for real hardware deployment
   ingest:
