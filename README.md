@@ -281,7 +281,8 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 | `services/mqtt_bridge.py` | MQTT → Database | `raw_telemetry` |
 | `services/farm_sim.py` | 40-node sensor simulation | `raw_telemetry` |
 | `services/met_station.py` | Met station simulation | `met_station_data` |
-| `services/otbr_gateway.py` | OpenThread helper | — |
+| `services/coap_receiver.py` | Receives signed packets from real sensor nodes over Thread | `raw_telemetry` |
+| `tools/provision_node.py` | Creates a node's signing key and its `credentials.conf` | `secrets/node_keys.json` |
 | `services/mqtt_sn_bridge.py` | MQTT-SN for nRF52 | — |
 | `services/safety_ltl.py` | LTL safety monitor | — |
 | `Dockerfile` | Container build | — |
@@ -298,7 +299,15 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 | `macq_learner.py` | Action model learning | Trace data | PDDL actions |
 | `domain.pddl` | AI planning domain | — | — |
 
-### firmware/ - nRF52840 Embedded Code
+### pcbs/gos_sensor_node/ - Sensor Node Hardware and Firmware (rev 3.1)
+
+| Path | Purpose |
+|:---|:---|
+| `HARDWARE.md` | Design reference: pin map, power, signing, sources |
+| `generate_schematics.py`, `generate_pcb.py` | Generate the KiCad schematic and board |
+| `firmware/` | Zephyr firmware to build and flash (`raytac_mdbt50q_db_40/nrf52840`) |
+
+### firmware/ - Legacy rev 2 research firmware (does not build for current hardware; see `firmware/README.md`)
 
 | File | Purpose |
 |:---|:---|
@@ -330,8 +339,9 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 | File | Purpose |
 |:---|:---|
 | `raspberry_pi_setup.md` | OTBR installation |
-| `nrf52840_pinout.md` | Soldering guide |
-| `hardware_specs.md` | PCB, enclosure specs |
+| `nrf52840_pinout.md` | Pin map and assembly guide (rev 3.1) |
+| `hardware_specs.md` | Board and LED board summary (rev 3.1) |
+| `archive/` | Rev 2 hardware documents, kept for reference |
 | `bench_testing.md` | Validation procedures |
 | `hardware_protocol.md` | Communication protocol |
 | `requirements.md` | ELEC 490/498 checklist |

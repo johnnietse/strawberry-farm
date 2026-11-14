@@ -1,42 +1,42 @@
-> **Superseded.** This file describes the rev 2 board (bare nRF52840, BQ24075, on-board LED drivers). The current design is rev 3.1: see [HARDWARE.md](../pcbs/gos_sensor_node/HARDWARE.md).
+# G.O.S. Sensor Node rev 3.1: Pinout and Assembly Guide
 
-# nRF52840 Phytotron Node: Hardware Pinout Guide
+For the Electronics/Embedded team. Full design reference: [`pcbs/gos_sensor_node/HARDWARE.md`](../pcbs/gos_sensor_node/HARDWARE.md).
+The rev 2 version of this guide (bare nRF52840 chip) is in [`archive/nrf52840_pinout_rev2.md`](archive/nrf52840_pinout_rev2.md).
 
-This guide is for the **Electronics/Embedded** team. It maps the Zephyr [DeviceTree](file:///c:/Users/Johnnie/Documents/Stawberry_Farm/firmware/boards/nrf52840_phytotron.overlay) to the physical pins on the nRF52840 aQFN-73 chip.
+## 1. Pin map
 
-## 🔌 1. Multi-Bus Pin Mapping
+The MCU is a Raytac MDBT50Q-1MV2 module (nRF52840 inside). Firmware pin names are in
+`pcbs/gos_sensor_node/firmware/boards/raytac_mdbt50q_db_40_nrf52840.overlay`.
 
-| Peripheral | Bus | Chip Pin (Port.Pin) | Function |
-| :--- | :--- | :--- | :--- |
-| **Debug Console** | UART | P0.06 (TX) / P0.08 (RX) | Serial terminal (115200 8N1) |
-| **SHT4x Sensor** | I2C (TWIM0) | P0.26 (SDA) / P0.27 (SCL) | Temp & Humidity Data (0x44) |
-| **TSL2591 Sensor** | I2C (TWIM0) | P0.26 (SDA) / P0.27 (SCL) | Light / PAR Data (0x29) |
-| **TSL2591 Interrupt** | GPIO | P0.15 (active-low) | Light sensor alert (10kΩ pull-up R11) |
-| **LED Array (PWM)** | PWM0 | P0.13 (Blue) / P0.14 (Red) | AL8860 CTRL pins (active-low, 50Hz) |
-| **Battery ADC** | SAADC | P0.02 (AIN0) | Battery voltage via gated 1MΩ divider |
-| **Battery Gate** | GPIO | P0.03 | Enables Q4 P-MOSFET for ADC read (LOW=ON) |
-| **802.15.4 Radio** | Internal | — | On-chip radio, PCB antenna or u.FL (J5) |
-| **QSPI Flash** | QSPI | P0.19/P0.20/P0.21/P0.22 | High-speed data logging (XIP) |
-| **SWD Debug** | SWD | SWDCLK / SWDIO | J2 (2×5 1.27mm Samtec FTSH-105) |
-| **USB-C** | USB 2.0 | D+ / D- | J1 (GCT USB4085-GF-A) — programming, charging |
+| Function | nRF pin | Connects to |
+|:---|:---|:---|
+| I2C SDA / SCL | P0.26 / P0.27 | SHT40 (0x44), TSL2591 (0x29), J3 header; 4.7 kOhm pull-ups on the board |
+| Light sensor interrupt | P0.15 | TSL2591 INT (open drain, 100 kOhm pull-up) |
+| LED board PWM blue / red | P0.13 / P0.14 | J4 pins 2 / 3 through 100 Ohm; 100 kOhm pull-downs |
+| Debug UART TX / RX | P0.06 / P0.08 | test points TP5 / TP6, 115200 8N1 |
+| Battery voltage | P0.02 (AIN0) | VBAT through 2.2 MOhm / 2.2 MOhm divider |
+| USB power good / charging | P0.28 / P0.29 | BQ24074 PGOOD / CHG, active low |
+| Status LED | P0.17 | D2, on when low |
+| User button | P0.24 | SW2 to ground |
+| Reset | P0.18 | SW1, J2 pin 10 |
+| SWD | SWDIO, SWDCLK, P1.00 (SWO) | J2, 10-pin 1.27 mm Cortex debug header |
+| USB | D+ / D- | J1 USB-C through 27 Ohm and the ESD clamp |
+| 32.768 kHz crystal | P0.00 / P0.01 | Y1, Abracon ABS07-32.768KHZ-9-T, 12 pF load caps |
 
-## 🛠 2. Hands-on Soldering Protocol
-As per the mandatory responsibilities:
-1.  **nRF52840 Package**: aQFN-73 (7×7mm) with exposed ground pad. Requires **reflow soldering** — ensure thermal pad has solder paste (70-80% coverage) and thermal vias (4×4 grid, 0.3mm drill) for heat dissipation.
-2.  **Pull-up Resistors**: Ensure **4.7kΩ pull-ups** (R3-R4) are soldered to the I2C lines (P0.26/P0.27). Only ONE set of pull-ups on the shared bus.
-3.  **Battery Connector**: J4 (2-pin JST-PH 2mm). 18650 cell via Keystone 1042P spring-contact holder. Protected by DW01A + FS8205A (OVP/ODP/OCP/SCP) and charged by BQ24075 via USB-C.
-4.  **ESD Protection**: PRTR5V0U2X (D5) on USB lines, PESD0402-140 (D6) on antenna, PESD5V0S1BSF (D7-D8) on external I2C (J3).
+## 2. Connectors
 
-## 🧪 3. Multimeter Checkpoints
-Before flashing the [firmware](file:///c:/Users/Johnnie/Documents/Stawberry_Farm/firmware/src/main.c), verify:
-- **VCC Target**: 3.3V stable at the TPS62740 buck regulator output (VDD_3V3 rail).
-- **DEC4 Voltage**: 1.3V at nRF52840 DEC4 pin (REG1 internal regulator output).
-- **I2C Idle**: SDA/SCL should sit at 3.3V (pulled up by R3/R4).
-- **Radio Ground**: Check continuity between the chip's exposed ground pad and the battery negative terminal.
-- **USB-C CC Pins**: Verify 5.1kΩ pull-downs (R26-R27) to GND for proper device-mode detection.
+| Ref | What | Pins |
+|:---|:---|:---|
+| J1 | USB-C (power and USB) | |
+| J2 | SWD debug, 2x5 1.27 mm | 1 VTref, 2 SWDIO, 4 SWDCLK, 6 SWO, 10 reset, 3/5/9 GND |
+| J3 | I2C expansion, 1x4 2.54 mm | 1 3.3 V, 2 GND, 3 SDA, 4 SCL |
+| J4 | LED driver board, 1x4 2.54 mm | 1 GND, 2 PWM blue, 3 PWM red, 4 GND. Signals only. |
+| J5 | Battery, 2-pin JST-PH | 1 cell positive, 2 cell negative |
 
-## 🔎 4. Oscilloscope Validation
-- **I2C Clock**: Verify a clean 100kHz square wave on P0.27 during sensor polling.
-- **UART Data**: Look for 3.3V logic pulses on P0.06 when the device prints startup messages.
-- **PWM Output**: Verify 50Hz inverted-polarity signal on P0.13/P0.14 when LEDs are active.
-- **Battery Gate**: P0.03 should pulse LOW for ~1ms during each ADC read cycle, then return HIGH.
+## 3. Assembly notes
+
+1. **Reflow only** for the module, U1 (BQ24074, QFN-16), U2 (TPS62740, WSON-12) and U6 (TSL2591, DFN-6): the exposed pads need paste and reflow.
+2. **SHT40 (U5):** no copper under it except its four pads, and leave its centre pad unsoldered (Sensirion land pattern). Keep it away from flux residue; do not wash it with aggressive solvents.
+3. **TSL2591 (U6):** nothing taller beside it; keep its window clean.
+4. **Battery:** check the 18650 lead polarity against J5 pin 1 = positive before plugging in. Q2 blocks a reversed cell, but the cell will not charge until fixed. Plug USB in once after connecting a cell to wake the protection IC.
+5. **Antenna:** keep the strip along the module's top edge free of copper, metal and fingers when testing range.

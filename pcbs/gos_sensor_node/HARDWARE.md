@@ -232,7 +232,7 @@ Rerunning `generate_pcb.py` rebuilds the file from scratch and discards any rout
 | SHT4x | Sensirion datasheet V7.3 (June 2026) | pin assignment, address, supply, land pattern, currents |
 | TSL2591 | ams datasheet ams163.5 (April 2013) | pin assignment, address, supply, temperature range, currents |
 | nRF52840 | Nordic product specification, current consumption tables | sleep, radio and CPU currents |
-| AL8860 supply | `documentation/hardware_specs.md` in this repo | 4.5 V minimum input. Not re-read from the Diodes datasheet. |
+| AL8860 supply | `documentation/archive/hardware_specs_rev2.md` in this repo | 4.5 V minimum input. Not re-read from the Diodes datasheet. |
 
 ## Not verified
 

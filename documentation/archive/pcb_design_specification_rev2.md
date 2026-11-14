@@ -1,4 +1,4 @@
-> **Superseded.** This file describes the rev 2 board (bare nRF52840, BQ24075, on-board LED drivers). The current design is rev 3.1: see [HARDWARE.md](../pcbs/gos_sensor_node/HARDWARE.md).
+> **Superseded.** This file describes the rev 2 board (bare nRF52840, BQ24075, on-board LED drivers). The current design is rev 3.1: see [HARDWARE.md](../../pcbs/gos_sensor_node/HARDWARE.md).
 
 # 🔌 G.O.S. Phytotron Sensor Node — Complete PCB Design Specification
 
