@@ -1,3 +1,5 @@
+> **Superseded.** This file describes the rev 2 board (bare nRF52840, BQ24075, on-board LED drivers). The current design is rev 3.1: see [HARDWARE.md](../pcbs/gos_sensor_node/HARDWARE.md).
+
 # nRF52840 Phytotron Node: Hardware Pinout Guide
 
 This guide is for the **Electronics/Embedded** team. It maps the Zephyr [DeviceTree](file:///c:/Users/Johnnie/Documents/Stawberry_Farm/firmware/boards/nrf52840_phytotron.overlay) to the physical pins on the nRF52840 aQFN-73 chip.
