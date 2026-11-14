@@ -236,6 +236,7 @@ def sym_flag(node, name, default="yes"):
 # ---------------------------------------------------------------- schematic model
 LIBS = Libs()
 POWER = {"GND": "power:GND", "+3V3": "power:+3V3", "VBUS": "power:VBUS"}
+NOT_IN_BOM = {"Connector:TestPoint"}  # bare copper pads, nothing to buy
 OUT = {0: (-1, 0), 180: (1, 0), 90: (0, 1), 270: (0, -1)}   # pin angle -> outward direction (y down)
 
 NETS = {}          # net -> {(ref, pin)}
@@ -276,7 +277,8 @@ class Sheet:
     def instance(self, lib_id, ref, value, x, y, rot, props, pin_nums, node):
         out = ["(symbol (lib_id %s) (at %s %s %d) (unit 1) (exclude_from_sim %s) (in_bom %s) (on_board %s)"
                " (dnp no) (uuid %s)" % (q(lib_id), n(x), n(y), rot, sym_flag(node, "exclude_from_sim", "no"),
-                                        sym_flag(node, "in_bom"), sym_flag(node, "on_board"),
+                                        "no" if lib_id in NOT_IN_BOM else sym_flag(node, "in_bom"),
+                                        sym_flag(node, "on_board"),
                                         q(uid(self.key, ref)))]
         for name, val, px, py, ang, just, hide in props:
             out.append("(property %s %s (at %s %s %d) %s)" % (q(name), q(val), n(px), n(py), ang,
