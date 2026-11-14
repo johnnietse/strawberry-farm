@@ -101,7 +101,7 @@ All other pins carry no-connect flags.
 | J1 | USB-C, USB 2.0 device | 5.1k on CC1 and CC2 |
 | J2 | 2x5 1.27 mm Cortex debug | 1 VTref, 2 SWDIO, 4 SWDCLK, 6 SWO, 10 reset, 3/5/9 GND |
 | J3 | 1x4 2.54 mm I2C | 1 `+3V3`, 2 GND, 3 SDA, 4 SCL |
-| J4 | 1x4 2.54 mm LED board PWM | 1 GND, 2 PWM blue, 3 PWM red, 4 GND. Signals only: the LED board brings its own 5 to 12 V. |
+| J4 | 1x4 2.54 mm LED board PWM | 1 GND, 2 PWM blue, 3 PWM red, 4 GND. Signals only (250 Hz, high-drive 3.3 V); mates with `pcbs/led_driver` J2, which has its own 24 V supply. |
 | J5 | 2-pin JST-PH battery | 1 cell positive, 2 cell negative. The 18650 sits in the enclosure cradle. |
 
 ## Sensors, checked against datasheets
