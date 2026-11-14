@@ -208,10 +208,10 @@ Not implemented: any use of the user button or the TSL2591 interrupt. Sleep curr
 ## Not verified
 
 - TSL2591 decoupling: 1 uF is a choice. The datasheet pages read give no value.
-- Y1 load capacitance (9 pF) is calculated from Raytac's 12 pF capacitors assuming 4 pF pin capacitance. Nordic states 4 pF for the nRF5340; the nRF52840 table could not be opened. Confirm against the crystal chosen.
+- Y1 is specified as Abracon ABS07-32.768KHZ-9-T (9 pF load, +/-20 ppm, ESR 70 kOhm max, shunt capacitance 2 pF max, same 3.2 x 1.5 mm footprint; Abracon ABS07 datasheet rev 08-10-22). The 9 pF figure assumes 4 pF nRF52840 pin capacitance, which Nordic states for the nRF5340; the nRF52840 crystal limits table could not be opened.
 - Q2 reverse-cell protection is an addition of this revision. It follows the standard P-FET arrangement and has not been simulated or bench tested.
 - Battery life is an estimate from datasheet figures (see Power budget), not a measurement.
-- FS8205A: the Fortune Semiconductor part (LCSC C16052) is listed as discontinued and unavailable. Parts with the same name from other makers are stocked (for example TECH PUBLIC, LCSC C2830320). Their pinout has not been checked against this footprint.
+- FS8205A: the Fortune Semiconductor part (LCSC C16052) is listed as discontinued and unavailable. The in-stock part sold under the same name by TECH PUBLIC (LCSC C2830320) is SOT-23-6, not TSSOP-8, so it is not a drop-in: using it needs a footprint and pin-map change. Its datasheet link returned no PDF, so its pinout is unchecked. Decision needed before ordering: find a TSSOP-8 8205A with a datasheet, or move to a SOT-23-6 dual FET.
 - The board is not laid out. `gos_sensor_node.kicad_pcb` is still the empty rev 2 file.
 - The firmware compiles (Zephyr `main` at f8da8ea, 2026-11-12, SDK 1.0.1, GCC 14.3) with no compiler warnings: 213 KB flash, 62 KB RAM with Thread (196 KB, 60 KB for the `low_power.conf` field build). The packet encoder was also checked on a PC against the Python decode. It has never run on hardware or joined a Thread network.
 - Zephyr warns that keys stored in flash, including the Thread network key, are protected only by a key derived from the chip ID. Anyone with the board and a debugger can read them. Built without `dtc`, so the overlay was parsed by Zephyr's Python devicetree tooling only.
