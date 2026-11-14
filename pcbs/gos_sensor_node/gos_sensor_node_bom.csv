@@ -1,44 +1,44 @@
-"Refs","Qty","Value","Footprint","Manufacturer","MPN","Description"
-"BT1","1","18650 holder","Battery:BatteryHolder_Keystone_1042_1x18650","Keystone","1042","Single-cell battery"
-"C1,C14","2","1uF 25V X7R","Capacitor_SMD:C_0603_1608Metric","","","Unpolarized capacitor"
-"C2,C3,C4,C5,C10,C12","6","10uF 16V X5R","Capacitor_SMD:C_0805_2012Metric","","","Unpolarized capacitor"
-"C6,C7,C11,C13","4","100nF","Capacitor_SMD:C_0603_1608Metric","","","Unpolarized capacitor"
-"C8,C9","2","12pF C0G","Capacitor_SMD:C_0603_1608Metric","","","Unpolarized capacitor"
-"D1","1","LED amber (charging)","LED_SMD:LED_0603_1608Metric","","","Light emitting diode"
-"D2","1","LED green (status)","LED_SMD:LED_0603_1608Metric","","","Light emitting diode"
-"F1","1","PTC 0.75A 6V","Fuse:Fuse_1206_3216Metric","","","Resettable fuse, polymeric positive temperature coefficient, small symbol"
-"J1","1","USB-C USB4105-GF-A","Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal","GCT","USB4105-GF-A","USB 2.0-only 16P Type-C Receptacle connector"
-"J2","1","SWD 2x5 1.27mm","Connector_PinHeader_1.27mm:PinHeader_2x05_P1.27mm_Vertical_SMD","","","Cortex Debug Connector, standard ARM Cortex-M SWD and JTAG interface"
-"J3","1","I2C","Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical","","","Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)"
-"J4","1","LED board","Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical","","","Generic connector, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)"
-"L1","1","2.2uH","Inductor_SMD:L_Coilcraft_LPS3314","Coilcraft","","Shielded inductor 2.2 uH, Coilcraft LPS3314 series, Isat above 0.5 A"
-"Q1","1","FS8205A","Package_SO:TSSOP-8_4.4x3mm_P0.65mm","Fortune Semiconductor","FS8205A","Dual N-channel MOSFET, common drain, 20 V, 6 A, 25 mOhm at 4.5 V, TSSOP-8"
-"Q2","1","AO3401A","Package_TO_SOT_SMD:SOT-23","Alpha & Omega","AO3401A","-4.0A Id, -30V Vds, P-Channel MOSFET, SOT-23"
-"R1,R5,R6,R15,R22,R23","6","100k","Resistor_SMD:R_0603_1608Metric","","","Resistor"
-"R2","1","68k","Resistor_SMD:R_0603_1608Metric","","","Resistor"
-"R3","1","3.0k 1%","Resistor_SMD:R_0603_1608Metric","","","Resistor"
-"R4","1","1.8k 1%","Resistor_SMD:R_0603_1608Metric","","","Resistor"
-"R7,R9,R12","3","1k","Resistor_SMD:R_0603_1608Metric","","","Resistor"
-"R8,R20,R21","3","100R","Resistor_SMD:R_0603_1608Metric","","","Resistor"
-"R10,R11","2","2.2M 1%","Resistor_SMD:R_0603_1608Metric","","","Resistor"
-"R13,R14","2","4.7k","Resistor_SMD:R_0603_1608Metric","","","Resistor"
-"R16,R17","2","5.1k","Resistor_SMD:R_0603_1608Metric","","","Resistor"
-"R18,R19","2","27R","Resistor_SMD:R_0603_1608Metric","","","Resistor"
-"SW1","1","RESET","Button_Switch_SMD:SW_SPST_B3U-1000P","Omron","B3U-1000P","Push button switch, generic, two pins"
-"SW2","1","USER","Button_Switch_SMD:SW_SPST_B3U-1000P","Omron","B3U-1000P","Push button switch, generic, two pins"
-"TH1","1","NTC 10k","Resistor_SMD:R_0603_1608Metric","","","NTC thermistor 10k at 25 C, B 3380 K, 0603"
-"TP1","1","+3V3","TestPoint:TestPoint_Pad_D1.0mm","","","test point"
-"TP2","1","VSYS","TestPoint:TestPoint_Pad_D1.0mm","","","test point"
-"TP3","1","VBAT","TestPoint:TestPoint_Pad_D1.0mm","","","test point"
-"TP4","1","GND","TestPoint:TestPoint_Pad_D1.0mm","","","test point"
-"TP5","1","UART_TX","TestPoint:TestPoint_Pad_D1.0mm","","","test point"
-"TP6","1","UART_RX","TestPoint:TestPoint_Pad_D1.0mm","","","test point"
-"TP7","1","VBUS","TestPoint:TestPoint_Pad_D1.0mm","","","test point"
-"U1","1","BQ24074RGT","Package_DFN_QFN:VQFN-16-1EP_3x3mm_P0.5mm_EP1.6x1.6mm","Texas Instruments","BQ24074RGTR","USB-Friendly Li-Ion Battery Charger and Power-Path Management, VQFN-16"
-"U2","1","TPS62740DSS","Package_SON:WSON-12-1EP_3x2mm_P0.5mm_EP1x2.65","Texas Instruments","TPS62740DSSR","360 nA Iq step-down converter, 300 mA, 1.8 V to 3.3 V selectable output, WSON-12 (DSS)"
-"U3","1","DW01A","Package_TO_SOT_SMD:SOT-23-6","","DW01A","Overcharge, overcurrent and overdischarge protection IC for single cell lithium-ion/polymer battery"
-"U4","1","MDBT50Q-1MV2","RF_Module:Raytac_MDBT50Q","Raytac","MDBT50Q-1MV2","Multiprotocol BLE/ANT/2.4 GHz/802.15.4 Cortex-M4F SoC, nRF52840 module"
-"U5","1","SHT40-AD1B","Sensor_Humidity:Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad","Sensirion","SHT40-AD1B-R2","Digital Humidity and Temperature Sensor, ±1%RH, ±0.1°C, I2C, 1.08-3.6V, 16bit, DFN-4"
-"U6","1","TSL25911FN","OptoDevice:AMS_TSL25911FN","ams OSRAM","TSL25911FN","Light to digital converter, 2.7 to 3.6V Vdd, DFN-6"
-"U7","1","USBLC6-2SC6","Package_TO_SOT_SMD:SOT-23-6","STMicroelectronics","USBLC6-2SC6","Very low capacitance ESD protection diode, 2 data-line, SOT-23-6"
-"Y1","1","32.768kHz 9pF","Crystal:Crystal_SMD_3215-2Pin_3.2x1.5mm","","","Two pin crystal"
+Refs,Qty,Value,Footprint,Manufacturer,MPN,Description
+"C1,C14",2,1uF 25V X7R,Capacitor_SMD:C_0603_1608Metric,,,Unpolarized capacitor
+"C2,C3,C4,C5,C10,C12",6,10uF 16V X5R,Capacitor_SMD:C_0805_2012Metric,,,Unpolarized capacitor
+"C6,C7,C11,C13",4,100nF,Capacitor_SMD:C_0603_1608Metric,,,Unpolarized capacitor
+"C8,C9",2,12pF C0G,Capacitor_SMD:C_0603_1608Metric,,,Unpolarized capacitor
+D1,1,LED amber (charging),LED_SMD:LED_0603_1608Metric,,,Light emitting diode
+D2,1,LED green (status),LED_SMD:LED_0603_1608Metric,,,Light emitting diode
+F1,1,PTC 0.75A 6V,Fuse:Fuse_1206_3216Metric,,,"Resettable fuse, polymeric positive temperature coefficient, small symbol"
+J1,1,USB-C USB4105-GF-A,Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,GCT,USB4105-GF-A,USB 2.0-only 16P Type-C Receptacle connector
+J2,1,SWD 2x5 1.27mm,Connector_PinHeader_1.27mm:PinHeader_2x05_P1.27mm_Vertical_SMD,,,"Cortex Debug Connector, standard ARM Cortex-M SWD and JTAG interface"
+J3,1,I2C,Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical,,,"Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)"
+J4,1,LED board PWM,Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical,,,"Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)"
+J5,1,Battery JST-PH,Connector_JST:JST_PH_S2B-PH-K_1x02_P2.00mm_Horizontal,JST,S2B-PH-K-S,"Battery lead connector, pin 1 = cell positive. The 18650 sits in the enclosure cradle."
+L1,1,2.2uH,Inductor_SMD:L_Coilcraft_LPS3314,Coilcraft,,"Shielded inductor 2.2 uH, Coilcraft LPS3314 series, Isat above 0.5 A"
+Q1,1,FS8205A,Package_SO:TSSOP-8_4.4x3mm_P0.65mm,Fortune Semiconductor,FS8205A,"Dual N-channel MOSFET, common drain, 20 V, 6 A, 25 mOhm at 4.5 V, TSSOP-8"
+Q2,1,AO3401A,Package_TO_SOT_SMD:SOT-23,Alpha & Omega,AO3401A,"-4.0A Id, -30V Vds, P-Channel MOSFET, SOT-23"
+"R1,R5,R6,R15,R22,R23",6,100k,Resistor_SMD:R_0603_1608Metric,,,Resistor
+R2,1,68k,Resistor_SMD:R_0603_1608Metric,,,Resistor
+R3,1,3.0k 1%,Resistor_SMD:R_0603_1608Metric,,,Resistor
+R4,1,1.8k 1%,Resistor_SMD:R_0603_1608Metric,,,Resistor
+"R7,R9,R12",3,1k,Resistor_SMD:R_0603_1608Metric,,,Resistor
+"R8,R20,R21",3,100R,Resistor_SMD:R_0603_1608Metric,,,Resistor
+"R10,R11",2,2.2M 1%,Resistor_SMD:R_0603_1608Metric,,,Resistor
+"R13,R14",2,4.7k,Resistor_SMD:R_0603_1608Metric,,,Resistor
+"R16,R17",2,5.1k,Resistor_SMD:R_0603_1608Metric,,,Resistor
+"R18,R19",2,27R,Resistor_SMD:R_0603_1608Metric,,,Resistor
+SW1,1,RESET,Button_Switch_SMD:SW_SPST_B3U-1000P,Omron,B3U-1000P,"Push button switch, generic, two pins"
+SW2,1,USER,Button_Switch_SMD:SW_SPST_B3U-1000P,Omron,B3U-1000P,"Push button switch, generic, two pins"
+TH1,1,NTC 10k,Resistor_SMD:R_0603_1608Metric,,,"NTC thermistor 10k at 25 C, B 3380 K, 0603"
+TP1,1,+3V3,TestPoint:TestPoint_Pad_D1.0mm,,,test point
+TP2,1,VSYS,TestPoint:TestPoint_Pad_D1.0mm,,,test point
+TP3,1,VBAT,TestPoint:TestPoint_Pad_D1.0mm,,,test point
+TP4,1,GND,TestPoint:TestPoint_Pad_D1.0mm,,,test point
+TP5,1,UART_TX,TestPoint:TestPoint_Pad_D1.0mm,,,test point
+TP6,1,UART_RX,TestPoint:TestPoint_Pad_D1.0mm,,,test point
+TP7,1,VBUS,TestPoint:TestPoint_Pad_D1.0mm,,,test point
+U1,1,BQ24074RGT,Package_DFN_QFN:VQFN-16-1EP_3x3mm_P0.5mm_EP1.6x1.6mm,Texas Instruments,BQ24074RGTR,"USB-Friendly Li-Ion Battery Charger and Power-Path Management, VQFN-16"
+U2,1,TPS62740DSS,Package_SON:WSON-12-1EP_3x2mm_P0.5mm_EP1x2.65,Texas Instruments,TPS62740DSSR,"360 nA Iq step-down converter, 300 mA, 1.8 V to 3.3 V selectable output, WSON-12 (DSS)"
+U3,1,DW01A,Package_TO_SOT_SMD:SOT-23-6,,DW01A,"Overcharge, overcurrent and overdischarge protection IC for single cell lithium-ion/polymer battery"
+U4,1,MDBT50Q-1MV2,RF_Module:Raytac_MDBT50Q,Raytac,MDBT50Q-1MV2,"Multiprotocol BLE/ANT/2.4 GHz/802.15.4 Cortex-M4F SoC, nRF52840 module"
+U5,1,SHT40-AD1B,Sensor_Humidity:Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad,Sensirion,SHT40-AD1B-R2,"Digital Humidity and Temperature Sensor, ±1%RH, ±0.1°C, I2C, 1.08-3.6V, 16bit, DFN-4"
+U6,1,TSL25911FN,OptoDevice:AMS_TSL25911FN,ams OSRAM,TSL25911FN,"Light to digital converter, 2.7 to 3.6V Vdd, DFN-6"
+U7,1,USBLC6-2SC6,Package_TO_SOT_SMD:SOT-23-6,STMicroelectronics,USBLC6-2SC6,"Very low capacitance ESD protection diode, 2 data-line, SOT-23-6"
+Y1,1,32.768kHz 9pF,Crystal:Crystal_SMD_3215-2Pin_3.2x1.5mm,,,Two pin crystal
