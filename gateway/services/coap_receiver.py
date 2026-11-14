@@ -17,7 +17,14 @@ Environment:
   COAP_PORT             default 5683
   COAP_URI_PATH         default "telemetry"
   COAP_MULTICAST_GROUP  default "ff03::1"; empty string to skip joining
-  COAP_INTERFACE        interface to join the group on, default "wpan0"
+  COAP_INTERFACE        Thread interface, default "wpan0". Packets from any
+                        other interface are ignored. Empty = listen on all
+                        interfaces (local testing only; also needed on
+                        Windows, which cannot restrict by interface).
+
+Security: packets are not authenticated. Restricting to the Thread interface
+keeps the LAN and internet out, but any device on the Thread network can
+still send packets that look like a node's.
 """
 
 import argparse
@@ -273,8 +280,19 @@ class CoapReceiver(asyncio.DatagramProtocol):
 
 
 def open_socket(port: int, group: str, interface: str) -> socket.socket:
+    """Open the UDP socket. With an interface name, only packets arriving on
+    that interface are accepted (Linux SO_BINDTODEVICE), so hosts on the LAN
+    or the internet cannot write rows; only devices on the Thread network can.
+    An empty interface listens everywhere and is meant for local testing."""
     sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if interface:
+        if not hasattr(socket, "SO_BINDTODEVICE"):
+            raise SystemExit(f"cannot restrict to {interface} on this OS; set COAP_INTERFACE= to listen everywhere")
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode())
+        logger.info(f"Accepting packets from {interface} only")
+    else:
+        logger.warning("COAP_INTERFACE is empty: accepting packets from every interface")
     sock.bind(("::", port))
     if group:
         ifindex = socket.if_nametoindex(interface)
