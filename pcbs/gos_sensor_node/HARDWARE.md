@@ -227,6 +227,8 @@ Rerunning `generate_pcb.py` rebuilds the file from scratch and discards any rout
 | MDBT50Q-1MV2 | Raytac spec ver. K, sections 2.5, 2.6, 8 | pin table, low-frequency pins, supply circuit, crystal caps, USB resistors |
 | DW01A | H&M Semi datasheet, https://hmsemi.com/downfile/DW01A.PDF | pin table, application circuit, thresholds |
 | FS8205A | Fortune FS8205A-DS-12 | pin assignment, ratings |
+| 8205A-VB | VBsemi 8205A-VB TSSOP8 datasheet | pin assignment, ratings (replacement for FS8205A) |
+| ABS07 | Abracon ABS07 datasheet rev 08-10-22 | load capacitance options, ESR, tolerance |
 | SHT4x | Sensirion datasheet V7.3 (June 2026) | pin assignment, address, supply, land pattern, currents |
 | TSL2591 | ams datasheet ams163.5 (April 2013) | pin assignment, address, supply, temperature range, currents |
 | nRF52840 | Nordic product specification, current consumption tables | sleep, radio and CPU currents |
@@ -238,7 +240,7 @@ Rerunning `generate_pcb.py` rebuilds the file from scratch and discards any rout
 - Y1 is specified as Abracon ABS07-32.768KHZ-9-T (9 pF load, +/-20 ppm, ESR 70 kOhm max, shunt capacitance 2 pF max, same 3.2 x 1.5 mm footprint; Abracon ABS07 datasheet rev 08-10-22). The 9 pF figure assumes 4 pF nRF52840 pin capacitance, which Nordic states for the nRF5340; the nRF52840 crystal limits table could not be opened.
 - Q2 reverse-cell protection is an addition of this revision. It follows the standard P-FET arrangement and has not been simulated or bench tested.
 - Battery life is an estimate from datasheet figures (see Power budget), not a measurement.
-- FS8205A: the Fortune Semiconductor part (LCSC C16052) is listed as discontinued and unavailable. The in-stock part sold under the same name by TECH PUBLIC (LCSC C2830320) is SOT-23-6, not TSSOP-8, so it is not a drop-in: using it needs a footprint and pin-map change. Its datasheet link returned no PDF, so its pinout is unchecked. Decision needed before ordering: find a TSSOP-8 8205A with a datasheet, or move to a SOT-23-6 dual FET.
+- Q1 is now specified as VBsemi 8205A-VB TSSOP8: same TSSOP-8 pinout as the discontinued Fortune FS8205A (1 D, 2-3 S1, 4 G1, 5 G2, 6-7 S2, 8 D), 25 V, 22 mOhm at 4.5 V gate (VBsemi datasheet). With 2 x 22 mOhm the DW01A 150 mV overcurrent trip is about 3.4 A instead of 3 A. Distributor stock was not checked. SemiWare SNM8205A shows the same pin layout in its drawing but its pin numbers were not confirmed. The TECH PUBLIC part sold as FS8205A (LCSC C2830320) is SOT-23-6 and does not fit.
 - The board is placed but not routed (see Board layout). Nothing is ready to order.
 - The firmware compiles (Zephyr `main` at f8da8ea, 2026-11-12, SDK 1.0.1, GCC 14.3) with no compiler warnings: 213 KB flash, 62 KB RAM with Thread (196 KB, 60 KB for the `low_power.conf` field build). The packet encoder was also checked on a PC against the Python decode. It has never run on hardware or joined a Thread network.
 - Zephyr warns that keys stored in flash, including the Thread network key, are protected only by a key derived from the chip ID. Anyone with the board and a debugger can read them. Built without `dtc`, so the overlay was parsed by Zephyr's Python devicetree tooling only.

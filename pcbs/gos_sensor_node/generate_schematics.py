@@ -516,9 +516,10 @@ def build():
     s.part("U3", "Battery_Management:DW01A", 175.26, y, "DW01A", "Package_TO_SOT_SMD:SOT-23-6",
            {"5": "DW_VCC", "6": "BAT_N", "1": "DW_OD", "3": "DW_OC", "2": "DW_CS"}, nc=["4"], MPN="DW01A")
     s.R("1k", "DW_CS", "GND", 215.9, y)
-    s.part("Q1", "gos:FS8205A", 254, y, "FS8205A", "Package_SO:TSSOP-8_4.4x3mm_P0.65mm",
+    s.part("Q1", "gos:FS8205A", 254, y, "8205A dual NMOS", "Package_SO:TSSOP-8_4.4x3mm_P0.65mm",
            {"S1": "BAT_N", "G1": "DW_OD", "S2": "GND", "G2": "DW_OC", "D12": "FET_D"},
-           MPN="FS8205A", Manufacturer="Fortune Semiconductor")
+           MPN="8205A-VB TSSOP8", Manufacturer="VBsemi",
+           Alternate="FS8205A (Fortune Semiconductor, discontinued); SNM8205A (SemiWare)")
     s.R(R_VBAT_DIV, "VBAT", "VBAT_SENSE", 325.12, 177.8)
     s.R(R_VBAT_DIV, "VBAT_SENSE", "GND", 325.12, 215.9)
     s.C("100nF", "VBAT_SENSE", "GND", 350.52, 215.9)
