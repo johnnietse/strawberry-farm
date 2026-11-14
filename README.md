@@ -343,6 +343,7 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 | `hardware_specs.md` | Board and LED board summary (rev 3.1) |
 | `archive/` | Rev 2 hardware documents, kept for reference |
 | `bench_testing.md` | Validation procedures |
+| `bring_up.md` | First power-on of a rev 3.1 sensor node, step by step |
 | `hardware_protocol.md` | Communication protocol |
 | `requirements.md` | ELEC 490/498 checklist |
 
