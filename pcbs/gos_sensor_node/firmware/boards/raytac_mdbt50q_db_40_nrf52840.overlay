@@ -1,5 +1,5 @@
 /*
- * G.O.S. sensor node rev 3.0 (Raytac MDBT50Q-1MV2, nRF52840).
+ * G.O.S. sensor node rev 3.1 (Raytac MDBT50Q-1MV2, nRF52840).
  *
  * Base board: raytac_mdbt50q_db_40/nrf52840, Raytac's demo board for the same module.
  * This overlay moves or removes everything on that board that does not exist here.

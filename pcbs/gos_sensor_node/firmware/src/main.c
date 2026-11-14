@@ -1,11 +1,14 @@
 /*
- * G.O.S. sensor node rev 3.0 application.
+ * G.O.S. sensor node rev 3.1 application.
  *
  * Every SAMPLE_PERIOD_S: read SHT40, TSL2591, battery voltage and charger
  * status, log them, flash the status LED. The two PWM channels to the LED
  * driver board start at 0 %.
  *
- * Not implemented: Thread / CoAP uplink, low-power sleep.
+ * After each sample a PACKET_V2 research packet goes out over Thread
+ * (src/uplink.c).
+ *
+ * Not implemented: low-power sleep.
  */
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
@@ -20,6 +23,7 @@
 #include <stdlib.h>
 
 #include "gos_main.h"
+#include "uplink.h"
 
 LOG_MODULE_REGISTER(gos_main, LOG_LEVEL_INF);
 
@@ -265,7 +269,7 @@ int main(void)
 	struct gos_sensor_data data;
 	int err;
 
-	LOG_INF("G.O.S. sensor node rev 3.0");
+	LOG_INF("G.O.S. sensor node rev 3.1");
 
 	err = gpio_init();
 	if (err) {
@@ -284,6 +288,12 @@ int main(void)
 		gpio_pin_set_dt(&status_led, 1);
 		sample_all(&data);
 		report(&data);
+		err = gos_uplink_send(&data);
+		if (err == -ENOTCONN) {
+			LOG_INF("not attached to Thread yet, sample not sent");
+		} else if (err) {
+			LOG_WRN("uplink failed: %d", err);
+		}
 		gpio_pin_set_dt(&status_led, 0);
 
 		for (int waited = 0; waited < SAMPLE_PERIOD_S; waited += WDT_FEED_PERIOD_S) {
