@@ -1,30 +1,14 @@
 cmake_minimum_required(VERSION 3.20.0)
 
+# west build -b raytac_mdbt50q_db_40/nrf52840
+# boards/raytac_mdbt50q_db_40_nrf52840.overlay is applied automatically for that board.
+# Thread network key, kept out of git (see credentials.conf.example)
+if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/credentials.conf)
+  list(APPEND EXTRA_CONF_FILE ${CMAKE_CURRENT_LIST_DIR}/credentials.conf)
+endif()
+
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(gos_sensor_node VERSION 2.0.0)
+project(gos_sensor_node VERSION 3.1.0)
 
-# Application sources
-target_sources(app PRIVATE
-    src/main.c
-    src/drivers/led_control.c
-    src/drivers/battery_adc.c
-    src/drivers/bq24075.c
-    src/drivers/tps62740.c
-    src/drivers/dw01a.c
-    src/drivers/tsl2591.c
-    src/drivers/sx1262.c
-    src/drivers/l76k.c
-    src/drivers/battery_adc.c
-    src/drivers/ext_flash.c
-    src/drivers/power_mgmt.c
-    src/drivers/watchdog.c
-)
-
-# Include directories
-target_include_directories(app PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/drivers
-)
-
-# Zephyr modules
-find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
+target_sources(app PRIVATE src/main.c src/uplink.c)
+target_include_directories(app PRIVATE include)

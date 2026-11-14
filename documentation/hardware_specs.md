@@ -1,3 +1,5 @@
+> **Superseded.** This file describes the rev 2 board (bare nRF52840, BQ24075, on-board LED drivers). The current design is rev 3.1: see [HARDWARE.md](../pcbs/gos_sensor_node/HARDWARE.md).
+
 # Hardware Manufacturing Specifications: Strawberry Research IoT Fleet
 
 To move from prototype to mass production for greenhouse research, the following hardware considerations are critical for reliability and data integrity.
