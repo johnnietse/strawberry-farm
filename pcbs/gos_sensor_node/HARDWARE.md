@@ -179,7 +179,17 @@ This follows `documentation/hardware_protocol.md`. That document does not say ho
 
 The gateway receiver is `gateway/services/coap_receiver.py` (Docker Compose service `coap_receiver`, started with `docker compose --profile hardware up` on the border router host). It stores each packet in `raw_telemetry`; lux goes in `payload.light_lux` because `par_umol` is PAR, which the node does not measure.
 
-Not implemented: low-power sleep (the TSL2591 stays awake at 275 uA), any use of the user button or the TSL2591 interrupt.
+### Power
+
+- Between samples every thread sleeps, so Zephyr idles the CPU in System ON sleep.
+- The TSL2591 is powered up only for each reading (driver suspend/resume, `CONFIG_PM_DEVICE`), so it draws 2.3 uA instead of 275 uA between readings.
+- The debug UART keeps the high-frequency clock running. For nodes in the phytotron build without it:
+
+```
+west build -b raytac_mdbt50q_db_40/nrf52840 -- -DEXTRA_CONF_FILE=low_power.conf
+```
+
+Not implemented: any use of the user button or the TSL2591 interrupt. Sleep current has not been measured.
 
 ## Sources
 
@@ -203,5 +213,5 @@ Not implemented: low-power sleep (the TSL2591 stays awake at 275 uA), any use of
 - Battery life is an estimate from datasheet figures (see Power budget), not a measurement.
 - FS8205A: the Fortune Semiconductor part (LCSC C16052) is listed as discontinued and unavailable. Parts with the same name from other makers are stocked (for example TECH PUBLIC, LCSC C2830320). Their pinout has not been checked against this footprint.
 - The board is not laid out. `gos_sensor_node.kicad_pcb` is still the empty rev 2 file.
-- The firmware compiles (Zephyr `main` at f8da8ea, 2026-11-12, SDK 1.0.1, GCC 14.3) with no compiler warnings: 211 KB flash, 62 KB RAM with Thread. The packet encoder was also checked on a PC against the Python decode. It has never run on hardware or joined a Thread network.
+- The firmware compiles (Zephyr `main` at f8da8ea, 2026-11-12, SDK 1.0.1, GCC 14.3) with no compiler warnings: 213 KB flash, 62 KB RAM with Thread (196 KB, 60 KB for the `low_power.conf` field build). The packet encoder was also checked on a PC against the Python decode. It has never run on hardware or joined a Thread network.
 - Zephyr warns that keys stored in flash, including the Thread network key, are protected only by a key derived from the chip ID. Anyone with the board and a debugger can read them. Built without `dtc`, so the overlay was parsed by Zephyr's Python devicetree tooling only.
