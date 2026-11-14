@@ -127,6 +127,23 @@ def test_duplicate_confirmable_gets_same_ack_again():
     assert first == again and r.stored == 1
 
 
+def test_same_message_id_with_different_content_is_not_a_duplicate():
+    """A spoofed packet reusing a node's message ID must not suppress the real one."""
+    store = Recorder()
+    r = rx.CoapReceiver(store)
+    r.handle(coap(FIRMWARE_FAILED, mid=5, token=bytes([0xDE, 0xAD])), "fd00::7", 5683)  # spoof first
+    r.handle(coap(FIRMWARE_GOOD, mid=5), "fd00::7", 5683)                       # real packet
+    assert len(store.rows) == 2 and store.rows[1][0]["battery_mv"] == 3712
+
+
+def test_rejected_packet_is_not_remembered():
+    store = Recorder()
+    r = rx.CoapReceiver(store)
+    r.handle(coap(b"short", mid=5, token=b""), "fd00::7")
+    r.handle(coap(b"short", mid=5, token=b""), "fd00::7")
+    assert r.duplicates == 0 and r.rejected == 2
+
+
 def test_duplicate_window_expires():
     now = [0.0]
     store = Recorder()
