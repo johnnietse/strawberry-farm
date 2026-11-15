@@ -32,7 +32,12 @@ body {
 
 .brand { font-size: 1.15rem; }
 .logo { color: var(--accent); font-weight: 700; margin-right: 0.4rem; }
-.status { display: flex; gap: 0.75rem; align-items: center; }
+.status { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.token-form { display: flex; gap: 0.4rem; align-items: center; }
+.token-form input {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 0.35rem 0.5rem; font: inherit; width: 13rem;
+}
 
 .pill {
     border: 1px solid var(--border);

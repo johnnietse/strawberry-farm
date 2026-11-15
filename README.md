@@ -113,7 +113,7 @@ print files in [`mechanical/print/`](mechanical/print) (ASA). Details: [`mechani
 | Layout review (USB pair, buck switching loop, antenna strip) | [`documentation/design_review.md`](documentation/design_review.md) |
 | LTspice: LED current, switching frequency, PWM dimming, fail-safe, battery sense, reversed cell | all pass after two design fixes: [`simulation/README.md`](simulation/README.md) |
 | Firmware build (Zephyr main, SDK 1.0.1) | no warnings, 214 KB flash, 62 KB RAM |
-| Gateway tests (receiver, LED commands, safety monitor, assistant) | 66 pass |
+| Gateway tests (receiver, LED commands, safety monitor, assistant, API auth) | 76 pass |
 | ML engine tests (plant model physics, task, policy, controller) | 13 pass |
 | LED command check in firmware, host test against gateway-made commands | 8 pass |
 | End-to-end in Docker: simulated node to database to plant model to controller to safety to signed command, verified by the node; manual override; assistant (`tests/e2e/run_e2e.sh`) | pass, 8/8 commands verified |
@@ -458,6 +458,12 @@ Details and results: [`ml_engine/README.md`](ml_engine/README.md).
 ---
 
 ## 📡 API Endpoints
+
+Reads need no credentials. Every write (POST / DELETE) needs `Authorization: Bearer <GOS_API_TOKEN>`
+(set it in `.env`; without it the API is read-only, because `/api/led` drives real lights). The
+dashboard asks for the token once and keeps it in the browser. Browsers may call the API only
+from `GOS_CORS_ORIGINS`. The assistant takes at most 2000 characters and 10 requests per minute
+per client. Manual LED settings last at most 24 h.
 
 ### Phenotyping
 

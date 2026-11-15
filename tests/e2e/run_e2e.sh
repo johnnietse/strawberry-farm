@@ -15,6 +15,8 @@ cd "$(dirname "$0")/../.."
 P=(docker compose -p gos_e2e -f docker-compose.yml -f tests/e2e/e2e.override.yml)
 API=http://localhost:5055
 fail=0
+export GOS_API_TOKEN="e2e-$(python -c 'import secrets;print(secrets.token_hex(16))')"
+AUTH=(-H "Authorization: Bearer $GOS_API_TOKEN")
 
 python - <<'EOF'
 import json, os
@@ -32,11 +34,13 @@ echo "$out" | grep -q "RESULT 8/8" || { echo "FAIL: not every reply carried a va
 
 curl -sf "$API/api/plant" | python -c "import json,sys; d=[x for x in json.load(sys.stdin) if x['node_id']=='RF-NODE-07']; assert d and d[0]['photosynthesis_umol_m2_s'] is not None; print('plant state ok:', d[0]['photosynthesis_umol_m2_s'], 'umol/m2/s')" || fail=1
 
-curl -sf -XPOST "$API/api/led" -H "Content-Type: application/json" -d '{"node":"RF-NODE-07","blue_pct":10,"red_pct":90,"minutes":5}' >/dev/null
+code=$(curl -s -o /dev/null -w "%{http_code}" -XPOST "$API/api/led" -H "Content-Type: application/json" -d '{"node":"ALL","blue_pct":100,"red_pct":100}')
+[ "$code" = 401 ] && echo "write without token refused (401) ok" || { echo "FAIL: write without token got $code"; fail=1; }
+curl -sf -XPOST "$API/api/led" "${AUTH[@]}" -H "Content-Type: application/json" -d '{"node":"RF-NODE-07","blue_pct":10,"red_pct":90,"minutes":5}' >/dev/null
 out=$("${P[@]}" --profile e2e run --rm -e PACKETS=1 -e PERIOD_S=0 fake_node)
 echo "$out" | grep -q "blue 10 %, red 90 %" && echo "manual override ok" || { echo "FAIL: manual override not sent"; fail=1; }
 
-curl -sf -XPOST "$API/api/assistant" -H "Content-Type: application/json" -d '{"text":"aphids on bench 2"}' \
+curl -sf -XPOST "$API/api/assistant" "${AUTH[@]}" -H "Content-Type: application/json" -d '{"text":"aphids on bench 2"}' \
   | python -c "import json,sys; e=json.load(sys.stdin)['event']; assert e['event_type']=='PEST' and e['sector']=='bench 2'; print('assistant ok:', e)" || fail=1
 
 [ $fail = 0 ] && echo "E2E PASSED" || { echo "E2E FAILED"; exit 1; }

@@ -14,7 +14,12 @@
     <header class="top">
         <div class="brand"><span class="logo">G.O.S.</span> Phytotron research dashboard</div>
         <div class="status"><span id="api-status" class="pill">connecting</span>
-            <span id="updated" class="muted"></span></div>
+            <span id="updated" class="muted"></span>
+            <form id="token-form" class="token-form">
+                <input id="token-input" type="password" placeholder="API token (for changes)" autocomplete="off">
+                <button class="btn" type="submit">Save</button>
+                <span id="token-state" class="muted"></span>
+            </form></div>
     </header>
 
     <main class="grid">
@@ -52,7 +57,7 @@
                 <label>Node <select id="led-node"><option value="ALL">All nodes</option></select></label>
                 <label>Blue % <input id="led-blue" type="number" min="0" max="100" value="25" required></label>
                 <label>Red % <input id="led-red" type="number" min="0" max="100" value="75" required></label>
-                <label>Minutes <input id="led-min" type="number" min="1" max="10080" value="60" required></label>
+                <label>Minutes <input id="led-min" type="number" min="1" max="1440" value="60" required></label>
                 <div class="row">
                     <button class="btn primary" type="submit">Set</button>
                     <button class="btn" type="button" id="led-auto">Back to automatic</button>

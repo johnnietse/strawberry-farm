@@ -23,8 +23,12 @@ Endpoints:
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import psycopg2
+import hmac
 import os
 import logging
+import threading
+import time
+from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 
 try:
@@ -33,9 +37,52 @@ except ImportError:  # imported as services.api
     from services.assistant import parse_note
 
 app = Flask(__name__)
-CORS(app)  # Enable Dashboard to talk to API
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ResearchAPI")
+
+# Security
+# - Every request that changes something (POST, PUT, PATCH, DELETE) needs
+#   "Authorization: Bearer <GOS_API_TOKEN>". The token is sent as a header, never a cookie, so
+#   another web site cannot make a visitor's browser send it (no CSRF). Without GOS_API_TOKEN
+#   set, writes are refused: the LEDs are actuators and must not be open to the network.
+# - Browsers may call the API only from the dashboard's origins (GOS_CORS_ORIGINS,
+#   comma-separated, default the dashboard on this host's port 8080 for localhost).
+# - The assistant takes at most ASSISTANT_MAX_CHARS characters and ASSISTANT_RATE requests per
+#   client per minute (it can call a paid model).
+API_TOKEN = os.getenv("GOS_API_TOKEN", "")
+CORS_ORIGINS = [o.strip() for o in os.getenv(
+    "GOS_CORS_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080").split(",") if o.strip()]
+CORS(app, origins=CORS_ORIGINS, supports_credentials=False,
+     allow_headers=["Content-Type", "Authorization"], methods=["GET", "POST", "DELETE"])
+ASSISTANT_MAX_CHARS = int(os.getenv("ASSISTANT_MAX_CHARS", "2000"))
+ASSISTANT_RATE = int(os.getenv("ASSISTANT_RATE", "10"))
+MAX_OVERRIDE_MIN = 24 * 60
+_rate = defaultdict(deque)
+_rate_lock = threading.Lock()
+
+
+@app.before_request
+def require_token_for_writes():
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return None
+    if not API_TOKEN:
+        return jsonify({"status": "error", "message": "writes are disabled: set GOS_API_TOKEN"}), 503
+    sent = request.headers.get("Authorization", "")
+    if not (sent.startswith("Bearer ") and hmac.compare_digest(sent[7:].encode(), API_TOKEN.encode())):
+        return jsonify({"status": "error", "message": "missing or wrong API token"}), 401
+    return None
+
+
+def rate_limited(key: str, limit: int, window_s: float = 60.0) -> bool:
+    now = time.monotonic()
+    with _rate_lock:
+        q = _rate[key]
+        while q and now - q[0] > window_s:
+            q.popleft()
+        if len(q) >= limit:
+            return True
+        q.append(now)
+        return False
 
 DB_URL = os.getenv("DATABASE_URL")
 
@@ -165,8 +212,8 @@ def update_led_schedule():
         b, r = _led_levels(data)
         node = str(data.get('node') or data.get('sector') or 'ALL')
         minutes = int(data.get('minutes', 60))
-        if not 1 <= minutes <= 7 * 24 * 60:
-            raise ValueError("minutes must be 1 .. 10080")
+        if not 1 <= minutes <= MAX_OVERRIDE_MIN:
+            raise ValueError(f"minutes must be 1 .. {MAX_OVERRIDE_MIN}")
     except (TypeError, ValueError) as e:
         return jsonify({"status": "error", "message": str(e)}), 400
     try:
@@ -277,8 +324,13 @@ def assistant_parse():
     """{"text": "...", "commit": false} -> structured research event. With commit true the
     event is also stored in research_events (created_via_llm unless the rules made it)."""
     data = request.json or {}
+    text = str(data.get('text', ''))
+    if len(text) > ASSISTANT_MAX_CHARS:
+        return jsonify({"status": "error", "message": f"note longer than {ASSISTANT_MAX_CHARS} characters"}), 413
+    if rate_limited(request.remote_addr or "?", ASSISTANT_RATE):
+        return jsonify({"status": "error", "message": "too many requests, try again in a minute"}), 429
     try:
-        event, backend = parse_note(data.get('text', ''))
+        event, backend = parse_note(text)
     except ValueError as e:
         return jsonify({"status": "error", "message": str(e)}), 400
     stored = False
@@ -289,7 +341,7 @@ def assistant_parse():
                 cur.execute("""
                     INSERT INTO research_events (event_type, description, severity, created_via_llm, sector_id)
                     VALUES (%s, %s, %s, %s, %s)
-                """, (event['event_type'], data['text'], event['severity'], backend != 'rules', event['sector']))
+                """, (event['event_type'], text, event['severity'], backend != 'rules', event['sector']))
             conn.commit()
             conn.close()
             stored = True

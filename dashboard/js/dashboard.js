@@ -3,15 +3,20 @@
  * Everything shown comes from the database; nothing is simulated in the browser.
  * All values are inserted with textContent, never innerHTML, so data cannot inject markup.
  */
-// API base: ?api=http://host:port overrides the default (same host, port 5000)
-const API = new URLSearchParams(location.search).get('api') || `${location.protocol}//${location.hostname}:5000`;
+// The API runs on the same host, port 5000. Not configurable from the URL on purpose: a link
+// could otherwise point the dashboard (and the token) at another server.
+const API = `${location.protocol}//${location.hostname}:5000`;
+const TOKEN_KEY = 'gos_api_token';
+
+function token() {
+    try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; }
+}
 const REFRESH_MS = 15000;
 
 async function api(path, options = {}) {
-    const r = await fetch(API + path, {
-        headers: { 'Content-Type': 'application/json' },
-        ...options,
-    });
+    const headers = { 'Content-Type': 'application/json' };
+    if (options.method && options.method !== 'GET' && token()) headers.Authorization = `Bearer ${token()}`;
+    const r = await fetch(API + path, { ...options, headers });
     const body = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(body.message || `${r.status} ${r.statusText}`);
     return body;
@@ -156,6 +161,17 @@ async function sendNote(commit) {
 }
 document.getElementById('note-preview').addEventListener('click', () => sendNote(false));
 document.getElementById('note-form').addEventListener('submit', (ev) => { ev.preventDefault(); sendNote(true); });
+
+document.getElementById('token-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const field = document.getElementById('token-input');
+    try {
+        if (field.value) localStorage.setItem(TOKEN_KEY, field.value); else localStorage.removeItem(TOKEN_KEY);
+    } catch { /* storage blocked: the token is kept for this page only */ }
+    field.value = '';
+    document.getElementById('token-state').textContent = token() ? 'token set' : 'read only';
+});
+document.getElementById('token-state').textContent = token() ? 'token set' : 'read only';
 
 refreshAll();
 setInterval(refreshAll, REFRESH_MS);
