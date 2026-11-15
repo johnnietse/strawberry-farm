@@ -53,13 +53,23 @@ top of `generate_schematic.py` or a single part to swap.
 | Channels | blue 450 nm, red 660 nm | Same spectra as the rev 2 design. |
 | LEDs per channel | 4 in series, off-board | About 1 W per LED. Plain FR-4 cannot shed 8 W, so the LEDs go on star (MCPCB) heatsinks wired to J3 and J4. |
 | Current | 333 mA per channel | AL8860: I = 0.1 V / R_SENSE; 0.30 ohm gives 333 mA (datasheet table). Suits common 1 W horticulture LEDs. Change R_SENSE for other LEDs (1.0 A max in MSOP-8EP at 0.1 ohm, up to 1.5 A at 0.066 ohm). |
-| Inductor | 47 uH | Datasheet recommends 33 to 100 uH; its 3-LED test circuit uses 47 uH. Saturation current must exceed about 0.4 A. |
+| Inductor | 100 uH (Bourns SRN6045TA-101M) | Datasheet range 33 to 100 uH. Its 47 uH example is for 1 A LEDs; at 333 mA the hysteresis band is a third as wide, and LTspice shows 47 uH switching at up to 1.27 MHz, above the 1 MHz limit, with on-times below the 500 ns needed for 4 % accuracy. 100 uH halves the frequency. Rated 0.92 A against a 0.4 A peak. |
 | Dimming | sensor node PWM at 250 Hz into CTRL | Datasheet: CTRL takes 3.3 V logic directly; above 2.5 V = full current, below 0.2 V = off; best accuracy below 500 Hz. |
-| Fail-safe | 2.2 kOhm pull-down on each CTRL | A floating CTRL means full brightness. The pull-down keeps the LEDs off when the cable is unplugged or the node is in reset. The node drives these pins in high-drive mode. |
+| Fail-safe | 1.5 kOhm pull-down on each CTRL | A floating CTRL means full brightness. The pull-down keeps the LEDs off when the cable is unplugged or the node is in reset. The datasheet does not give the CTRL pull-up, but its 80 uA maximum shutdown current bounds it: at most 80 uA x 1.5 k = 0.12 V, below the 0.2 V off threshold (LTspice, `simulation/ctrl_failsafe.cir`). 2.2 k left only 24 mV of margin. With the node driving through its 100 ohm resistor, CTRL still reaches 3.0 V (above 2.5 V = full current). |
 | Protection | 1.1 A PTC fuse and SS34 series diode on the input | Overload and reversed adapter. The AL8860 has its own open-LED, shorted-LED and over-temperature protection. |
 
-Approximate input power: 2 x 333 mA x (4 LEDs x about 3 V blue / 2.1 V red) = about 7 W of LEDs,
-roughly 0.35 A from the 24 V adapter. A 24 V 1 A adapter has margin.
+Approximate input power: 333 mA x (4 x 2.75 V blue + 4 x 2.1 V red) = about 6.5 W of LEDs, about
+0.3 A from the 24 V adapter. LTspice puts each channel at 94 to 97 % efficiency. The recommended
+adapter (Mean Well GST36U24-P1J, 24 V 1.5 A) has ample margin.
+
+## Recommended LEDs and simulation
+
+Luxeon Star SP-01-V4 (royal blue 448 nm) and SP-01-D2 (deep red 655 nm), each a LUXEON Rebel on a
+20 mm star; see `documentation/ordering.md`. With their datasheet forward voltages (typical and
+maximum) and a 20 to 28 V supply, LTspice (`simulation/led_channel.cir`) gives 335 to 339 mA per
+string, 435 to 672 kHz switching, 32 to 68 % duty and a 392 mA inductor peak: all inside the
+AL8860 and inductor limits. Mount the stars on a heatsink and use twisted pair for each string.
+Do not plug or unplug an LED string while the board is powered.
 
 ## Connectors
 
@@ -82,10 +92,9 @@ input capacitor close to VIN, 25 to 75 % recommended duty cycle.
 
 ## Not verified
 
-- LED forward voltages are typical values from memory, not from a chosen LED's datasheet.
-  Pick the LEDs, then check the string voltage stays below about 20 V on a 24 V supply.
-- The Bourns SRN6045TA-470M ratings were read from the JLCPCB catalogue entry (1.6 A and 2 A, far above the 0.4 A peak), not from the Bourns datasheet.
-- The AL8860 CTRL pin's internal pull-up strength is not in the datasheet; 2.2 kOhm was chosen to
-  overpower any plausible internal source. Confirm on the bench that the LEDs stay dark with J2
-  unplugged.
-- The board routing is a machine result that no one has reviewed by hand, and no board has been made. No thermal check of the AL8860 at 333 mA (well under its 1.5 A rating).
+- LED forward voltages come from the Luxeon Star product pages (typical and maximum), fitted to a
+  simple model; other LEDs need the simulation rerun with their values.
+- The Bourns SRN6045TA-101M ratings (1.33 A / 0.92 A, 0.456 ohm) were read from the JLCPCB and Mouser catalogue entries, not from the Bourns datasheet.
+- The AL8860 CTRL pull-up is bounded from the datasheet's shutdown current, not measured. Confirm on
+  the bench that the LEDs stay dark with J2 unplugged (`documentation/bring_up.md`).
+- The switching loops (input capacitor, AL8860, diode, inductor) were placed and routed by hand; the rest is autorouted. No board has been made. Losses per channel are about 0.25 W (switch, diode, inductor, sense resistor), well inside the MSOP-8EP package; not measured.

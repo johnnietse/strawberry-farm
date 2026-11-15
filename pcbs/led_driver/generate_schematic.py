@@ -27,8 +27,9 @@ gs.REV = "1.0"
 
 # ---------------------------------------------------------------- design values
 R_SENSE = "0R30 1%"     # AL8860: I = 0.1 V / R -> 333 mA per channel (datasheet table: 0.3 ohm = 333 mA)
-L_VALUE = "47uH"        # datasheet recommends 33 to 100 uH; its 3-LED test circuit uses 47 uH
-R_CTRL_PULLDOWN = "2.2k"  # holds CTRL below 0.2 V (off) when the PWM line is unplugged or undriven
+L_VALUE = "100uH"       # datasheet range 33 to 100 uH; 47 uH would switch above the 1 MHz limit at 333 mA (simulation/led_channel.cir)
+R_CTRL_PULLDOWN = "1.5k"  # holds CTRL below 0.2 V (off) when unplugged: AL8860 shutdown current is 80 uA max,
+                          # so any internal pull-up gives at most 80 uA x 1.5k = 0.12 V (simulation/ctrl_failsafe.cir)
 
 
 def channel(s, name, x):
@@ -43,8 +44,8 @@ def channel(s, name, x):
            {"A": f"SW_{name}", "K": "VIN"}, stub=2.54,
            Description="Schottky 40 V 3 A, freewheel diode")
     s.part(gs.next_ref("L"), "Device:L", x + 78.74, 101.6, L_VALUE, "Inductor_SMD:L_Bourns_SRN6045TA",
-           {"1": f"LEDK_{name}", "2": f"SW_{name}"}, MPN="SRN6045TA-470M", Manufacturer="Bourns",
-           Description="47 uH shielded inductor; saturation current must exceed 0.4 A")
+           {"1": f"LEDK_{name}", "2": f"SW_{name}"}, MPN="SRN6045TA-101M", Manufacturer="Bourns",
+           Description="100 uH shielded inductor, 0.92 A rated, peak current about 0.4 A")
     j = "J3" if name == "BLUE" else "J4"
     s.part(j, "Connector_Generic:Conn_01x02", x + 88.9, 76.2, f"LED {name.lower()} string",
            "Connector_Phoenix_MC:PhoenixContact_MC_1,5_2-G-3.81_1x02_P3.81mm_Horizontal",
@@ -60,7 +61,7 @@ def build():
     s.text("Two AL8860 constant-current buck channels from a 24 V adapter. 333 mA per channel (0.1 V / 0.30 ohm).\n"
            "Each channel drives one off-board string of 4 LEDs on a star heatsink: blue 450 nm on J3, red 660 nm on J4.\n"
            "J2 takes the sensor node's PWM (3.3 V logic, 250 Hz). CTRL above 2.5 V = full current, below 0.2 V = off;\n"
-           "the 2.2k pull-downs keep the LEDs off when J2 is unplugged or the node is in reset.\n"
+           "the 1.5k pull-downs keep the LEDs off when J2 is unplugged or the node is in reset.\n"
            "J1: centre-positive 24 V barrel jack. F1 + D1 protect against overload and a reversed adapter.", 25.4, 20.32)
     s.part("J1", "Connector:Barrel_Jack", 30.48, 152.4, "24V DC jack", "Connector_BarrelJack:BarrelJack_CUI_PJ-063AH_Horizontal",
            {"1": "VIN_JACK", "2": "GND"}, stub=2.54, MPN="PJ-063AH", Manufacturer="CUI Devices",

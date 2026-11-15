@@ -5,7 +5,7 @@
     "C:\\Program Files\\KiCad\\9.0\\bin\\python.exe" ..\\gos_sensor_node\\route_pcb.py .
 
 Uses the sensor node's board builder (pcbs/gos_sensor_node/generate_pcb.py)
-with this board's placement. 60 x 45 mm, four M3 holes, 2 layers.
+with this board's placement. 60 x 45 mm, four M3 holes, 4 layers (two inner GND planes).
 
 Layout:
 - J1 24 V jack on the left edge, plug entry facing out; F1, D1 and C1 beside it
@@ -49,12 +49,17 @@ CONFIG = {
         "U1": (30.0, 12.0, 0),
         "U2": (30.0, 33.0, 0),
         # switch node: AL8860 SW pins (right side), then diode, then inductor, then terminal
-        "D2": (35.5, 12.0, 90), "L1": (42.5, 11.5, 90),
-        "D3": (35.5, 33.0, 90), "L2": (42.5, 32.5, 90),
+        # switching loops placed by hand: input cap at VIN, diode anode and inductor at SW
+        "C2": (35.0, 9.20, 90),     # input cap, pad 1 (VIN) by the AL8860 VIN pin
+        "D2": (37.6, 13.40, 180),   # freewheel diode, anode by the SW pins
+        "L1": (37.6, 18.60, 180),   # inductor, pad 2 (SW) under the diode anode
+        "C4": (35.0, 30.20, 90),     # input cap, pad 1 (VIN) by the AL8860 VIN pin
+        "D3": (37.6, 34.40, 180),   # freewheel diode, anode by the SW pins
+        "L2": (37.6, 39.60, 180),   # inductor, pad 2 (SW) under the diode anode
     },
     "near": {
-        "U1": ["C3", "C2", "R1", "R2"],
-        "U2": ["C5", "C4", "R3", "R4"],
+        "U1": ["C3", "R1", "R2"],
+        "U2": ["C5", "R3", "R4"],
         "J1": ["F1", "D1", "C1"],
     },
     "silk_refs": ("J2", "J3", "J4", "L"),  # the rest sit too close to pads; F.Fab has them
@@ -63,6 +68,18 @@ CONFIG = {
     "copper_keepouts": [],
     "netclasses": NETCLASSES,
     "netclass_nets": {"Power": POWER_NETS},
+    # locked copper laid by hand before autorouting (F.Cu): short SW nodes, VIN at the input caps
+    "preroute_tracks": [
+        ('/SW_BLUE', 0.4, [(32.11, 12.33), (32.11, 12.97), (33.6, 12.97), (35.6, 13.4), (35.55, 18.6)]),
+        ('/VIN', 0.4, [(35.0, 10.68), (33.0, 11.03), (32.11, 11.03)]),
+        ('/VIN', 0.4, [(39.6, 13.4), (39.6, 11.2), (36.0, 11.2), (35.0, 10.68)]),
+        ('GND', 0.4, [(35.0, 7.72), (35.0, 6.6)]),
+        ('/SW_RED', 0.4, [(32.11, 33.33), (32.11, 33.97), (33.6, 33.97), (35.6, 34.4), (35.55, 39.6)]),
+        ('/VIN', 0.4, [(35.0, 31.68), (33.0, 32.03), (32.11, 32.03)]),
+        ('/VIN', 0.4, [(39.6, 34.4), (39.6, 32.2), (36.0, 32.2), (35.0, 31.68)]),
+        ('GND', 0.4, [(35.0, 28.72), (35.0, 27.6)]),
+    ],
+    "preroute_vias": [('GND', 35.0, 6.6), ('GND', 35.0, 27.6)],
 }
 
 

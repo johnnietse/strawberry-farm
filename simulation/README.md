@@ -1,0 +1,48 @@
+# Circuit simulations (LTspice)
+
+LTspice netlists for the analog parts of both boards, with pass criteria taken from the part
+datasheets. Open a `.cir` file in LTspice and run it; the `.meas` results appear in the log.
+`plot_results.py` turns exported results into the plots in `plots/`.
+
+Run with LTspice 26.1.1 on 2026-11-15.
+
+## Results
+
+| File | Circuit | Checked against | Result |
+|---|---|---|---|
+| `led_channel.cir` | LED board: one AL8860 channel at full brightness, 20 / 24 / 28 V supply, blue and red strings, typical and maximum LED forward voltage (12 cases) | AL8860 datasheet: f below 1 MHz, on-time above 500 ns for 4 % accuracy, duty 25 to 75 %; inductor rating | **Pass** (after the change below): LED current 335 to 339 mA (target 333 mA, +0.6 to +1.7 %), 435 to 672 kHz, on-time 545 to 1566 ns, duty 32 to 68 %, inductor peak 392 mA (rated 0.92 A), efficiency 94 to 97 % |
+| `led_pwm.cir` | LED board: 250 Hz PWM from the sensor node through R20 (100 ohm), the cable and the CTRL pull-down | CTRL above 2.5 V = full current; average current proportional to duty | **Pass**: 33.7 / 168.4 / 303.0 mA at 10 / 50 / 90 % (ideal 33.6 / 168 / 302 mA); CTRL high 3.0 V |
+| `ctrl_failsafe.cir` | LED board: CTRL with the cable unplugged, worst-case AL8860 internal pull-up | CTRL below 0.2 V = LEDs off | **Pass** (after the change below): at most 0.12 V |
+| `vbat_sense.cir` | Sensor node: 2.2 M / 2.2 M battery divider, 100 nF, SAADC sampling load; cell step 3.0 to 4.2 V; resistor tolerance corners | Reading accuracy and settling within the 60 s sample period | **Pass**: error +/-1.1 % worst case (+/-46 mV at 4.2 V) from the 1 % resistors, 0.1 % from sampling; 1 % settling 0.38 s; 0.96 uA standing drain |
+| `cell_reverse.cir` | Sensor node: 18650 the right way round and reversed, through Q2 (AO3401A) and Q1 (FS8205A), 500 mA load | No current and no voltage on the board when reversed | **Pass**: reversed, 0 V on the board and 8 pA from the cell; correct, 3.61 V on the board, 29 mV and 15 mW in Q2 |
+
+![LED channel at 24 V](plots/led_channel_24V.png)
+![PWM dimming at 50 %](plots/led_pwm_50pct.png)
+![Battery sense divider](plots/vbat_sense.png)
+
+## Design changes these simulations caused
+
+1. **LED inductor 47 uH to 100 uH (Bourns SRN6045TA-101M).** With 47 uH the AL8860 switched at
+   0.86 to 1.27 MHz, above its 1 MHz recommended maximum, with on-times down to about 290 ns,
+   below the 500 ns the datasheet needs for 4 % current accuracy. The datasheet's 47 uH example
+   is for 1 A LEDs; at 333 mA the hysteresis band is a third as wide, so the frequency is three
+   times higher. 100 uH (top of the datasheet's 33 to 100 uH range) halves it.
+2. **CTRL pull-down 2.2 k to 1.5 k.** The AL8860 datasheet does not give the CTRL pull-up, but
+   its shutdown current (CTRL grounded) is 80 uA maximum, so the pull-up can push at most
+   80 uA. Through 2.2 k that is 0.176 V, 24 mV below the 0.2 V disable threshold; through 1.5 k
+   it is 0.12 V. The node's PWM high level stays at 3.0 V, above the 2.5 V full-current level.
+
+## What the models are, and what is not simulated
+
+- **AL8860**: behavioural model built from datasheet DS39014 Rev. 8-2: hysteretic comparator
+  on the R_SENSE voltage (115 / 87 mV thresholds from its threshold graph), 0.2 ohm switch,
+  45 ns delay. Soft-start and the internal regulator are not modelled. Diodes Inc. does not
+  publish an LTspice model for this part.
+- **LEDs**: threshold plus 0.43 ohm per LED, fitted to the Luxeon Star SP-01-V4 (royal blue,
+  2.9 V typ / 3.5 V max at 700 mA) and SP-01-D2 (deep red, 2.1 V typ / 2.8 V max at 350 mA)
+  product pages.
+- **MOSFETs (Q1, Q2)**: generic VDMOS fits to the datasheet threshold and on-resistance, not
+  vendor models.
+- **Not simulated**: the TPS62740 buck and BQ24074 charger (TI publishes PSpice models only),
+  the nRF52840 radio module, the I2C sensors, firmware and the Thread network. These need
+  bench measurements; `documentation/bring_up.md` lists them.

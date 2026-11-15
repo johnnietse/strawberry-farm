@@ -163,11 +163,11 @@ It uses Zephyr's own SHT4x, TSL2591 and voltage-divider drivers. There are no pr
 | CoAP path | `/telemetry` | `CONFIG_GOS_UPLINK_URI_PATH` |
 | Node index | 1 | `CONFIG_GOS_NODE_INDEX` |
 
-Payload, 42 bytes, all fields little-endian, decode with Python `struct.unpack("<BBQffHHI16s", payload)`:
+Payload (PACKET_V4), 43 bytes, all fields little-endian, decode with Python `struct.unpack("<BBQffHHIB16s", payload)`:
 
 | Offset | Field | Notes |
 |---|---|---|
-| 0 | version | 3 (signed) |
+| 0 | version | 4 (signed; the receiver also accepts version 3, which has no flags byte) |
 | 1 | node index | |
 | 2 | EUI-64 | factory address as an integer, first EUI byte most significant |
 | 10 | temperature, float, degC | NaN if the read failed |
@@ -175,7 +175,8 @@ Payload, 42 bytes, all fields little-endian, decode with Python `struct.unpack("
 | 18 | light, lux | clamped to 65534; 65535 if the read failed |
 | 20 | battery, mV | 65535 if the read failed |
 | 22 | counter, u32 | boot epoch (kept in flash) << 16, plus a sequence number; never repeats |
-| 26 | tag, 16 bytes | first 16 bytes of HMAC-SHA256(node key, bytes 0 to 25) |
+| 26 | flags | bit 7 charger state valid, bit 0 USB power present, bit 1 charging. The charger warms the board (up to about 0.65 W), so climate readings taken while charging read high; filter them with `payload->>'charging'`. |
+| 27 | tag, 16 bytes | first 16 bytes of HMAC-SHA256(node key, bytes 0 to 26) |
 
 ### Packet authentication
 
@@ -212,7 +213,7 @@ Two scripts, both run with KiCad's Python (`C:\Program Files\KiCad\9.0\bin\pytho
    - a copper keep-out (tracks, vias and pour, all four layers) across the full width beside the antenna, wider than the module footprint's own keep-out
    - net classes in `gos_sensor_node.kicad_pro`: 0.2 mm signal tracks with 0.15 mm clearance and 0.6/0.3 mm vias; 0.3 mm for VBUS, VSYS, VBAT, the cell path (BAT_P, BAT_N, FET_D) and the buck switch node. The highest current on any of them is the charger's 0.54 A input limit. +3V3 (300 mA buck limit) and GND use signal width: GND current flows in the planes and pours.
    - the drill/place origin at the board's bottom-left corner, fabrication notes on User.Comments, small-part reference labels on the fab (assembly) layer
-2. `route_pcb.py` autoroutes with Freerouting, adds thermal vias in the charger and buck exposed pads, pours GND on all four layers, adds ground stitching vias on a 1.6 mm grid wherever they fit (about 230), runs DRC with schematic parity and, only if that is clean, writes:
+2. Before autorouting, the buck converter's switching loop is placed and routed by hand (locked copper in `generate_pcb.py`: L1 at the SW pin, C4 at VIN, C5 at L1's output, 2.6 mm switch node with no vias). `route_pcb.py` then autoroutes the rest with Freerouting, adds thermal vias in the charger and buck exposed pads, pours GND on all four layers, adds ground stitching vias on a 1.6 mm grid wherever they fit (about 230), runs DRC with schematic parity and, only if that is clean, writes:
    - `fab/`: Gerbers for all layers, Excellon drill files with drill maps, KiCad and JLCPCB placement files, the JLCPCB BOM (LCSC part numbers) and `gos_sensor_node_gerbers.zip`
    - `docs/`: assembly drawing, courtyards, user layers (fabrication notes) and all-layers PDFs, top and bottom renders, a STEP model
 
@@ -229,11 +230,11 @@ Freerouting 2.0.1 runs on Java 21 or later; 2.2 and later need Java 25. 2.5.0 (J
 
 ### Why 4 layers
 
-The two inner layers are unbroken ground planes. Every track on the outer layers runs 0.076 mm above one, so its return current flows directly underneath: small current loops, low radiated noise, and low coupling between the buck converter's switch node and the I2C sensors, the battery ADC input and the 32 kHz crystal. The radio module gets the solid ground under it that Raytac's layout guide asks for, and the USB pair has a continuous reference. The stitching vias tie the outer ground pours to both planes every 1.6 mm (2.4 GHz wavelength in FR-4 is about 62 mm; the usual limit is one twentieth of that, about 3 mm).
+The two inner layers are unbroken ground planes. Every track on the outer layers runs 0.076 mm above one, so its return current flows directly underneath: small current loops, low radiated noise, and low coupling between the buck converter's switch node and the I2C sensors, the battery ADC input and the 32 kHz crystal. The radio module sits over solid ground (except the antenna strip, which has no copper on any layer), and the USB pair has a continuous reference. The stitching vias tie the outer ground pours to both planes every 1.6 mm (2.4 GHz wavelength in FR-4 is about 62 mm; the usual limit is one twentieth of that, about 3 mm).
 
 Current result: KiCad DRC at every severity, with schematic parity: 0 violations, 0 unconnected items, 0 parity issues. No tracks on the inner layers.
 
-The routing is a machine result. Before ordering, look over in KiCad: the USB D+/D- pair (routed as two ordinary tracks, not length-matched; at 12 Mbit/s over a few cm that is acceptable), the buck switch node loop around U2/L1, and the antenna clearance. Both scripts regenerate the board from scratch, so hand edits in KiCad are lost if they are rerun.
+Layout review (`review_layout.py`, results in `documentation/design_review.md`): USB pair matched to 0.1 mm, buck switch node 2.6 mm on one layer with no vias and the input capacitor 2.1 mm from VIN, no copper, via or pour in the antenna strip on any layer. Both scripts regenerate the board from scratch, so hand edits in KiCad are lost if they are rerun.
 
 Ordering (manufacturer, settings, part availability, items bought separately): `documentation/ordering.md`. Enclosure fit: `mechanical/README.md`.
 

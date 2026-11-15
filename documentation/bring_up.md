@@ -75,22 +75,37 @@ python gateway/tools/provision_node.py --index 1 --eui64 XXXXXXXXXXXXXXXX
    `RF-NODE-01 EUI64:...`; and this returns rows:
 
 ```
-SELECT time, node_id, temp_c, humidity_pct, battery_mv, payload->>'light_lux', payload->>'counter'
+SELECT time, node_id, temp_c, humidity_pct, battery_mv, payload->>'light_lux',
+       payload->>'counter', payload->>'charging', payload->>'packet_version'
 FROM raw_telemetry WHERE node_id = 'RF-NODE-01' ORDER BY time DESC LIMIT 5;
 ```
+
+   `packet_version` is 4, and `charging` follows the yellow LED D1. With USB plugged in and the
+   cell charging, note how far `temp_c` reads above a reference thermometer: that is the charger's
+   heating (see `design_review.md`). Use `charging = false` rows for climate analysis.
 
 4. **Security check:** reflash the node with a different `CONFIG_GOS_UPLINK_KEY`. The receiver must log
    `bad signature` and store nothing. Flash the right key back.
 
 ## 7. LED board
 
-Check `docs/led_driver_assembly_top.pdf` as in step 0 first, and the input: resistance from the
-jack centre pin to GND above about 100 ohm. Use a 24 V adapter with a 5.5 x 2.1 mm
-centre-positive plug.
+Check `pcbs/led_driver/docs/led_driver_assembly_top.pdf` as in step 0 first, and the input:
+resistance from the jack centre pin to GND above about 100 ohm. Adapter: Mean Well GST36U24-P1J
+(24 V, 5.5 x 2.1 mm centre-positive plug). LED strings: 4 stars in series per channel, mounted on
+a heatsink, anode to pin 1 of J3 / J4, wired with twisted pair. Never plug or unplug a string
+with the adapter connected.
 
-1. 24 V adapter into the LED board, J2 **unplugged**, LED strings connected. **Pass:** LEDs stay dark.
-2. Connect J2 to the sensor node J4. LEDs stay dark (firmware starts at 0 %).
-3. Set a mix from firmware (`gos_set_spectral_mix(50, 50)`) on the bench build. **Pass:** both strings at half brightness, no visible flicker.
+1. 24 V in, J2 **unplugged**, strings connected. **Pass:** LEDs stay dark, and CTRL (R2 / R4 top
+   end) reads below 0.2 V (simulation: at most 0.12 V with the 1.5 k pull-downs).
+2. Connect J2 to the sensor node J4 with the 4-wire cable, pin 1 to pin 1. LEDs stay dark
+   (firmware starts at 0 %).
+3. Full brightness from firmware (`gos_set_spectral_mix(100, 100)`) on the bench build. **Pass:**
+   current in each string 320 to 350 mA (meter in series, or the voltage across R1 / R3 is 96 to
+   104 mV); simulation: 335 to 339 mA.
+4. `gos_set_spectral_mix(50, 50)`. **Pass:** about half the current (simulation: 168 mA), no
+   visible flicker.
+5. After 10 minutes at full brightness, the AL8860s and inductors are warm, not hot (below about
+   60 C by touch or an IR thermometer).
 
 ## 8. Sleep current (field build)
 
@@ -110,3 +125,15 @@ Print the base and lid (`mechanical/README.md`; the fit was checked against this
 4. Glue the clear disc into the lid recess, then fit the lid with 4 x M3x10.
 5. With the lid on, compare the lux reading with a reference meter and note the correction factor:
    the window changes what the TSL2591 sees.
+
+### LED driver enclosure
+
+Board on its four posts with M3x6 screws, jack and LED plugs through the side walls, the PWM
+cable out through the slot beside J2, lid with 4 x M3x10. Screw the flanges to the light fixture
+frame, away from water spray.
+
+## 10. Optional: conformal coating
+
+Phytotron humidity can condense on the boards. After the bench tests, coat both boards with an
+acrylic conformal coating (for example MG Chemicals 419D spray), masking the SHT40, TSL2591, all
+connectors and the buttons. Do not coat the SHT40: it must see the air.

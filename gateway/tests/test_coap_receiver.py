@@ -54,6 +54,10 @@ def test_decodes_firmware_packet():
 # gos_uplink_build_body) compiled on a PC: same reading, counter epoch 5,
 # sequence 3. The tag is added here with the reference signer.
 FIRMWARE_V3_BODY = bytes.fromhex("0307443322110036cef40000a0bf00005e42feff800e03000500")
+# PACKET_V4 bodies from the current src/uplink.c compiled on a PC the same way: the same
+# reading taken while charging on USB power (flags 0x83), and with the charger unread (0x00).
+FIRMWARE_V4_BODY = bytes.fromhex("0407443322110036cef40000a0bf00005e42feff800e0300050083")
+FIRMWARE_V4_NO_CHARGER = bytes.fromhex("0407443322110036cef40000a0bf00005e42feff800e0300050000")
 KEY = bytes.fromhex("00112233445566778899aabbccddeeff")
 EUI = "F4CE360011223344"
 
@@ -65,7 +69,7 @@ def keys(**kwargs):
 
 def signed(counter=None, body=FIRMWARE_V3_BODY, key=KEY):
     if counter is not None:
-        body = body[:22] + struct.pack("<I", counter)
+        body = body[:22] + struct.pack("<I", counter) + body[26:]
     return rx.sign_packet(body, key)
 
 
@@ -87,6 +91,36 @@ def test_signed_packet_from_firmware_body_is_accepted():
     r = rx.decode_packet(signed(), keys(eui64=EUI))
     assert r["authenticated"] and r["counter"] == (5 << 16) | 3 and r["battery_mv"] == 3712
     assert len(signed()) == rx.V3_LEN == 42
+
+
+def test_signed_v4_packet_carries_charger_flags():
+    r = rx.decode_packet(signed(body=FIRMWARE_V4_BODY), keys(eui64=EUI))
+    assert len(signed(body=FIRMWARE_V4_BODY)) == rx.V4_LEN == 43
+    assert r["authenticated"] and r["packet_version"] == 4 and r["counter"] == (5 << 16) | 3
+    assert r["usb_power"] is True and r["charging"] is True and r["temp_c"] == -1.25
+
+
+def test_v4_without_charger_state_reports_unknown():
+    r = rx.decode_packet(signed(body=FIRMWARE_V4_NO_CHARGER), keys())
+    assert r["usb_power"] is None and r["charging"] is None
+
+
+def test_v3_packet_has_no_charger_state():
+    r = rx.decode_packet(signed(), keys())
+    assert r["usb_power"] is None and r["charging"] is None
+
+
+@pytest.mark.parametrize("i", [12, 26, 42])   # reading, flags byte, tag
+def test_v4_any_altered_byte_fails_signature(i):
+    with pytest.raises(rx.AuthError, match="bad signature"):
+        rx.decode_packet(flip(signed(body=FIRMWARE_V4_BODY), i), keys())
+
+
+def test_v4_charger_flags_are_stored():
+    store = CountingStore()
+    r = rx.CoapReceiver(store, keys=keys())
+    r.handle(coap(signed(body=FIRMWARE_V4_BODY), mtype=rx.TYPE_NON, mid=9), "x")
+    assert store.rows[0][0]["charging"] is True
 
 
 @pytest.mark.parametrize("payload, keyset, why", [

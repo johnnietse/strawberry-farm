@@ -8,13 +8,14 @@
 ## 📋 Table of Contents
 
 1. [What is G.O.S.?](#-what-is-gos)
-2. [System Architecture](#-system-architecture)
-3. [Data Flow Workflow](#-data-flow-workflow)
-4. [Quick Start](#-quick-start)
-5. [Testing & Verification](#-testing--verification)
-6. [File Reference](#-file-reference)
-7. [API Endpoints](#-api-endpoints)
-8. [Hardware Integration](#-hardware-integration)
+2. [Hardware](#hardware)
+3. [System Architecture](#-system-architecture)
+4. [Data Flow Workflow](#-data-flow-workflow)
+5. [Quick Start](#-quick-start)
+6. [Testing & Verification](#-testing--verification)
+7. [File Reference](#-file-reference)
+8. [API Endpoints](#-api-endpoints)
+9. [Hardware Integration](#-hardware-integration)
 
 ---
 
@@ -30,6 +31,89 @@ G.O.S. is an **open-source phenotyping platform** that transforms raw greenhouse
 | **Stress Detection** | Multi-factor scoring (0-100) |
 | **LED Control** | RL-based spectral recommendations |
 | **ML Pipeline** | 5-source temporal synchronization |
+
+---
+
+## Hardware
+
+Two custom boards plus off-the-shelf parts. Both boards are 4-layer (two solid ground planes),
+fully designed, DRC-clean and ready to order assembled from JLCPCB; none has been built yet.
+
+| Piece | What it does | Where | Status |
+|---|---|---|---|
+| **Sensor node** (40 x 65 mm) | nRF52840 module running Zephyr RTOS and OpenThread; SHT40 temperature/humidity, TSL2591 light, 18650 battery with USB-C charging; sends a signed reading every 60 s; drives the LED board with two PWM signals | one per measurement point, in its own enclosure | [`pcbs/gos_sensor_node`](pcbs/gos_sensor_node) |
+| **LED driver** (60 x 45 mm) | two AL8860 constant-current channels (blue 448 nm, red 655 nm strings, 333 mA) from a 24 V adapter, dimmed by the node's PWM | one per grow light, in its own enclosure at the light | [`pcbs/led_driver`](pcbs/led_driver) |
+| Border router | Raspberry Pi + Nordic nRF52840 Dongle running the OpenThread border router; the `coap_receiver` service checks each packet's signature and writes it to TimescaleDB | one per phytotron | [`documentation/raspberry_pi_setup.md`](documentation/raspberry_pi_setup.md) |
+
+```mermaid
+graph LR
+    subgraph Node["Sensor node (battery)"]
+        S[SHT40 + TSL2591] --> M[nRF52840 module<br/>Zephyr + OpenThread]
+        B[18650 + BQ24074 charger] --> M
+    end
+    M -- "4-wire cable, 2 x PWM 250 Hz" --> L[LED driver board<br/>2 x AL8860, 24 V]
+    L --> LED[Blue + red LED strings]
+    M -- "Thread 802.15.4, signed CoAP every 60 s" --> R[Raspberry Pi + nRF52840 Dongle<br/>OpenThread border router]
+    R --> DB[(TimescaleDB)]
+    DB --> A[API / dashboard / RL agent]
+    A -. "LED mix" .-> M
+```
+
+### Boards
+
+| Sensor node | LED driver |
+|---|---|
+| ![Sensor node, top](pcbs/gos_sensor_node/docs/gos_sensor_node_render_top.png) | ![LED driver, top](pcbs/led_driver/docs/led_driver_render_top.png) |
+| ![Sensor node top copper](docs/images/gos_sensor_node_top_copper.svg) | ![LED driver top copper](docs/images/led_driver_top_copper.svg) |
+
+Bottom views, assembly drawings, courtyards, all layers and STEP models: `pcbs/*/docs/`.
+
+<details>
+<summary>Schematics (click to open)</summary>
+
+Sensor node: [top level](docs/images/schematics/gos_sensor_node.svg) ·
+[power](docs/images/schematics/gos_sensor_node-Power.svg) ·
+[MCU](docs/images/schematics/gos_sensor_node-MCU.svg) ·
+[sensors](docs/images/schematics/gos_sensor_node-Sensors.svg) ·
+[connectors](docs/images/schematics/gos_sensor_node-Connectors.svg)
+
+![Sensor node power](docs/images/schematics/gos_sensor_node-Power.svg)
+![Sensor node MCU](docs/images/schematics/gos_sensor_node-MCU.svg)
+
+LED driver: [schematic](docs/images/schematics/led_driver.svg)
+
+![LED driver](docs/images/schematics/led_driver.svg)
+
+PDFs: `pcbs/gos_sensor_node/gos_sensor_node_schematic.pdf`, `pcbs/led_driver/led_driver_schematic.pdf`.
+</details>
+
+### Enclosures
+
+| Sensor node (exploded) | LED driver (exploded) |
+|---|---|
+| ![Sensor node enclosure](docs/images/sensor_enclosure_exploded.png) | ![LED driver enclosure](docs/images/led_enclosure_exploded.png) |
+| ![Board inside the enclosure, top view](mechanical/fit_check_top.png) | ![LED board inside its enclosure](mechanical/led_fit_top.png) |
+
+Generated from the KiCad boards and fit checked by [`mechanical/fit_check.py`](mechanical/fit_check.py);
+print files in [`mechanical/print/`](mechanical/print) (ASA). Details: [`mechanical/README.md`](mechanical/README.md).
+
+### Verification so far
+
+| Check | Result |
+|---|---|
+| KiCad DRC, every severity, with schematic parity | 0 violations, 0 unrouted, 0 mismatches (both boards) |
+| Layout review (USB pair, buck switching loop, antenna strip) | [`documentation/design_review.md`](documentation/design_review.md) |
+| LTspice: LED current, switching frequency, PWM dimming, fail-safe, battery sense, reversed cell | all pass after two design fixes: [`simulation/README.md`](simulation/README.md) |
+| Firmware build (Zephyr main, SDK 1.0.1) | no warnings, 214 KB flash, 62 KB RAM |
+| Gateway receiver tests | 44 pass |
+| Enclosure fit | 12 checks pass |
+
+| LED channel at 24 V (LTspice) | PWM dimming 50 % (LTspice) |
+|---|---|
+| ![LED channel](simulation/plots/led_channel_24V.png) | ![PWM dimming](simulation/plots/led_pwm_50pct.png) |
+
+**Order it:** [`documentation/ordering.md`](documentation/ordering.md) (JLCPCB settings, every part with
+stock, what to buy separately). **Build it:** [`documentation/bring_up.md`](documentation/bring_up.md).
 
 ---
 
@@ -88,18 +172,17 @@ graph TD
 
 ```
 1. SENSOR LAYER
-   └── nRF52 nodes collect: temp, humidity, PAR, battery
-   └── Transmit via CoAP/Thread to Raspberry Pi
+   └── Sensor nodes (rev 3.1) measure temperature, humidity, light (lux) and battery
+   └── Send a signed CoAP packet (PACKET_V4) over Thread every 60 s
 
 2. GATEWAY LAYER
-   └── Raspberry Pi runs OTBR (OpenThread Border Router)
-   └── Translates Thread → MQTT
-   └── Publishes to Mosquitto broker
+   └── Raspberry Pi runs OTBR (OpenThread Border Router) with an nRF52840 Dongle
+   └── coap_receiver checks the HMAC signature, EUI-64 and replay counter
 
 3. INGESTION LAYER
-   └── mqtt_bridge.py subscribes to MQTT topics
-   └── Validates JSON payload
-   └── Inserts into raw_telemetry table
+   └── coap_receiver inserts each reading into raw_telemetry
+       (lux, counter and charger flags in the payload column)
+   └── mqtt_bridge.py handles MQTT sources (simulation, other instruments)
 
 4. METEOROLOGICAL LAYER
    └── met_station.py logs pyranometer + spectrometer data
@@ -306,7 +389,32 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 | `HARDWARE.md` | Design reference: pin map, power, signing, sources |
 | `generate_schematics.py`, `generate_pcb.py` | Generate the KiCad schematic and board |
 | `route_pcb.py` | Autoroute (Freerouting), ground planes and stitching, DRC, write `fab/` (Gerbers, drill, JLCPCB BOM and placement) and `docs/` (PDFs, renders, STEP) |
+| `review_layout.py` | Measure the USB pair, buck switching loop and antenna strip |
+| `fab/`, `docs/` | Order files; assembly, courtyard, user-layer and all-layer PDFs, renders, STEP |
 | `firmware/` | Zephyr firmware to build and flash (`raytac_mdbt50q_db_40/nrf52840`) |
+
+### pcbs/led_driver/ - LED Driver Board (rev 1.0)
+
+| Path | Purpose |
+|:---|:---|
+| `README.md` | Design choices, ratings, recommended LEDs |
+| `generate_schematic.py`, `generate_pcb.py` | Generate the KiCad schematic and board (routed with `../gos_sensor_node/route_pcb.py`) |
+| `fab/`, `docs/` | Order files and documentation outputs |
+
+### mechanical/ - Enclosures
+
+| Path | Purpose |
+|:---|:---|
+| `enclosure_gen.scad`, `led_enclosure.scad` | Sensor node and LED driver enclosures (OpenSCAD) |
+| `fit_check.py` | Generate board positions from KiCad, check the fit, render, export print files |
+| `print/` | Print-ready STL files |
+
+### simulation/ - LTspice
+
+| Path | Purpose |
+|:---|:---|
+| `*.cir` | LED channel, PWM dimming, CTRL fail-safe, battery sense, reversed cell |
+| `README.md`, `plots/` | Results and plots |
 
 ### firmware/ - Legacy rev 2 research firmware (does not build for current hardware; see `firmware/README.md`)
 
@@ -342,6 +450,7 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 | `raspberry_pi_setup.md` | OTBR installation |
 | `nrf52840_pinout.md` | Pin map and assembly guide (rev 3.1) |
 | `hardware_specs.md` | Board and LED board summary (rev 3.1) |
+| `design_review.md` | Electrical, firmware and mechanical review with the evidence for each finding |
 | `archive/` | Rev 2 hardware documents, kept for reference |
 | `bench_testing.md` | Validation procedures |
 | `bring_up.md` | First power-on of a rev 3.1 sensor node, step by step |
@@ -388,26 +497,19 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 
 ### For Real Hardware Deployment
 
-1. **Raspberry Pi Setup**
+1. **Order the boards and parts:** [`documentation/ordering.md`](documentation/ordering.md).
+2. **Border router:** [`documentation/raspberry_pi_setup.md`](documentation/raspberry_pi_setup.md)
+   (OTBR + nRF52840 Dongle, network settings matching the node firmware).
+3. **Provision, build and flash each node** (from the repo root, with a Zephyr workspace):
    ```bash
-   # See documentation/raspberry_pi_setup.md
-   # Install OTBR, flash nRF52840 dongle
-   ```
-
-2. **Flash nRF52 Nodes**
-   ```bash
-   cd firmware
-   west build -b nrf52840dk_nrf52840
+   python gateway/tools/provision_node.py --index 1 --network-key <32 hex digits>
+   west build -b raytac_mdbt50q_db_40/nrf52840 pcbs/gos_sensor_node/firmware
    west flash
    ```
-
-3. **Update docker-compose.yml**
-   - Comment out `ingest` service (simulation)
-   - `mqtt_bridge` will handle real MQTT data
-
-4. **Configure MQTT Topics**
-   - Nodes publish to: `gos/node/{node_id}/telemetry`
-   - Met station publishes to: `gos/met/data`
+4. **Start the receiver** on the Pi: `docker compose --profile hardware up -d coap_receiver`.
+5. **Bring-up and checks:** [`documentation/bring_up.md`](documentation/bring_up.md) (power, charger,
+   sensors, Thread, database, LED board, sleep current, enclosures).
+6. **Switch off the simulator:** comment out the `ingest` service in `docker-compose.yml`.
 
 ---
 
@@ -418,7 +520,7 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 | Data backbone pipeline | `sync.py` - 5-source joins | ✅ |
 | PostgreSQL database | TimescaleDB hypertables | ✅ |
 | Docker orchestration | 12-service compose | ✅ |
-| 40 wireless nodes | Thread mesh | ✅ |
+| 40 wireless nodes | Thread mesh; sensor node rev 3.1 designed, ready to order, not yet built | in progress |
 | Preserved sample identity | EUI64 in all tables | ✅ |
 | Group 2 GUI | Dashboard + LLM | ✅ |
 | ML-ready datasets | `/api/curated` | ✅ |

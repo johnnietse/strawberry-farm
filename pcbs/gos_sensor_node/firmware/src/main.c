@@ -5,7 +5,7 @@
  * status, log them, flash the status LED. The two PWM channels to the LED
  * driver board start at 0 %.
  *
- * After each sample a signed PACKET_V3 research packet goes out over
+ * After each sample a signed PACKET_V4 research packet goes out over
  * Thread (src/uplink.c).
  *
  * Between samples all threads sleep, so Zephyr idles the CPU in System ON

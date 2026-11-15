@@ -15,13 +15,14 @@ Sent via UDP (MQTT-SN / CoAP) from the nRF52 node to the Raspberry Pi.
 | **0x12** | LUX_LEVEL    | uint16 | lux | TSL2591 Light Level |
 | **0x14** | BATT_VOLTAGE | uint16 | mV | ADC reading of 18650 cell |
 
-### Transport, encoding and signing (as implemented, PACKET_V3)
+### Transport, encoding and signing (as implemented, PACKET_V4)
 
 - Node firmware `pcbs/gos_sensor_node/firmware/src/uplink.c` sends a non-confirmable CoAP POST to `/telemetry`, UDP 5683, default destination `ff03::1`.
-- The 22 bytes above are followed by a 32-bit message counter and a 16-byte tag, 42 bytes in total, with the version byte set to 3. The tag is the first 16 bytes of HMAC-SHA256 over bytes 0 to 25, keyed with the node's own 128-bit key.
-- All fields are little-endian. The EUI-64 is an integer whose most significant byte is the first byte of the EUI-64. Decode with `struct.unpack("<BBQffHHI16s", payload)`.
+- The 22 bytes above are followed by a 32-bit message counter (offset 0x16), a flags byte (0x1A) and a 16-byte tag (0x1B), 43 bytes in total, with the version byte set to 4. Flags: bit 7 = charger state valid, bit 0 = USB power present, bit 1 = charging. The charger warms the board, so climate readings taken while charging read high; the gateway stores the flags so they can be filtered. The tag is the first 16 bytes of HMAC-SHA256 over bytes 0 to 26, keyed with the node's own 128-bit key.
+- The receiver still accepts PACKET_V3 (42 bytes, no flags byte, version 3) from nodes on older firmware.
+- All fields are little-endian. The EUI-64 is an integer whose most significant byte is the first byte of the EUI-64. Decode with `struct.unpack("<BBQffHHIB16s", payload)`.
 - A failed reading is sent as NaN (floats) or 0xFFFF (integers) and stored as NULL.
-- The gateway receiver `gateway/services/coap_receiver.py` stores a packet only if the tag verifies, the counter is higher than the last stored for that node, and (when registered) the EUI-64 matches. It writes `node_id = RF-NODE-<index>`, `sample_identity = EUI64:<16 hex digits>`, temperature, humidity and battery to `raw_telemetry`. Lux, the counter and `authenticated` go in `payload`; `par_umol` stays NULL because the node measures lux, not PAR.
+- The gateway receiver `gateway/services/coap_receiver.py` stores a packet only if the tag verifies, the counter is higher than the last stored for that node, and (when registered) the EUI-64 matches. It writes `node_id = RF-NODE-<index>`, `sample_identity = EUI64:<16 hex digits>`, temperature, humidity and battery to `raw_telemetry`. Lux, the counter, `authenticated`, `usb_power` and `charging` go in `payload`; `par_umol` stays NULL because the node measures lux, not PAR.
 - Keys are provisioned with `gateway/tools/provision_node.py`; see `pcbs/gos_sensor_node/HARDWARE.md`.
 
 ## 🔗 2. The Database Sink (Integration)

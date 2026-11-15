@@ -29,6 +29,7 @@ Steps:
 import csv
 import glob
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -179,7 +180,7 @@ def autoroute(path, passes):
     work = tempfile.mkdtemp(prefix="gos_route_")
     dsn, ses = os.path.join(work, "board.dsn"), os.path.join(work, "board.ses")
     board = pcbnew.LoadBoard(path)
-    if len(board.GetTracks()) or any(not z.GetIsRuleArea() for z in board.Zones()):
+    if any(not t.IsLocked() for t in board.GetTracks()) or any(not z.GetIsRuleArea() for z in board.Zones()):
         raise SystemExit("board already routed or poured; run generate_pcb.py first")
     export = pcbnew.LoadBoard(path)        # throw-away copy for the router
     prepare_for_router(export)
@@ -193,8 +194,30 @@ def autoroute(path, passes):
         timeout=ROUTE_TIMEOUT)
     if not os.path.exists(ses) or os.path.getsize(ses) == 0:
         raise RouteFailed("Freerouting wrote no session")
+    hand = [t.Duplicate() for t in board.GetTracks() if t.IsLocked()]   # hand-laid copper
     if not pcbnew.ImportSpecctraSES(board, ses):
         raise RouteFailed("Specctra session import failed")
+    # the session import replaces all tracks; put back hand-laid ones it did not return
+    have = {(t.GetClass(), t.GetStart().x, t.GetStart().y, t.GetEnd().x, t.GetEnd().y)
+            for t in board.GetTracks()}
+    for t in hand:
+        if (t.GetClass(), t.GetStart().x, t.GetStart().y, t.GetEnd().x, t.GetEnd().y) not in have:
+            board.Add(t)
+    # drop router segments that only repeat a hand-laid track (same net and layer, both ends on it)
+    locked = [t for t in board.GetTracks() if t.IsLocked() and t.GetClass() == "PCB_TRACK"]
+    tol = pcbnew.FromMM(0.02)
+
+    def on(seg, p):
+        """Point p within tol of the centreline of track seg."""
+        ax, ay, bx, by = seg.GetStart().x, seg.GetStart().y, seg.GetEnd().x, seg.GetEnd().y
+        dx, dy = bx - ax, by - ay
+        k = 0 if dx == dy == 0 else max(0.0, min(1.0, ((p.x - ax) * dx + (p.y - ay) * dy) / (dx * dx + dy * dy)))
+        return math.hypot(p.x - ax - k * dx, p.y - ay - k * dy) <= tol
+
+    for t in [t for t in board.GetTracks() if not t.IsLocked() and t.GetClass() == "PCB_TRACK"]:
+        if any(h.GetNetCode() == t.GetNetCode() and h.GetLayer() == t.GetLayer()
+               and on(h, t.GetStart()) and on(h, t.GetEnd()) for h in locked):
+            board.Remove(t)
     have = {(v.GetPosition().x, v.GetPosition().y) for v in board.GetTracks() if v.GetClass() == "PCB_VIA"}
     add_thermal_vias(board, [s for s in thermal_via_positions(board) if (s[0], s[1]) not in have])
     return board
@@ -431,9 +454,9 @@ def main():
         fabrication(path, board_dir)
         documentation(path, board_dir)
         return
-    # Freerouting's result differs between runs of the same board: it sometimes
-    # leaves a connection unrouted, and 2.0.1 occasionally writes an empty
-    # session. Each attempt starts again from the unrouted board.
+    # Freerouting sometimes leaves a connection unrouted, and 2.0.1 occasionally
+    # writes an empty session. Each attempt starts again from the unrouted board,
+    # with a different pass limit.
     pristine = tempfile.mkdtemp(prefix="gos_unrouted_")
     stem = os.path.splitext(path)[0]
     for ext in (".kicad_pcb", ".kicad_pro"):
@@ -441,8 +464,10 @@ def main():
     unrouted = os.path.join(pristine, os.path.basename(path))
     for attempt in range(1, ATTEMPTS + 1):
         print(f"attempt {attempt} of {ATTEMPTS}")
+        # a different pass limit per attempt: the same limit tends to repeat the same result
+        limit = [passes, max(10, passes // 2), passes * 3 // 2, max(10, passes * 3 // 4)][(attempt - 1) % 4]
         try:
-            board = autoroute(unrouted, passes)
+            board = autoroute(unrouted, limit)
         except RouteFailed as e:
             print(" ", e)
             counts = None

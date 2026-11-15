@@ -57,7 +57,11 @@ V2_FORMAT = "<BBQffHH"                      # unsigned, bench testing only
 V2_LEN = struct.calcsize(V2_FORMAT)          # 22
 V3_FORMAT = "<BBQffHHI16s"                   # signed
 V3_LEN = struct.calcsize(V3_FORMAT)          # 42
-V3_BODY_LEN = V3_LEN - 16                    # bytes covered by the tag
+V3_BODY_LEN = V3_LEN - 16                    # bytes covered by the tag (verify uses len - 16)
+V4_FORMAT = "<BBQffHHIB16s"                  # signed, adds a flags byte (current firmware)
+V4_LEN = struct.calcsize(V4_FORMAT)          # 43
+V4_BODY_LEN = V4_LEN - 16
+FLAG_VALID, FLAG_USB, FLAG_CHARGING = 0x80, 0x01, 0x02
 TAG_LEN = 16
 KEY_LEN = 16
 U16_INVALID = 0xFFFF
@@ -111,7 +115,7 @@ class NodeKeys:
         if index not in self.nodes:
             raise AuthError(f"node {index} has no key")
         key, pinned = self.nodes[index]
-        expected = hmac.new(key, payload[:V3_BODY_LEN], hashlib.sha256).digest()[:TAG_LEN]
+        expected = hmac.new(key, payload[:-TAG_LEN], hashlib.sha256).digest()[:TAG_LEN]
         if not hmac.compare_digest(expected, tag):
             raise AuthError(f"node {index}: bad signature")
         if pinned and pinned != f"{eui:016X}":
@@ -194,11 +198,17 @@ def build_reply(request: CoapMessage, code: int) -> bytes:
 
 
 def decode_packet(payload: bytes, keys: Optional[NodeKeys] = None) -> dict:
-    """Decode a research packet. With keys, only a correctly signed v3 packet
-    from a registered node is accepted (raises AuthError otherwise). Without
-    keys (bench mode), v2 and v3 are decoded with no checks."""
+    """Decode a research packet. With keys, only a correctly signed v4 or v3
+    packet from a registered node is accepted (raises AuthError otherwise).
+    Without keys (bench mode), v2, v3 and v4 are decoded with no checks."""
     version = payload[0] if payload else None
-    if version == 3 and len(payload) == V3_LEN:
+    flags = None
+    if version == 4 and len(payload) == V4_LEN:
+        _, index, eui, temp, hum, lux, batt, counter, flags, tag = struct.unpack(V4_FORMAT, payload)
+        if keys is not None:
+            keys.verify(payload, index, eui, tag)
+        authenticated = keys is not None
+    elif version == 3 and len(payload) == V3_LEN:
         _, index, eui, temp, hum, lux, batt, counter, tag = struct.unpack(V3_FORMAT, payload)
         if keys is not None:
             keys.verify(payload, index, eui, tag)
@@ -209,8 +219,9 @@ def decode_packet(payload: bytes, keys: Optional[NodeKeys] = None) -> dict:
         _, index, eui, temp, hum, lux, batt = struct.unpack(V2_FORMAT, payload)
         counter, authenticated = None, False
     else:
-        raise ValueError(f"not a v2 ({V2_LEN} bytes) or v3 ({V3_LEN} bytes) packet: "
-                         f"version {version}, {len(payload)} bytes")
+        raise ValueError(f"not a v2 ({V2_LEN} bytes), v3 ({V3_LEN} bytes) or v4 ({V4_LEN} bytes) "
+                         f"packet: version {version}, {len(payload)} bytes")
+    known = flags is not None and flags & FLAG_VALID
     return {
         "packet_version": version,
         "counter": counter,
@@ -222,6 +233,8 @@ def decode_packet(payload: bytes, keys: Optional[NodeKeys] = None) -> dict:
         "humidity_pct": None if math.isnan(hum) else round(hum, 3),
         "light_lux": None if lux == U16_INVALID else lux,
         "battery_mv": None if batt == U16_INVALID else batt,
+        "usb_power": bool(flags & FLAG_USB) if known else None,
+        "charging": bool(flags & FLAG_CHARGING) if known else None,
     }
 
 
@@ -256,7 +269,9 @@ class PostgresStore:
                                     "node_index": reading["node_index"],
                                     "packet_version": reading["packet_version"],
                                     "counter": reading["counter"],
-                                    "authenticated": reading["authenticated"]}),
+                                    "authenticated": reading["authenticated"],
+                                    "usb_power": reading.get("usb_power"),
+                                    "charging": reading.get("charging")}),
                     ),
                 )
             self._conn.commit()

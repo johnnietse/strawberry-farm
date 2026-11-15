@@ -22,6 +22,7 @@ $fn = 72;
 part = "assembly";       // "assembly", "base" or "lid"
 show_pcb = false;        // assembly view: import pcb_assembly.stl (from fit_check.py)
 show_lid = true;         // assembly view: lid in place
+lid_lift = 0;            // assembly view: raise the lid (exploded view)
 cut = false;             // assembly view: cut away the -X half to see inside
 
 // === OUTER DIMENSIONS ===
@@ -50,7 +51,9 @@ boss_pilot_d = 2.5;      // M3 self-tapping
 lid_screw_d = 3.4;
 window_d = 10;           // light window over the TSL2591
 window_disc_d = 16;      // clear PC/acrylic disc, glued into a recess from inside
-window_disc_t = 1.5;
+window_disc_t = 1.5;     // glued into a recess on the outside of the lid
+tube_wall = 1.5;         // light tube wall; print the lid in black so the tube does not glow
+tube_bottom = pcb_z + pcb_thickness + 3;   // 3 mm above the board, clear of the TSL2591 (0.65 mm tall)
 
 inner_x = enclosure_width / 2 - wall;
 inner_y = enclosure_length / 2 - wall;
@@ -150,11 +153,16 @@ module lid() {
                                                   enclosure_length - 2 * (wall + lid_fit) - 4, lid_lip + 2,
                                                   corner_radius - wall - 2);
             }
+            // light tube from the window down to just above the TSL2591: the sensor sees a
+            // defined cone of outside light, not light reflected around inside the box
+            translate([tsl2591[0], tsl2591[1], tube_bottom - enclosure_height])
+                cylinder(d = window_d + 2 * tube_wall, h = enclosure_height - tube_bottom + 0.01);
         }
         for (b = boss_xy) translate([b[0], b[1], -lid_lip - 1]) cylinder(d = lid_screw_d, h = lid_t + lid_lip + 2);
-        // light window over the TSL2591 with a recess for the clear disc
-        translate([tsl2591[0], tsl2591[1], -lid_lip - 1]) cylinder(d = window_d, h = lid_t + lid_lip + 2);
-        translate([tsl2591[0], tsl2591[1], -0.01]) cylinder(d = window_disc_d, h = window_disc_t);
+        // light window over the TSL2591, through the tube, with a recess on top for the clear disc
+        translate([tsl2591[0], tsl2591[1], tube_bottom - enclosure_height - 1])
+            cylinder(d = window_d, h = enclosure_height - tube_bottom + lid_t + 2);
+        translate([tsl2591[0], tsl2591[1], lid_t - window_disc_t]) cylinder(d = window_disc_d, h = window_disc_t + 0.01);
     }
 }
 
@@ -168,7 +176,7 @@ else difference() {
 
 module assembly() {
     color("SlateGray") base();
-    if (show_lid) color("LightSteelBlue", 0.5) translate([0, 0, enclosure_height]) lid();
+    if (show_lid) color("LightSteelBlue", 0.5) translate([0, 0, enclosure_height + lid_lift]) lid();
     if (show_pcb) color("DarkGreen") translate([pcb_origin[0], pcb_origin[1], pcb_z + pcb_thickness]) import("pcb_assembly.stl");  // STL: board top at z = 0
     color("SteelBlue", 0.6) translate([0, battery_center_y, wall + cradle_wall + battery_d / 2]) rotate([0, 90, 0])
         cylinder(d = 18.5, h = 65, center = true);

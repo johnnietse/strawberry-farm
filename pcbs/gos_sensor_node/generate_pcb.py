@@ -48,7 +48,7 @@ HOLE_INSET = 5.0             # enclosure posts sit 5 mm in from each edge
 # Power nets carry at most the charger's 0.54 A input limit (R_ILIM 3.0k);
 # 0.3 mm on 1 oz copper carries about 1 A at 10 C rise and still necks into the
 # 0.5 mm-pitch QFN/WSON pads (0.4 mm cannot, and the router gives up there).
-# GND is routed at the default width: the pours on both layers carry the
+# GND is routed at the default width: the planes and pours carry the
 # ground current, the tracks only guarantee every pad is connected. +3V3 is
 # also default width: the buck delivers at most 300 mA and the radio peaks
 # near 15 mA, and the SHT40's 0.3 mm pads take a 0.2 mm track cleanly.
@@ -77,7 +77,12 @@ CONFIG = {
         "J4": (W - 2.6, 46.5, 0),      # LED-board PWM header, right edge
         "J5": (3.0, 47.0, 0),          # battery lead, left edge
         "U1": (18.0, 42.0, 0),         # charger
-        "U2": (29.0, 42.0, 0),         # buck
+        "U2": (29.0, 42.0, 0),         # buck; its power pins (1 VIN, 2 SW, 3-4 GND, 5 VOUT) face left
+        # buck loop placed by hand (TI layout guidance: input cap and inductor at the pins,
+        # short switch node on one layer): L1 left of SW, C4 above VIN, C5 under L1's output
+        "L1": (25.45, 42.4, 270),      # pad 1 (SW) level with U2 pin 2
+        "C4": (26.0, 39.0, 180),       # pad 1 (VSYS) up and left of U2 pin 1, clear of J2
+        "C5": (26.6, 45.35, 0),         # pad 1 (+3V3) under L1 pad 2
         "U3": (11.0, 58.0, 0),         # DW01A
         "Q1": (11.5, 46.0, 90),        # FS8205A, beside the battery connector
         "Q2": (11.5, 53.0, 0),         # reverse-cell P-FET
@@ -89,7 +94,7 @@ CONFIG = {
         "U5": ["R13", "R14", "R15"],
         "U6": ["C14"],
         "U1": ["C1", "C2", "R4", "TH1", "C3", "R1", "R2", "R3", "R5", "R6", "R7", "D1"],  # R4/TH1 early: corner pins 16/1
-        "U2": ["C4", "L1", "C5"],
+        "U2": [],
         "U3": ["R8", "C6", "R9"],
         "J1": ["F1", "U7", "R16", "R17", "R18", "R19"],
         "J4": ["R20", "R21", "R22", "R23"],
@@ -105,6 +110,19 @@ CONFIG = {
     "copper_keepouts": [(0.0, 0.0, W, 4.9)],
     "netclasses": SENSOR_NETCLASSES,
     "netclass_nets": {"Power": SENSOR_POWER_NETS},
+    # Locked copper laid by hand before autorouting: (net, width mm, [(x, y), ...]) on F.Cu,
+    # and (net, x, y) vias. Freerouting keeps locked items and routes the rest around them.
+    "preroute_tracks": [
+        ("/Power/BUCK_SW", 0.3, [(28.05, 41.25), (25.45, 41.25)]),        # U2 SW -> L1 pad 1
+        ("VSYS", 0.3, [(26.95, 39.0), (27.65, 39.7), (27.65, 40.75), (28.05, 40.75)]),  # C4 -> U2 VIN
+        ("+3V3", 0.3, [(25.45, 43.55), (27.0, 43.55), (27.6, 42.75), (28.05, 42.75)]),  # L1 -> U2 VOUT
+        ("+3V3", 0.3, [(25.65, 45.35), (25.45, 43.55)]),                    # C5 -> L1 pad 2
+        ("GND", 0.25, [(28.05, 41.75), (28.75, 41.75)]),                   # U2 GND pins -> exposed pad
+        ("GND", 0.25, [(28.05, 42.25), (28.75, 42.25)]),
+        ("GND", 0.3, [(25.05, 39.0), (24.05, 39.0)]),                      # C4 GND -> via
+        ("GND", 0.3, [(27.55, 45.35), (28.55, 45.35)]),                      # C5 GND -> via
+    ],
+    "preroute_vias": [("GND", 24.05, 39.0), ("GND", 28.55, 45.35)],
 }
 
 
@@ -376,6 +394,37 @@ def build(cfg):
     notes.SetTextSize(pcbnew.VECTOR2I(mm(1.0), mm(1.0)))
     notes.SetTextThickness(mm(0.15))
     board.Add(notes)
+
+    pad_centres = {}
+    for fp in board.GetFootprints():
+        for pad in fp.Pads():
+            pad_centres.setdefault(pad.GetNetname(), []).append(pad.GetPosition())
+
+    def snap(net, x, y):
+        """Hand-laid points that land on a pad of the same net go to its exact centre."""
+        pt = pcbnew.VECTOR2I(mm(OX + x), mm(OY + y))
+        near = [c for c in pad_centres.get(net, []) if (c - pt).EuclideanNorm() <= mm(0.3)]
+        return min(near, key=lambda c: (c - pt).EuclideanNorm()) if near else pt
+
+    for net, width, pts in cfg.get("preroute_tracks", []):
+        for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
+            t = pcbnew.PCB_TRACK(board)
+            t.SetStart(snap(net, x1, y1))
+            t.SetEnd(snap(net, x2, y2))
+            t.SetWidth(mm(width))
+            t.SetLayer(pcbnew.F_Cu)
+            t.SetNet(netinfo[net])
+            t.SetLocked(True)
+            board.Add(t)
+    for net, x, y in cfg.get("preroute_vias", []):
+        v = pcbnew.PCB_VIA(board)
+        v.SetPosition(pcbnew.VECTOR2I(mm(OX + x), mm(OY + y)))
+        v.SetWidth(mm(0.6))
+        v.SetDrill(mm(0.3))
+        v.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
+        v.SetNet(netinfo[net])
+        v.SetLocked(True)
+        board.Add(v)
 
     for rect in cfg.get("copper_keepouts", []):
         add_copper_keepout(board, rect)

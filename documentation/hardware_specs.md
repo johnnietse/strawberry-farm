@@ -14,7 +14,7 @@ The rev 2 version of this page is in [`archive/hardware_specs_rev2.md`](archive/
 | Battery | one 18650 Li-ion cell in the enclosure cradle, on a 2-pin JST-PH lead |
 | Charging | USB-C, TI BQ24074, 494 mA charge, NTC temperature cut-off |
 | Supply | TI TPS62740 buck, 3.3 V |
-| Cell protection | DW01A + 8205A dual FET: overcharge 4.30 V, over-discharge 2.40 V, over-current about 3 A; reverse-cell P-FET |
+| Cell protection | DW01A + FS8205A dual FET (SOT-23-6): overcharge 4.30 V, over-discharge 2.40 V, over-current about 3 A; reverse-cell P-FET |
 | Debug | 10-pin Cortex SWD header, UART on test points |
 | Expansion | 4-pin I2C header |
 | LED output | 4-pin header carrying two PWM signals to the separate LED driver board |
@@ -27,16 +27,24 @@ has a wide margin. See the power budget in `HARDWARE.md`.
 
 ## LED driver board
 
-Separate board in `pcbs/led_driver/`, powered from its own 12 V supply, driven by the two PWM signals from J4.
-See its `README.md` for ratings.
+Separate board in `pcbs/led_driver/` (60 x 45 mm, 4 layers), powered from a 24 V adapter, driven by
+the two PWM signals from the sensor node's J4. Two AL8860 constant-current channels at 333 mA
+(blue and red LED strings, 4 LEDs each), 100 uH inductors, 1.5 k fail-safe pull-downs. LTspice
+results in `simulation/README.md`; ratings in its `README.md`.
+
+## Enclosures
+
+Sensor node: 85 x 130 x 48 mm with the 18650 cradle, vents, light window and tube, cable gland.
+LED driver: 65.6 x 62 x 36 mm with mounting flanges. Both in ASA, generated from the KiCad boards
+and fit checked (`mechanical/README.md`).
 
 ## Status
 
 | Part | State |
 |:---|:---|
 | Schematic | complete, ERC clean |
-| Board | routed (4 layers), DRC clean, Gerbers and JLCPCB BOM/placement files ready (`ordering.md`); not reviewed by hand, not made |
-| LED driver board | routed (4 layers), DRC clean, ready to order; not made |
-| Enclosure | rebuilt around the board, fit checked in software; not printed |
-| Firmware | builds; never run on hardware |
-| Gateway receiver | tested against PostgreSQL and Linux multicast; never received from a real node |
+| Board | routed (4 layers; buck loop routed by hand), DRC clean, layout reviewed (`design_review.md`), order files ready (`ordering.md`); not made |
+| LED driver board | routed (4 layers; switching loops routed by hand), DRC clean, LTspice checked, order files ready; not made |
+| Enclosures | both generated from the boards, 12 fit checks pass, print files ready; not printed |
+| Firmware | builds (PACKET_V4); never run on hardware |
+| Gateway receiver | 44 tests; tested against PostgreSQL and Linux multicast; never received from a real node |

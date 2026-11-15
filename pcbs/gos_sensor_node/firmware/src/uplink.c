@@ -1,10 +1,10 @@
 /*
- * Thread / CoAP uplink: sends one signed research packet (PACKET_V3) per sample.
+ * Thread / CoAP uplink: sends one signed research packet (PACKET_V4) per sample.
  *
- * Packet, 42 bytes, every field little-endian:
+ * Packet, 43 bytes, every field little-endian:
  *
  *   offset  size  field
- *   0x00    1     protocol version, 0x03
+ *   0x00    1     protocol version, 0x04
  *   0x01    1     node index (CONFIG_GOS_NODE_INDEX)
  *   0x02    8     factory EUI-64 as an unsigned integer; byte 0 of the
  *                 EUI-64 is the most significant byte
@@ -15,9 +15,12 @@
  *   0x16    4     message counter: boot epoch << 16 | sequence. Strictly
  *                 increasing for the life of the node, so the gateway can
  *                 reject replayed packets.
- *   0x1A    16    tag: first 16 bytes of HMAC-SHA256(node key, bytes 0x00..0x19)
+ *   0x1A    1     flags: bit 7 charger state valid, bit 0 USB power present,
+ *                 bit 1 charging (the charger warms the board: climate readings
+ *                 taken while charging read high)
+ *   0x1B    16    tag: first 16 bytes of HMAC-SHA256(node key, bytes 0x00..0x1A)
  *
- * Python decode: struct.unpack("<BBQffHHI16s", payload)
+ * Python decode: struct.unpack("<BBQffHHIB16s", payload)
  *
  * The node key (CONFIG_GOS_UPLINK_KEY, 32 hex digits) comes from the
  * git-ignored credentials.conf and must match the gateway's key file
@@ -52,8 +55,8 @@
 
 LOG_MODULE_REGISTER(gos_uplink, LOG_LEVEL_INF);
 
-#define PACKET_VERSION 0x03
-#define BODY_LEN       26
+#define PACKET_VERSION 0x04
+#define BODY_LEN       27
 #define TAG_LEN        16
 #define PACKET_LEN     (BODY_LEN + TAG_LEN)
 #define KEY_LEN        16
@@ -101,6 +104,11 @@ void gos_uplink_build_body(uint8_t body[BODY_LEN], const otExtAddress *eui,
 	sys_put_le16((d->valid & GOS_VALID_LIGHT) ? clamp_u16(d->light_lux) : U16_INVALID, &body[18]);
 	sys_put_le16((d->valid & GOS_VALID_BATTERY) ? clamp_u16(d->battery_mv) : U16_INVALID, &body[20]);
 	sys_put_le32(counter, &body[22]);
+	/* bit 7: charger state read; bit 0: USB power present; bit 1: charging. The charger
+	 * warms the board, so the gateway can flag climate readings taken while charging. */
+	body[26] = (d->valid & GOS_VALID_CHARGER)
+			   ? (uint8_t)(0x80U | (d->usb_power ? 0x01U : 0U) | (d->charging ? 0x02U : 0U))
+			   : 0U;
 }
 
 static int epoch_load(const char *key, size_t len, settings_read_cb read_cb, void *cb_arg, void *param)

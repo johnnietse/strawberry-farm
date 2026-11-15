@@ -263,6 +263,7 @@ SOURCING = {
     ("5.1k", "R_0603_1608Metric"): ("C23186", "0603WAF5101T5E", "UNI-ROYAL"),
     ("27R", "R_0603_1608Metric"): ("C25190", "0603WAF270JT5E", "UNI-ROYAL"),
     ("2.2k", "R_0603_1608Metric"): ("C4190", "0603WAF2201T5E", "UNI-ROYAL"),
+    ("1.5k", "R_0603_1608Metric"): ("C22843", "0603WAF1501T5E", "UNI-ROYAL"),
     ("0R30 1%", "R_0603_1608Metric"): ("C309621", "RL0603FR-070R3L", "YAGEO"),
     ("NTC 10k", "R_0603_1608Metric"): ("C13564", "NCP18XH103F03RB", "Murata"),
     # discretes, protection
@@ -272,7 +273,7 @@ SOURCING = {
     ("PTC 1.1A 30V", "Fuse_1206_3216Metric"): ("C21714343", "BSMD1206-110-30V", "BHFUSE"),
     ("SS34", "D_SMA"): ("C8678", "SS34", "MDD (Microdiode)"),
     ("2.2uH", "L_APV_ANR3015"): ("C43389", "SWPA3015S2R2MT", "Sunlord"),
-    ("47uH", "L_Bourns_SRN6045TA"): ("C5151734", "SRN6045TA-470M", "Bourns"),
+    ("100uH", "L_Bourns_SRN6045TA"): ("C3222641", "SRN6045TA-101M", "Bourns"),
     ("8205A dual NMOS", "SOT-23-6"): ("C908265", "FS8205A", "FUXINSEMI"),
     ("AO3401A", "SOT-23"): ("C15127", "AO3401A", "Alpha & Omega"),
     ("DW01A", "SOT-23-6"): ("C351410", "DW01A", "PUOLOP"),

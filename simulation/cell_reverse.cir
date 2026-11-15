@@ -1,0 +1,39 @@
+* G.O.S. sensor node: 18650 connected the right way round and reversed
+* Q2 AO3401A (P-channel) in the positive lead: gate to BAT_N, source to VBAT, drain to BAT_P
+* (schematic power.kicad_sch). Q1 FS8205A dual N-channel between BAT_N and board ground, gates
+* driven by the DW01A, which is powered from VBAT and so is off when the cell is reversed.
+* MOSFET models are generic VDMOS fits to the datasheet headline numbers (AO3401A: Vth -0.9 V,
+* about 60 mOhm at -4.5 V; FS8205A: Vth 0.7 V, 25 mOhm at 4.5 V), not vendor models.
+* Load: 500 mA (charger input limit while the radio transmits), only drawn above 2.5 V.
+* Node names: board ground is "bgnd" (LTspice treats "gnd" as node 0).
+* Steps: cell +3.7 V (correct) and -3.7 V (reversed).
+
+.param Vcell=3.7
+Vcell bat_p_cell 0 {Vcell}
+Rcell bat_p_cell bat_p 0.05
+* Q2: drain=BAT_P, gate=BAT_N, source=VBAT
+M2 bat_p bat_n vbat AO3401
+* Q1 back-to-back: S1=BAT_N, S2=board ground, common drain
+M1a fet_d dw_od bat_n FS8205
+M1b fet_d dw_oc bgnd FS8205
+* DW01A outputs high when it has a supply (VBAT to BAT_N above 2.5 V), otherwise low
+Bod dw_od bat_n V=if(V(vbat,bat_n) > 2.5, V(vbat,bat_n), 0)
+Boc dw_oc bgnd V=if(V(vbat,bat_n) > 2.5, V(vbat,bgnd), 0)
+* cell minus terminal is node 0, through the lead to BAT_N
+Rlead 0 bat_n 0.02
+Cbus vbat bgnd 10u
+Bload vbat bgnd I=if(V(vbat,bgnd) > 2.5, 0.5, V(vbat,bgnd)/1k)
+Rref bgnd 0 100Meg
+
+.model AO3401 VDMOS(pchan Vto=-0.9 Kp=20 Rd=0.02 Rs=0.02 Cgs=600p Cgdmax=200p Cgdmin=50p Is=1e-12)
+.model FS8205 VDMOS(Vto=0.7 Kp=40 Rd=0.008 Rs=0.008 Cgs=400p Cgdmax=150p Cgdmin=40p Is=1e-12)
+
+.tran 0 5m 0 1u
+.step param Vcell list 3.7 -3.7
+
+.meas TRAN V_board FIND V(vbat,bgnd) AT 4.9m
+.meas TRAN I_cell FIND I(Vcell) AT 4.9m
+.meas TRAN V_drop_Q2 FIND V(bat_p,vbat) AT 4.9m
+.meas TRAN P_Q2 FIND -V(bat_p,vbat)*I(Vcell) AT 4.9m
+.meas TRAN V_board_min MIN V(vbat,bgnd) FROM 0 TO 5m
+.end

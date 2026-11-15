@@ -1,0 +1,15 @@
+* G.O.S. LED driver: CTRL fail-safe with the sensor-node cable unplugged
+* The AL8860 enables when CTRL floats, so it has an internal pull-up whose value the datasheet
+* does not give. It does bound it: shutdown supply current with CTRL grounded is 80 uA maximum
+* (DS39014), and the pull-up current is part of that, so the pull-up can push at most 80 uA
+* into the pull-down. The pull-down must hold CTRL below the 0.2 V disable threshold.
+* Board pull-down: 1.5 k (was 2.2 k: 0.176 V worst case left only 24 mV of margin).
+* Steps: pull-up current 10 to 80 uA, for 1.5 k and for the earlier 2.2 k.
+
+.param Ipu=80u Rpd=1.5k
+Ipu 0 ctrl {Ipu}
+Rpd ctrl 0 {Rpd}
+.op
+.step param Ipu list 10u 20u 40u 60u 80u
+.step param Rpd list 1.5k 2.2k
+.end

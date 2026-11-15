@@ -11,6 +11,6 @@ tsl2591 = [17.800, -22.575];
 j4_led_cable = [17.400, -43.075];
 j5_battery = [-17.000, -43.575];
 status_led = [9.647, -8.890];
-charge_led = [-7.750, -38.575];
+charge_led = [0.828, -33.283];
 antenna_edge_y = 3.425;
 battery_center_y = 50.500;
