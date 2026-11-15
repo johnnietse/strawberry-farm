@@ -14,10 +14,20 @@ falls back to persistence.
 from __future__ import annotations
 
 import logging
+import os
 
 import numpy as np
 
 logger = logging.getLogger("Forecaster")
+
+# Weights shipped in the repository (models/hf/, Apache-2.0), so the Pi needs no internet.
+HERE = os.path.dirname(os.path.abspath(__file__))
+CHRONOS_LOCAL = os.path.join(HERE, "models", "hf", "chronos-bolt-tiny")
+TTM_LOCAL = os.path.join(HERE, "models", "hf", "granite-timeseries-ttm-r2")
+
+
+def _local_or(hub_id: str, local_dir: str) -> str:
+    return local_dir if os.path.isfile(os.path.join(local_dir, "model.safetensors")) else hub_id
 
 
 class PersistenceForecaster:
@@ -34,12 +44,13 @@ class ChronosForecaster:
     name = "chronos"
     min_context = 32
 
-    def __init__(self, model_id: str = "amazon/chronos-bolt-tiny"):
+    def __init__(self, model_id: str | None = None):
         import torch
         from chronos import BaseChronosPipeline
 
         self.torch = torch
-        self.pipe = BaseChronosPipeline.from_pretrained(model_id, device_map="cpu", torch_dtype=torch.float32)
+        self.source = model_id or _local_or("amazon/chronos-bolt-tiny", CHRONOS_LOCAL)
+        self.pipe = BaseChronosPipeline.from_pretrained(self.source, device_map="cpu", torch_dtype=torch.float32)
 
     def predict(self, series: np.ndarray, horizon: int) -> np.ndarray:
         x = self.torch.tensor(np.asarray(series, dtype=np.float32))
@@ -51,15 +62,20 @@ class TTMForecaster:
     """TTM-r2 with per-series standardisation (the model expects scaled inputs)."""
     name = "ttm"
 
-    def __init__(self, context: int = 512, horizon: int = 96,
-                 model_id: str = "ibm-granite/granite-timeseries-ttm-r2"):
+    def __init__(self, context: int = 512, horizon: int = 96, model_id: str | None = None):
         import torch
-        from tsfm_public.toolkit.get_model import get_model
 
         self.torch = torch
         self.context, self.max_horizon = context, horizon
         self.min_context = context
-        self.model = get_model(model_id, context_length=context, prediction_length=horizon)
+        self.source = model_id or _local_or("ibm-granite/granite-timeseries-ttm-r2", TTM_LOCAL)
+        if os.path.isdir(self.source):
+            # the shipped weights are the main revision: 512 h context, 96 h horizon
+            from tsfm_public.models.tinytimemixer import TinyTimeMixerForPrediction
+            self.model = TinyTimeMixerForPrediction.from_pretrained(self.source)
+        else:
+            from tsfm_public.toolkit.get_model import get_model
+            self.model = get_model(self.source, context_length=context, prediction_length=horizon)
         self.model.eval()
 
     def predict(self, series: np.ndarray, horizon: int) -> np.ndarray:

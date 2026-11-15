@@ -97,6 +97,15 @@ which keeps 24 V switching currents away from the sensors and the radio.
 | API | Logging an event without a description returned 500 after inserting it | Fixed |
 | End to end | Nothing tested the pieces together | `tests/e2e/run_e2e.sh`: simulated node to signed command, verified, in Docker; passes |
 
+## Access, models and full end-to-end test (fourth review, 2026-11-15)
+
+Ten more findings, all fixed: the forecast was dropped from 14 of every 15 plant-state rows;
+the dashboard proxy broke after an API restart; the dashboard only worked at `localhost`;
+the database and anonymous MQTT were open to every network; the hardware receiver could not
+reach the database with a `.env`; the assistant rate limit was shared by all users behind the
+proxy. Models now load offline from the repository. Each finding with its effect:
+[`issues_log.md`](issues_log.md). Access on other networks: [`network_and_access.md`](network_and_access.md).
+
 ## Open items (need hardware or a decision)
 
 1. Bench measurements in `documentation/bring_up.md`: sleep current, charge behaviour, Thread

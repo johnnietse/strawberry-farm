@@ -3,20 +3,30 @@
  * Everything shown comes from the database; nothing is simulated in the browser.
  * All values are inserted with textContent, never innerHTML, so data cannot inject markup.
  */
-// The API runs on the same host, port 5000. Not configurable from the URL on purpose: a link
-// could otherwise point the dashboard (and the token) at another server.
-const API = `${location.protocol}//${location.hostname}:5000`;
-const TOKEN_KEY = 'gos_api_token';
-
-function token() {
-    try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; }
+// Which G.O.S. server to talk to. Default: this page's own server (nginx forwards /api/ to the
+// API), which works at any address on any network. Another server can be chosen in the page
+// header; that choice is stored in this browser only and is never read from the URL, so a link
+// cannot send the dashboard, or its token, somewhere else. Each server has its own token.
+const store = {
+    get(k) { try { return localStorage.getItem(k) || ''; } catch { return ''; } },
+    set(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch { /* blocked */ } },
+};
+function apiBase() {
+    const saved = store.get('gos_api_server');
+    if (!saved) return '';
+    try {
+        const u = new URL(saved);
+        return (u.protocol === 'http:' || u.protocol === 'https:') ? u.origin : '';
+    } catch { return ''; }
 }
+const tokenKey = () => `gos_api_token:${apiBase() || location.origin}`;
+const token = () => store.get(tokenKey());
 const REFRESH_MS = 15000;
 
 async function api(path, options = {}) {
     const headers = { 'Content-Type': 'application/json' };
     if (options.method && options.method !== 'GET' && token()) headers.Authorization = `Bearer ${token()}`;
-    const r = await fetch(API + path, { ...options, headers });
+    const r = await fetch(apiBase() + path, { ...options, headers, credentials: 'omit' });
     const body = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(body.message || `${r.status} ${r.statusText}`);
     return body;
@@ -118,7 +128,7 @@ document.getElementById('led-form').addEventListener('submit', async (ev) => {
                 node: document.getElementById('led-node').value,
                 blue_pct: Number(document.getElementById('led-blue').value),
                 red_pct: Number(document.getElementById('led-red').value),
-                minutes: Number(document.getElementById('led-min').value),
+                minutes: document.getElementById('led-hold').checked ? 0 : Number(document.getElementById('led-min').value),
             }),
         });
         msg.textContent = r.message;
@@ -162,16 +172,36 @@ async function sendNote(commit) {
 document.getElementById('note-preview').addEventListener('click', () => sendNote(false));
 document.getElementById('note-form').addEventListener('submit', (ev) => { ev.preventDefault(); sendNote(true); });
 
+function showAccess() {
+    document.getElementById('server-state').textContent = apiBase() || 'this server';
+    document.getElementById('token-state').textContent = token() ? 'token set' : 'read only';
+}
 document.getElementById('token-form').addEventListener('submit', (ev) => {
     ev.preventDefault();
     const field = document.getElementById('token-input');
-    try {
-        if (field.value) localStorage.setItem(TOKEN_KEY, field.value); else localStorage.removeItem(TOKEN_KEY);
-    } catch { /* storage blocked: the token is kept for this page only */ }
+    if (field.value) store.set(tokenKey(), field.value.trim());
     field.value = '';
-    document.getElementById('token-state').textContent = token() ? 'token set' : 'read only';
+    showAccess();
+    refreshAll();
 });
-document.getElementById('token-state').textContent = token() ? 'token set' : 'read only';
+document.getElementById('token-clear').addEventListener('click', () => { store.set(tokenKey(), ''); showAccess(); });
+document.getElementById('server-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const v = document.getElementById('server-input').value.trim();
+    if (v) {
+        try {
+            const u = new URL(v);
+            if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error();
+            store.set('gos_api_server', u.origin === location.origin ? '' : u.origin);
+        } catch { alert('Enter a full address, e.g. http://192.168.1.50:8080'); return; }
+    } else {
+        store.set('gos_api_server', '');
+    }
+    document.getElementById('server-input').value = '';
+    showAccess();
+    refreshAll();
+});
+showAccess();
 
 refreshAll();
 setInterval(refreshAll, REFRESH_MS);

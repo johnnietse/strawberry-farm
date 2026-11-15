@@ -87,7 +87,7 @@ def main():
     tz = ZoneInfo(os.getenv("LED_TZ", "UTC")) if ZoneInfo else None
     forecaster = make_forecaster(os.getenv("FORECAST_BACKEND", "chronos"))
     logger.info(f"Biology engine started: period {period:g} s, forecast backend {forecaster.name}")
-    conn, last_forecast = None, {}
+    conn, last_forecast, forecasts = None, {}, {}
     while True:
         try:
             if conn is None or conn.closed:
@@ -100,10 +100,15 @@ def main():
                     continue
                 if time.time() - last_forecast.get(node, 0) > FORECAST_EVERY_S:
                     try:
-                        state["forecast"] = forecast_for(conn, forecaster, node)
+                        forecasts[node] = forecast_for(conn, forecaster, node)
                     except Exception as e:
                         logger.warning(f"{node}: forecast failed: {e}")
+                        forecasts[node] = None
                     last_forecast[node] = time.time()
+                    if forecasts[node] is None:
+                        logger.info(f"{node}: not enough history for a forecast yet")
+                # every row carries the newest forecast (made at most FORECAST_EVERY_S ago)
+                state["forecast"] = forecasts.get(node)
                 gos_db.insert_plant_state(conn, node, state)
                 logger.info(f"{node}: PPFD {state['ppfd_ambient']:.0f}+{state['ppfd_led']:.0f}, "
                             f"A {state['an_umol']:.1f} umol/m2/s, E {state['transpiration_g_m2_h']:.0f} g/m2/h, "

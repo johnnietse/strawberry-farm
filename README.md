@@ -67,6 +67,47 @@ The loop is closed: every packet a node sends is answered with its LED level, si
 node's key and bound to that packet, after the safety monitor (dark period, over-temperature,
 ramp limit). The node falls back to "off" if it hears nothing for 15 minutes.
 
+```mermaid
+sequenceDiagram
+    participant N as Sensor node
+    participant R as coap_receiver (Pi)
+    participant DB as TimescaleDB
+    participant B as biology_engine
+    participant C as LED controller (PPO)
+    loop every 60 s
+        N->>R: CoAP POST /telemetry, PACKET_V4 (HMAC-signed, counter)
+        R->>R: check signature, EUI-64, counter
+        R->>DB: raw_telemetry
+        R->>DB: newest led_setpoints row for the node
+        R->>R: safety monitor (dark period, 32 C, ramp, fallback)
+        R-->>N: 2.04 + LED command (blue %, red %, same counter, HMAC)
+        N->>N: check tag and counter, set PWM
+    end
+    loop every 60 s
+        B->>DB: plant_state (photosynthesis, transpiration, DLI, 2 h forecast)
+    end
+    loop every 5 min
+        C->>DB: led_setpoints (unless a person set the node by hand)
+    end
+```
+
+### Models
+
+The decisions are made on the Pi, not on the node. Details, versions and checksums:
+[`ml_engine/models/README.md`](ml_engine/models/README.md).
+
+| Job | Model | Where the weights are | Result |
+|---|---|---|---|
+| What the plants are doing | strawberry canopy model (Farquhar + Medlyn + Penman-Monteith) | code | light-saturated photosynthesis 15.9 umol m-2 s-1, in the 15 to 20 reported for strawberry |
+| LED levels | PPO reinforcement-learning policy, numpy on the Pi | `ml_engine/models/led_policy.npz` | within 0.5 % of a model-based optimiser on 60 held-out days |
+| 2 h climate forecast | Chronos-Bolt Tiny (Amazon, Hugging Face), offline | `ml_engine/models/hf/` | VPD error at 6 h 0.118 kPa vs 0.245 for "no change" (a year of measured weather) |
+| Notes to research events | Qwen2.5-1.5B-Instruct via Ollama, offline (Claude optional, rules as fallback) | [GitHub release](https://github.com/johnnietse/strawberry-farm/releases/tag/models-2026-11-15) | 6 of 6 test notes filed correctly |
+
+| Plant model | LED policy over one held-out day |
+|---|---|
+| ![Plant model](docs/images/ml/plant_response.png) | ![LED policy day](docs/images/ml/led_policy_day.png) |
+| ![Forecast error](docs/images/ml/forecast_error.png) | ![Policy comparison](docs/images/ml/policy_comparison.png) |
+
 ### Boards
 
 | Sensor node | LED driver |
@@ -113,10 +154,10 @@ print files in [`mechanical/print/`](mechanical/print) (ASA). Details: [`mechani
 | Layout review (USB pair, buck switching loop, antenna strip) | [`documentation/design_review.md`](documentation/design_review.md) |
 | LTspice: LED current, switching frequency, PWM dimming, fail-safe, battery sense, reversed cell | all pass after two design fixes: [`simulation/README.md`](simulation/README.md) |
 | Firmware build (Zephyr main, SDK 1.0.1) | no warnings, 214 KB flash, 62 KB RAM |
-| Gateway tests (receiver, LED commands, safety monitor, assistant, API auth) | 76 pass |
+| Gateway tests (receiver, LED commands, safety monitor, assistant, API token, CORS, limits) | 79 pass |
 | ML engine tests (plant model physics, task, policy, controller) | 13 pass |
 | LED command check in firmware, host test against gateway-made commands | 8 pass |
-| End-to-end in Docker: simulated node to database to plant model to controller to safety to signed command, verified by the node; manual override; assistant (`tests/e2e/run_e2e.sh`) | pass, 8/8 commands verified |
+| End-to-end in Docker with the production images (torch, Chronos loaded offline, Qwen2.5-1.5B): node to database to plant model and forecast to PPO controller to safety to signed command, verified by the node; dashboard and its /api proxy; token refusals; manual override with no expiry; assistant (`tests/e2e/run_e2e.sh`) | 14 of 14 checks pass |
 | Enclosure fit | 12 checks pass |
 
 | LED channel at 24 V (LTspice) | PWM dimming 50 % (LTspice) |
@@ -139,7 +180,7 @@ stock, what to buy separately). **Build it:** [`documentation/bring_up.md`](docu
 | `biology_engine` | Strawberry canopy model on live data each minute, daily light integral, 2 h climate forecast (Chronos-Bolt Tiny) | `ml_engine/biology_engine.py` |
 | `ml_engine` | LED controller: PPO policy picks blue and red levels per node every 5 min | `ml_engine/controller.py` |
 | `api` | REST API for the dashboard: nodes, plant state, LED control, events, assistant | `gateway/services/api.py` |
-| `dashboard` | Web GUI on port 8080 | `dashboard/` |
+| `dashboard` | Web GUI on port 8080; nginx also forwards `/api/` to the API, so page and API share one address on any network | `dashboard/`, `dashboard/nginx.conf` |
 | `ollama` (profile `assistant`) | Local language model (Qwen2.5-1.5B) for the research assistant, offline | `gateway/services/assistant.py` |
 | `sync_engine` | Joins telemetry, met station, LED history, events and yield into the ML dataset | `gateway/services/sync.py` |
 | `ingest`, `met_station` | Simulated 40 nodes and met station (switch off with real hardware) | `gateway/services/farm_sim.py`, `met_station.py` |
@@ -212,18 +253,16 @@ stock, what to buy separately). **Build it:** [`documentation/bring_up.md`](docu
 ### Installation
 
 ```bash
-# Clone repository
-git clone https://github.com/queensu-epower/gos.git
-cd Stawberry_Farm
-
-# Windows setup
-.\setup.bat
-
-# OR manual setup
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+git clone https://github.com/johnnietse/strawberry-farm.git
+cd strawberry-farm
+cp .env.example .env          # set passwords and GOS_API_TOKEN (needed for any change)
+python -c "import secrets; print(secrets.token_hex(24))"
+docker compose up -d --build
+docker compose --profile assistant up -d ollama
+OLLAMA="docker compose exec -T ollama ollama" bash ml_engine/models/fetch_models.sh
 ```
+
+Open `http://<this machine>:8080`, click **Access** at the top right and paste the token once.
 
 ### Running the System
 
@@ -249,15 +288,16 @@ python run.py --clean
 
 ### Access Points
 
-| Service | URL | Credentials |
-|:---|:---|:---|
-| Dashboard | http://localhost:8080 | — |
-| Grafana | http://localhost:3000 | admin / (see .env) |
+| Service | URL | Reachable from | Credentials |
+|:---|:---|:---|:---|
+| Dashboard (and API at `/api/`) | http://PI-ADDRESS:8080 | any network the Pi is on | token for changes |
+| API (scripts) | http://PI-ADDRESS:5000 | any network the Pi is on | token for changes |
+| Grafana | http://PI-ADDRESS:3000 | any network the Pi is on | admin / `.env` |
+| Database | localhost:5432 | the Pi only (`DB_BIND`) | `.env` |
+| MQTT | localhost:1883 | the Pi only (`MQTT_BIND`) | anonymous |
 
-| API | http://localhost:5000 | — |
-| Database | localhost:5432 | researcher / (see .env) |
-
-| MQTT | localhost:1883 | — |
+Using it on other Wi-Fi networks, from other sites or another server:
+[`documentation/network_and_access.md`](documentation/network_and_access.md).
 
 ---
 
@@ -448,6 +488,8 @@ Details and results: [`ml_engine/README.md`](ml_engine/README.md).
 | `nrf52840_pinout.md` | Pin map and assembly guide (rev 3.1) |
 | `hardware_specs.md` | Board and LED board summary (rev 3.1) |
 | `design_review.md` | Electrical, firmware and mechanical review with the evidence for each finding |
+| `issues_log.md` | Every issue found, its effect, and its status |
+| `network_and_access.md` | Ports, the API token, other networks, other sites and servers |
 | `archive/` | Rev 2 hardware documents, kept for reference |
 | `bench_testing.md` | Validation procedures |
 | `bring_up.md` | First power-on of a rev 3.1 sensor node, step by step |
@@ -459,11 +501,13 @@ Details and results: [`ml_engine/README.md`](ml_engine/README.md).
 
 ## 📡 API Endpoints
 
-Reads need no credentials. Every write (POST / DELETE) needs `Authorization: Bearer <GOS_API_TOKEN>`
+Reads need no credentials. Every change (POST / DELETE) needs `Authorization: Bearer <GOS_API_TOKEN>`
 (set it in `.env`; without it the API is read-only, because `/api/led` drives real lights). The
-dashboard asks for the token once and keeps it in the browser. Browsers may call the API only
-from `GOS_CORS_ORIGINS`. The assistant takes at most 2000 characters and 10 requests per minute
-per client. Manual LED settings last at most 24 h.
+dashboard asks for the token once and keeps it in the browser. Other web sites may call the API
+from a browser only if listed in `GOS_CORS_ORIGINS` (`*` = any; they still need the token to
+change anything). Manual LED settings can be timed (up to 90 days) or kept until switched back
+(`"minutes": 0`). Assistant limits: 8000 characters, 30 requests per minute per client
+(settings). Details: [`documentation/network_and_access.md`](documentation/network_and_access.md).
 
 ### Phenotyping
 

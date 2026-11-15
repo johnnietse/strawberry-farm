@@ -102,7 +102,8 @@ with the adapter connected.
 3. With the node joined to Thread and the gateway stack running (outside the dark period,
    `LED_DARK_START` / `LED_DARK_END`), set the node to full brightness from the dashboard ("Set
    LEDs by hand", blue 100, red 100) or with
-   `curl -X POST http://<pi>:5000/api/led -H "Content-Type: application/json" -d '{"node":"RF-NODE-01","blue_pct":100,"red_pct":100,"minutes":30}'`.
+   `curl -X POST http://<pi>:8080/api/led -H "Authorization: Bearer $GOS_API_TOKEN" -H "Content-Type: application/json" -d '{"node":"RF-NODE-01","blue_pct":100,"red_pct":100,"minutes":30}'`
+   (the token from `.env`; without it the API answers 401).
    The ramp limit brings it up in 25 % steps, one per packet (about 4 minutes). The node log
    shows `LED blue 100 %, red 100 %`. **Pass:** current in each string 320 to 350 mA (meter in
    series, or the voltage across R1 / R3 is 96 to 104 mV); simulation: 335 to 339 mA.

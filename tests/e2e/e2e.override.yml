@@ -1,15 +1,13 @@
+# End-to-end test overrides (tests/e2e/run_e2e.sh). Same images as production, including torch
+# and Chronos in the ML image; faster cycles; no host ports except the API (5055) and the
+# dashboard (8088); the research assistant uses the Ollama running on the host, if any.
 services:
   biology_engine:
-    build:
-      args:
-        FORECAST: "0"
     environment:
       - BIO_PERIOD_S=10
       - LED_TZ=UTC
+      - HF_HUB_OFFLINE=1          # the forecast model must come from the repository copy
   ml_engine:
-    build:
-      args:
-        FORECAST: "0"
     environment:
       - CONTROL_PERIOD_S=20
       - LED_TZ=UTC
@@ -17,7 +15,7 @@ services:
     build: ./gateway
     command: python services/coap_receiver.py
     environment:
-      - DATABASE_URL=postgresql://researcher:REMOVED-DEFAULT-PASSWORD@db/strawberry_research
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-researcher}:${POSTGRES_PASSWORD:-REMOVED-DEFAULT-PASSWORD}@db/${POSTGRES_DB:-strawberry_research}
       - COAP_INTERFACE=
       - COAP_MULTICAST_GROUP=
       - GOS_NODE_KEYS=/run/gos/node_keys.json
@@ -43,3 +41,10 @@ services:
   api:
     ports: !override
       - "5055:5000"
+    environment:
+      - OLLAMA_URL=${E2E_OLLAMA_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  dashboard:
+    ports: !override
+      - "8088:80"

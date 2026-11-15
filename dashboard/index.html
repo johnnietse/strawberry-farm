@@ -15,11 +15,19 @@
         <div class="brand"><span class="logo">G.O.S.</span> Phytotron research dashboard</div>
         <div class="status"><span id="api-status" class="pill">connecting</span>
             <span id="updated" class="muted"></span>
-            <form id="token-form" class="token-form">
-                <input id="token-input" type="password" placeholder="API token (for changes)" autocomplete="off">
-                <button class="btn" type="submit">Save</button>
-                <span id="token-state" class="muted"></span>
-            </form></div>
+            <details class="access">
+                <summary>Access: <span id="server-state"></span>, <span id="token-state"></span></summary>
+                <form id="token-form" class="token-form">
+                    <input id="token-input" type="password" placeholder="API token (needed to change things)" autocomplete="off">
+                    <button class="btn" type="submit">Save token</button>
+                    <button class="btn" type="button" id="token-clear">Forget</button>
+                </form>
+                <form id="server-form" class="token-form">
+                    <input id="server-input" type="url" placeholder="Other G.O.S. server, e.g. http://192.168.1.50:8080 (empty = this one)">
+                    <button class="btn" type="submit">Use</button>
+                </form>
+                <p class="muted">The token is kept in this browser for that server only. Use plain http only on a network you trust.</p>
+            </details></div>
     </header>
 
     <main class="grid">
@@ -57,7 +65,8 @@
                 <label>Node <select id="led-node"><option value="ALL">All nodes</option></select></label>
                 <label>Blue % <input id="led-blue" type="number" min="0" max="100" value="25" required></label>
                 <label>Red % <input id="led-red" type="number" min="0" max="100" value="75" required></label>
-                <label>Minutes <input id="led-min" type="number" min="1" max="1440" value="60" required></label>
+                <label>Minutes <input id="led-min" type="number" min="1" max="129600" value="60" required></label>
+                <label class="check"><input id="led-hold" type="checkbox"> Keep until I switch back to automatic</label>
                 <div class="row">
                     <button class="btn primary" type="submit">Set</button>
                     <button class="btn" type="button" id="led-auto">Back to automatic</button>

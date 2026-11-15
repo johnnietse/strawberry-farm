@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "services"))
 
 
-def load_api(monkeypatch, token="s3cret-token", **env):
+def load_api(monkeypatch, token="s3cret-token-0123456789", **env):
     monkeypatch.setenv("GOS_API_TOKEN", token)
     monkeypatch.setenv("DATABASE_URL", "postgresql://nobody@127.0.0.1:1/none")
     for k, v in env.items():
@@ -43,9 +43,32 @@ def test_writes_are_off_without_a_configured_token(monkeypatch):
 
 def test_valid_token_passes_auth_and_input_is_checked(monkeypatch):
     c = load_api(monkeypatch)
-    auth = {"Authorization": "Bearer s3cret-token"}
+    auth = {"Authorization": "Bearer s3cret-token-0123456789"}
     assert c.post("/api/led", json={"blue_pct": 150, "red_pct": 0}, headers=auth).status_code == 400
-    assert c.post("/api/led", json={"blue_pct": 10, "red_pct": 0, "minutes": 10000}, headers=auth).status_code == 400
+    assert c.post("/api/led", json={"blue_pct": 10, "red_pct": 0, "minutes": -1}, headers=auth).status_code == 400
+    assert c.post("/api/led", json={"blue_pct": 10, "red_pct": 0, "minutes": 200000}, headers=auth).status_code == 400
+
+
+def test_short_token_is_refused(monkeypatch):
+    c = load_api(monkeypatch, token="short")
+    r = c.post("/api/led", json={"blue_pct": 1, "red_pct": 1}, headers={"Authorization": "Bearer short"})
+    assert r.status_code == 503
+
+
+def test_no_cors_by_default_dashboard_uses_same_origin(monkeypatch):
+    monkeypatch.delenv("GOS_CORS_ORIGINS", raising=False)
+    c = load_api(monkeypatch)
+    r = c.get("/health", headers={"Origin": "http://evil.example"})
+    assert "Access-Control-Allow-Origin" not in r.headers
+
+
+def test_cors_wildcard_allows_any_site_without_credentials(monkeypatch):
+    c = load_api(monkeypatch, GOS_CORS_ORIGINS="*")
+    r = c.get("/health", headers={"Origin": "http://other.example"})
+    assert r.headers.get("Access-Control-Allow-Origin") in ("*", "http://other.example")
+    assert "Access-Control-Allow-Credentials" not in r.headers
+    # a page on that site still cannot change anything without the token
+    assert c.post("/api/led", json={"blue_pct": 1, "red_pct": 1}, headers={"Origin": "http://other.example"}).status_code == 401
 
 
 def test_reads_need_no_token(monkeypatch):
@@ -66,7 +89,7 @@ def test_assistant_length_cap_and_rate_limit(monkeypatch):
     monkeypatch.delenv("OLLAMA_URL", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     c = load_api(monkeypatch, ASSISTANT_RATE="3", ASSISTANT_MAX_CHARS="50")
-    auth = {"Authorization": "Bearer s3cret-token"}
+    auth = {"Authorization": "Bearer s3cret-token-0123456789"}
     assert c.post("/api/assistant", json={"text": "x" * 51}, headers=auth).status_code == 413
     codes = [c.post("/api/assistant", json={"text": "aphids on row 2"}, headers=auth).status_code for _ in range(4)]
     assert codes == [200, 200, 200, 429]

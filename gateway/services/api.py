@@ -45,18 +45,20 @@ logger = logging.getLogger("ResearchAPI")
 #   "Authorization: Bearer <GOS_API_TOKEN>". The token is sent as a header, never a cookie, so
 #   another web site cannot make a visitor's browser send it (no CSRF). Without GOS_API_TOKEN
 #   set, writes are refused: the LEDs are actuators and must not be open to the network.
-# - Browsers may call the API only from the dashboard's origins (GOS_CORS_ORIGINS,
-#   comma-separated, default the dashboard on this host's port 8080 for localhost).
+# - The dashboard reaches the API through its own nginx (same origin, /api/...), so it needs no
+#   CORS and works at any address on any network. Other web pages may call the API from a
+#   browser only if their origin is listed in GOS_CORS_ORIGINS (comma-separated; "*" = any
+#   site may read, and write with the token). Credentials (cookies) are never allowed.
 # - The assistant takes at most ASSISTANT_MAX_CHARS characters and ASSISTANT_RATE requests per
-#   client per minute (it can call a paid model).
+#   client per minute (0 = no limit); the Claude backend is a paid model.
 API_TOKEN = os.getenv("GOS_API_TOKEN", "")
-CORS_ORIGINS = [o.strip() for o in os.getenv(
-    "GOS_CORS_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080").split(",") if o.strip()]
-CORS(app, origins=CORS_ORIGINS, supports_credentials=False,
-     allow_headers=["Content-Type", "Authorization"], methods=["GET", "POST", "DELETE"])
-ASSISTANT_MAX_CHARS = int(os.getenv("ASSISTANT_MAX_CHARS", "2000"))
-ASSISTANT_RATE = int(os.getenv("ASSISTANT_RATE", "10"))
-MAX_OVERRIDE_MIN = 24 * 60
+CORS_ORIGINS = [o.strip() for o in os.getenv("GOS_CORS_ORIGINS", "").split(",") if o.strip()]
+if CORS_ORIGINS:
+    CORS(app, origins="*" if "*" in CORS_ORIGINS else CORS_ORIGINS, supports_credentials=False,
+         allow_headers=["Content-Type", "Authorization"], methods=["GET", "POST", "DELETE"])
+ASSISTANT_MAX_CHARS = int(os.getenv("ASSISTANT_MAX_CHARS", "8000"))
+ASSISTANT_RATE = int(os.getenv("ASSISTANT_RATE", "30"))
+MAX_OVERRIDE_MIN = 90 * 24 * 60   # timed settings up to 90 days; "minutes": 0 = until cleared
 _rate = defaultdict(deque)
 _rate_lock = threading.Lock()
 
@@ -67,6 +69,8 @@ def require_token_for_writes():
         return None
     if not API_TOKEN:
         return jsonify({"status": "error", "message": "writes are disabled: set GOS_API_TOKEN"}), 503
+    if len(API_TOKEN) < 16:
+        return jsonify({"status": "error", "message": "GOS_API_TOKEN is too short (16 characters minimum)"}), 503
     sent = request.headers.get("Authorization", "")
     if not (sent.startswith("Bearer ") and hmac.compare_digest(sent[7:].encode(), API_TOKEN.encode())):
         return jsonify({"status": "error", "message": "missing or wrong API token"}), 401
@@ -74,6 +78,8 @@ def require_token_for_writes():
 
 
 def rate_limited(key: str, limit: int, window_s: float = 60.0) -> bool:
+    if limit <= 0:
+        return False
     now = time.monotonic()
     with _rate_lock:
         q = _rate[key]
@@ -205,15 +211,16 @@ def _led_levels(data: dict) -> tuple:
 @app.route('/api/led', methods=['POST'])
 def update_led_schedule():
     """Set the LEDs by hand: {"node": "RF-NODE-01" or "ALL", "blue_pct": 30, "red_pct": 70,
-    "minutes": 60}. Overrides the ML controller for that long; the gateway's safety monitor
-    still applies (dark period, temperature cut-off, ramp limit)."""
+    "minutes": 60}. Overrides the ML controller for that long ("minutes": 0 = until
+    DELETE /api/led/override); the gateway's safety monitor still applies (dark period,
+    temperature cut-off, ramp limit)."""
     data = request.json or {}
     try:
         b, r = _led_levels(data)
         node = str(data.get('node') or data.get('sector') or 'ALL')
         minutes = int(data.get('minutes', 60))
-        if not 1 <= minutes <= MAX_OVERRIDE_MIN:
-            raise ValueError(f"minutes must be 1 .. {MAX_OVERRIDE_MIN}")
+        if not 0 <= minutes <= MAX_OVERRIDE_MIN:
+            raise ValueError(f"minutes must be 0 (until cleared) .. {MAX_OVERRIDE_MIN}")
     except (TypeError, ValueError) as e:
         return jsonify({"status": "error", "message": str(e)}), 400
     try:
@@ -222,8 +229,8 @@ def update_led_schedule():
             cur.execute("""
                 INSERT INTO led_setpoints (node_id, blue_pct, red_pct, source, reason, expires_at)
                 VALUES (%s, %s, %s, 'manual', %s, %s)
-            """, (node, b, r, data.get('reason', 'dashboard'),
-                  datetime.now(timezone.utc) + timedelta(minutes=minutes)))
+            """, (node, b, r, str(data.get('reason', 'dashboard'))[:200],
+                  None if minutes == 0 else datetime.now(timezone.utc) + timedelta(minutes=minutes)))
             total = b + r
             cur.execute("""
                 INSERT INTO led_schedule_history (blue_ratio, red_ratio, intensity_pct, sector_id)
@@ -231,10 +238,11 @@ def update_led_schedule():
             """, (b / total if total else 0, r / total if total else 0, int(round(max(b, r))), node))
         conn.commit()
         conn.close()
-        logger.info(f"Manual LED setting for {node}: blue {b:.0f} %, red {r:.0f} % for {minutes} min")
+        span = "until switched back to automatic" if minutes == 0 else f"for {minutes} min"
+        logger.info(f"Manual LED setting for {node}: blue {b:.0f} %, red {r:.0f} % {span}")
         return jsonify({
             "status": "success",
-            "message": f"{node}: blue {b:.0f} %, red {r:.0f} % for {minutes} min (sent on each node's next packet).",
+            "message": f"{node}: blue {b:.0f} %, red {r:.0f} % {span} (sent on each node's next packet).",
         }), 201
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -327,7 +335,11 @@ def assistant_parse():
     text = str(data.get('text', ''))
     if len(text) > ASSISTANT_MAX_CHARS:
         return jsonify({"status": "error", "message": f"note longer than {ASSISTANT_MAX_CHARS} characters"}), 413
-    if rate_limited(request.remote_addr or "?", ASSISTANT_RATE):
+    # behind the dashboard's nginx every request comes from nginx: use the client it forwarded.
+    # (A direct caller could forge the header, but only after passing the token check.)
+    client = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+              or request.remote_addr or "?")
+    if rate_limited(client, ASSISTANT_RATE):
         return jsonify({"status": "error", "message": "too many requests, try again in a minute"}), 429
     try:
         event, backend = parse_note(text)
