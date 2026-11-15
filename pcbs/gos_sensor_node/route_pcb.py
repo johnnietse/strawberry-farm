@@ -13,14 +13,20 @@ Steps:
    if needed, JAVA to a java.exe the jar supports. Freerouting 2.0.1 runs on
    Java 21 or later; 2.2 and later need Java 25.
 3. Import the session, add thermal vias in exposed ground pads (they are in
-   the export too, so the router keeps clear of them), add a GND pour on both
-   copper layers and fill it.
+   the export too, so the router keeps clear of them), pour GND on every
+   copper layer (solid planes on the inner layers of a 4-layer board) and,
+   on 4 layers, add ground stitching vias wherever they fit.
 4. Run KiCad DRC with schematic parity. If the router only left connections
    unrouted, or wrote no session, start again from the unrouted board (up to
    ATTEMPTS times); stop on any other DRC finding.
-5. Write Gerbers, drill files and a pick-and-place file to <board_dir>/fab,
-   and a zip of the Gerbers and drill files for the board house.
+5. Write <board_dir>/fab (Gerbers for every layer, drill files, KiCad and
+   JLCPCB pick-and-place files, JLCPCB BOM, upload zip; coordinates from the
+   board's bottom-left corner) and <board_dir>/docs (assembly, courtyard,
+   user-layer and all-layer PDFs, renders, STEP model).
+
+--fab-only skips routing: DRC on the board as it is, then step 5 only.
 """
+import csv
 import glob
 import json
 import os
@@ -42,7 +48,6 @@ ATTEMPTS = 4                    # full routing attempts before giving up
 ROUTE_TIMEOUT = 900             # s; Freerouting normally needs well under a minute here
 POUR_CLEARANCE = 0.25          # mm, ground pour to other copper
 POUR_MIN_WIDTH = 0.25          # mm, thinnest pour neck
-GERBER_LAYERS = "F.Cu,B.Cu,F.Paste,B.Paste,F.Silkscreen,B.Silkscreen,F.Mask,B.Mask,Edge.Cuts"
 
 
 class RouteFailed(Exception):
@@ -195,14 +200,20 @@ def autoroute(path, passes):
     return board
 
 
-def add_ground_pour(board):
+def copper_layers(board):
+    return list(board.GetEnabledLayers().CuStack())
+
+
+def add_ground_pour(board, layers=None, fill=True):
+    """GND pour on every copper layer: solid planes on the inner layers of a
+    4-layer board, ground fill around the tracks on the outer layers."""
     gnd = board.FindNet("GND")
     if gnd is None:
         raise SystemExit("board has no GND net")
     outline = pcbnew.SHAPE_POLY_SET()
     if not board.GetBoardPolygonOutlines(outline):
         raise SystemExit("board outline is not closed")
-    for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
+    for layer in layers or copper_layers(board):
         zone = pcbnew.ZONE(board)
         zone.SetLayer(layer)
         zone.SetNet(gnd)
@@ -212,19 +223,18 @@ def add_ground_pour(board):
         zone.SetMinThickness(pcbnew.FromMM(POUR_MIN_WIDTH))
         # SMD pads join the pour solid (their small spokes starve on fine-pitch
         # parts); through-hole pads keep thermal reliefs for hand soldering.
-        zone.SetPadConnection(pcbnew.ZONE_CONNECTION_THT_THERMAL)
+        inner = layer not in (pcbnew.F_Cu, pcbnew.B_Cu)
+        zone.SetPadConnection(pcbnew.ZONE_CONNECTION_FULL if inner else pcbnew.ZONE_CONNECTION_THT_THERMAL)
         zone.SetThermalReliefGap(pcbnew.FromMM(0.3))
         zone.SetThermalReliefSpokeWidth(pcbnew.FromMM(0.4))
         zone.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_ALWAYS)
         zone.SetAssignedPriority(0)
         board.Add(zone)
-    for fp in board.GetFootprints():
-        for pad in fp.Pads():
-            # shield and mounting tabs: full connection (mechanical, and a
-            # thermal relief there can end up with a single spoke)
-            if pad.GetNetname() == "GND" and pad.GetNumber().startswith(("S", "MP")):
-                pad.SetLocalZoneConnection(pcbnew.ZONE_CONNECTION_FULL)
-    pcbnew.ZONE_FILLER(board).Fill(board.Zones())
+    # A through-hole pad on the outer pour may end up with one thermal spoke (USB
+    # shield tabs between tracks); it is also tied to both inner planes, so one is enough.
+    board.GetDesignSettings().m_MinResolvedSpokes = 1
+    if fill:
+        pcbnew.ZONE_FILLER(board).Fill(board.Zones())
 
 
 def drc(path, report):
@@ -242,25 +252,161 @@ def drc(path, report):
     return counts
 
 
+def gerber_layers(path):
+    board = pcbnew.LoadBoard(path)
+    cu = [pcbnew.LayerName(l) for l in board.GetEnabledLayers().CuStack()]
+    return ",".join(cu + ["F.Paste", "B.Paste", "F.Silkscreen", "B.Silkscreen", "F.Mask", "B.Mask", "Edge.Cuts"])
+
+
+STITCH_PITCH = 1.6       # mm, grid for ground stitching vias
+STITCH_VIA = (0.6, 0.3)  # mm, diameter and drill
+STITCH_CLEARANCE = 0.2   # mm, to any other copper (net clearance is 0.15)
+HOLE_GAP = 0.25          # mm, hole to hole (board rule)
+
+
+def stitch_ground(board):
+    """GND vias on a grid wherever they fit, so every piece of outer-layer ground
+    pour is tied to both inner planes through many short paths. A spot is used
+    only if it is inside the board edge clearance, outside every part courtyard
+    and via keep-out, and clear of every pad, every track of another net and
+    every existing via."""
+    gnd = board.FindNet("GND")
+    fm = pcbnew.FromMM
+    r = fm(STITCH_VIA[0]) // 2
+    clear = fm(STITCH_CLEARANCE)
+    # the edge bounding box includes the outline's line width, so keep 0.1 mm extra
+    edge = board.GetDesignSettings().m_CopperEdgeClearance + fm(0.1)
+    box = board.GetBoardEdgesBoundingBox()
+    pads = [pd for fp in board.GetFootprints() for pd in fp.Pads()]
+    courtyards = []
+    for fp in board.GetFootprints():
+        cy = fp.GetCourtyard(pcbnew.F_CrtYd)
+        if cy.OutlineCount():
+            courtyards.append(cy)
+    keepouts = [z for z in board.Zones() if z.GetIsRuleArea() and z.GetDoNotAllowVias()]
+    keepouts += [z for fp in board.GetFootprints() for z in fp.Zones()
+                 if z.GetIsRuleArea() and z.GetDoNotAllowVias()]
+    tracks = [t for t in board.GetTracks() if t.GetClass() == "PCB_TRACK" and t.GetNetCode() != gnd.GetNetCode()]
+    vias = [t for t in board.GetTracks() if t.GetClass() == "PCB_VIA"]
+    placed = []
+    step = fm(STITCH_PITCH)
+    y = box.GetTop() + edge + r
+    while y <= box.GetBottom() - edge - r:
+        x = box.GetLeft() + edge + r
+        while x <= box.GetRight() - edge - r:
+            pt = pcbnew.VECTOR2I(int(x), int(y))
+            ok = (not any(c.Collide(pt, r) for c in courtyards)
+                  and not any(z.Outline().Collide(pt, r) for z in keepouts)
+                  and not any(pd.HitTest(pt, r + clear) for pd in pads)
+                  and not any(t.HitTest(pt, r + clear) for t in tracks)
+                  and not any((v.GetPosition() - pt).EuclideanNorm() < v.GetWidth(pcbnew.F_Cu) // 2 + r + fm(HOLE_GAP)
+                              for v in vias + placed))
+            if ok:
+                via = pcbnew.PCB_VIA(board)
+                via.SetPosition(pt)
+                via.SetWidth(fm(STITCH_VIA[0]))
+                via.SetDrill(fm(STITCH_VIA[1]))
+                via.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
+                via.SetNet(gnd)
+                board.Add(via)
+                placed.append(via)
+            x += step
+        y += step
+    print(f"ground stitching: {len(placed)} vias")
+    return len(placed)
+
+
+def jlc_cpl(pos_csv, out_csv):
+    """KiCad position file -> JLCPCB CPL columns. Coordinates are from the board's
+    bottom-left corner (the drill/place origin set by generate_pcb.py)."""
+    with open(pos_csv, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    with open(out_csv, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["Designator", "Mid X", "Mid Y", "Layer", "Rotation"])
+        for r in rows:
+            w.writerow([r["Ref"], f'{float(r["PosX"]):.4f}mm', f'{float(r["PosY"]):.4f}mm',
+                        "Top" if r["Side"] == "top" else "Bottom", f'{float(r["Rot"]):.1f}'])
+    return len(rows)
+
+
+def jlc_bom(sch, out_csv):
+    """Schematic BOM grouped by LCSC part, in JLCPCB's column names."""
+    tmp = out_csv + ".tmp"
+    run([KICAD_CLI, "sch", "export", "bom", "--fields", "Value,Reference,Footprint,LCSC,MPN,Manufacturer,${QUANTITY}",
+         "--labels", "Comment,Designator,Footprint,JLCPCB Part #,MPN,Manufacturer,Quantity",
+         "--group-by", "LCSC,Value,Footprint", "--ref-range-delimiter", "", "--exclude-dnp",
+         "-o", tmp, sch], capture_output=True)
+    with open(tmp, encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+    os.remove(tmp)
+    header, body = rows[0], rows[1:]
+    fi, li = header.index("Footprint"), header.index("JLCPCB Part #")
+    missing = [r for r in body if not r[li]]
+    if missing:
+        raise SystemExit(f"parts without an LCSC number: {[r[header.index('Designator')] for r in missing]}")
+    with open(out_csv, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(header)
+        for r in body:
+            r[fi] = r[fi].split(":")[-1]
+            w.writerow(r)
+    return len(body)
+
+
 def fabrication(path, board_dir):
     name = os.path.splitext(os.path.basename(path))[0]
     fab = os.path.join(board_dir, "fab")
     gerbers = os.path.join(fab, "gerbers")
     shutil.rmtree(fab, ignore_errors=True)
     os.makedirs(gerbers)
-    run([KICAD_CLI, "pcb", "export", "gerbers", "-l", GERBER_LAYERS, "--subtract-soldermask",
-         "-o", gerbers + os.sep, path], capture_output=True)
+    run([KICAD_CLI, "pcb", "export", "gerbers", "-l", gerber_layers(path), "--subtract-soldermask",
+         "--use-drill-file-origin", "-o", gerbers + os.sep, path], capture_output=True)
     run([KICAD_CLI, "pcb", "export", "drill", "--format", "excellon", "--excellon-separate-th",
-         "--generate-map", "--map-format", "pdf", "-u", "mm", "-o", gerbers + os.sep, path],
-        capture_output=True)
+         "--drill-origin", "plot", "--generate-map", "--map-format", "pdf", "-u", "mm",
+         "-o", gerbers + os.sep, path], capture_output=True)
+    pos = os.path.join(fab, name + "_pos.csv")
     run([KICAD_CLI, "pcb", "export", "pos", "--format", "csv", "--units", "mm", "--side", "both",
-         "--exclude-dnp", "-o", os.path.join(fab, name + "_pos.csv"), path], capture_output=True)
+         "--exclude-dnp", "--use-drill-file-origin", "-o", pos, path], capture_output=True)
+    n_cpl = jlc_cpl(pos, os.path.join(fab, name + "_jlcpcb_cpl.csv"))
+    n_bom = jlc_bom(os.path.splitext(path)[0] + ".kicad_sch", os.path.join(fab, name + "_jlcpcb_bom.csv"))
     zpath = os.path.join(fab, name + "_gerbers.zip")
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
         for f in sorted(os.listdir(gerbers)):
             if not f.endswith(".pdf"):
                 z.write(os.path.join(gerbers, f), f)
-    print("fabrication files in", fab)
+    print(f"fabrication files in {fab}: {n_bom} BOM lines, {n_cpl} placements")
+
+
+DOC_SETS = [
+    # (file suffix, layers, extra kicad-cli options)
+    ("assembly_top", "F.Fab,Edge.Cuts", ["--sp", "--ibt"]),
+    ("courtyards", "F.Courtyard,B.Courtyard,Edge.Cuts", ["--ibt"]),
+    ("user_layers", "User.Drawings,User.Comments,User.Eco1,User.Eco2,Edge.Cuts", ["--ibt"]),
+]
+
+
+def documentation(path, board_dir):
+    """PDFs, renders and a 3D model for reading the board without KiCad. Nothing
+    here goes to the factory."""
+    name = os.path.splitext(os.path.basename(path))[0]
+    docs = os.path.join(board_dir, "docs")
+    shutil.rmtree(docs, ignore_errors=True)
+    os.makedirs(docs)
+    for suffix, layers, extra in DOC_SETS:
+        run([KICAD_CLI, "pcb", "export", "pdf", "-l", layers, "--mode-single", *extra,
+             "-o", os.path.join(docs, f"{name}_{suffix}.pdf"), path], capture_output=True)
+    every = gerber_layers(path) + ",F.Fab,B.Fab,F.Courtyard,B.Courtyard,User.Drawings,User.Comments"
+    tmp = tempfile.mkdtemp(prefix="gos_pdf_")      # multipage mode writes <board>.pdf into a folder
+    run([KICAD_CLI, "pcb", "export", "pdf", "-l", every, "--cl", "Edge.Cuts", "--mode-multipage", "--ibt",
+         "-o", tmp + os.sep, path], capture_output=True)
+    shutil.move(os.path.join(tmp, name + ".pdf"), os.path.join(docs, f"{name}_all_layers.pdf"))
+    for side in ("top", "bottom"):
+        run([KICAD_CLI, "pcb", "render", "--side", side, "--width", "1600", "--height", "1600",
+             "-o", os.path.join(docs, f"{name}_render_{side}.png"), path], capture_output=True)
+    run([KICAD_CLI, "pcb", "export", "step", "--force", "--drill-origin", "--subst-models",
+         "-o", os.path.join(docs, f"{name}.step"), path], capture_output=True)
+    print("documentation in", docs)
 
 
 def stats(board):
@@ -278,6 +424,13 @@ def main():
         args = [a for a in args if a != str(passes)]
     board_dir = os.path.abspath(args[0] if args else os.path.dirname(os.path.abspath(__file__)))
     path = board_file(board_dir)
+    if "--fab-only" in sys.argv:           # board already routed: check it and write the outputs
+        counts = drc(path, os.path.join(tempfile.mkdtemp(prefix="gos_drc_"), "drc.json"))
+        if any(counts.values()):
+            raise SystemExit("DRC not clean; fabrication files not written")
+        fabrication(path, board_dir)
+        documentation(path, board_dir)
+        return
     # Freerouting's result differs between runs of the same board: it sometimes
     # leaves a connection unrouted, and 2.0.1 occasionally writes an empty
     # session. Each attempt starts again from the unrouted board.
@@ -294,7 +447,10 @@ def main():
             print(" ", e)
             counts = None
             continue
-        add_ground_pour(board)
+        add_ground_pour(board, fill=False)
+        if len(copper_layers(board)) > 2:
+            stitch_ground(board)
+        pcbnew.ZONE_FILLER(board).Fill(board.Zones())
         stats(board)
         board.Save(path)
         counts = drc(path, os.path.join(tempfile.mkdtemp(prefix="gos_drc_"), "drc.json"))
@@ -306,6 +462,7 @@ def main():
     if any(counts.values()):
         raise SystemExit("DRC not clean; fabrication files not written")
     fabrication(path, board_dir)
+    documentation(path, board_dir)
 
 
 if __name__ == "__main__":

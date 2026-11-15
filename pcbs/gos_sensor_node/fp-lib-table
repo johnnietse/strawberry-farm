@@ -1,3 +1,4 @@
 (fp_lib_table
   (version 7)
+  (lib (name "gos")(type "KiCad")(uri "${KIPRJMOD}/libraries/gos.pretty")(options "")(descr "G.O.S. project footprints"))
 )

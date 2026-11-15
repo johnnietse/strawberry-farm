@@ -188,13 +188,64 @@ def add_copper_keepout(board, rect):
     zone.SetDoNotAllowPads(False)
     zone.SetDoNotAllowFootprints(False)
     zone.SetDoNotAllowCopperPour(True)
-    ls = pcbnew.LSET()
-    ls.AddLayer(pcbnew.F_Cu)
-    ls.AddLayer(pcbnew.B_Cu)
-    zone.SetLayerSet(ls)
+    zone.SetLayerSet(pcbnew.LSET.AllCuMask(board.GetCopperLayerCount()))  # every copper layer
     zone.SetZoneName("antenna keep-out")
     zone.Outline().AddOutline(rect_outline(*rect))
     board.Add(zone)
+
+
+# JLCPCB JLC04161H-1080, 1.6 mm (jlcpcb.com/impedance, read 2026-11-14): 1 oz outer, 0.5 oz
+# inner copper, 0.0764 mm 1080 prepreg between each outer layer and its ground plane. The thin
+# prepreg keeps every signal close to an unbroken ground plane: small return loops, low noise.
+# Layers: F.Cu signals + parts, In1.Cu GND plane, In2.Cu GND plane, B.Cu signals.
+STACKUP = """    (stackup
+      (layer "F.SilkS" (type "Top Silk Screen") (color "White"))
+      (layer "F.Paste" (type "Top Solder Paste"))
+      (layer "F.Mask" (type "Top Solder Mask") (color "Green") (thickness 0.01))
+      (layer "F.Cu" (type "copper") (thickness 0.035))
+      (layer "dielectric 1" (type "prepreg") (thickness 0.0764) (material "1080"))
+      (layer "In1.Cu" (type "copper") (thickness 0.0152))
+      (layer "dielectric 2" (type "core") (thickness 1.265) (material "FR4"))
+      (layer "In2.Cu" (type "copper") (thickness 0.0152))
+      (layer "dielectric 3" (type "prepreg") (thickness 0.0764) (material "1080"))
+      (layer "B.Cu" (type "copper") (thickness 0.035))
+      (layer "B.Mask" (type "Bottom Solder Mask") (color "Green") (thickness 0.01))
+      (layer "B.Paste" (type "Bottom Solder Paste"))
+      (layer "B.SilkS" (type "Bottom Silk Screen") (color "White"))
+      (copper_finish "ENIG")
+      (dielectric_constraints no)
+    )
+"""
+
+
+def write_stackup(path):
+    """pcbnew's Python API does not expose the stack-up, so it goes into the file text."""
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    if "(stackup" in text:
+        return
+    i = text.index("(setup")
+    j = text.index("\n", i) + 1
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text[:j] + STACKUP + text[j:])
+
+
+def fab_notes(cfg):
+    """Fabrication notes, printed on User.Comments below the board (not sent as a
+    Gerber; the same settings are chosen on the order form)."""
+    w, h = cfg["size"]
+    tracks = ", ".join(f"{n} {t} mm" for n, (t, _, _, _) in cfg["netclasses"].items())
+    return [
+        f"FABRICATION NOTES - {cfg['project']}",
+        f"1. {w:g} x {h:g} mm, 4 layers, FR-4 TG155 or better, 1.6 mm finished.",
+        "2. Stack-up JLCPCB JLC04161H-1080: F.Cu 1 oz | 1080 prepreg 0.0764 | In1.Cu 0.5 oz GND",
+        "   | core 1.265 | In2.Cu 0.5 oz GND | 1080 prepreg 0.0764 | B.Cu 1 oz.",
+        "3. Surface finish ENIG. Green solder mask, white silkscreen.",
+        f"4. Tracks: {tracks}; minimum clearance 0.15 mm. Vias 0.3 mm drill / 0.6 mm pad.",
+        "5. Vias in exposed pads (thermal vias): epoxy filled and capped if offered, otherwise tented.",
+        "6. Impedance not controlled. Electrical test 100 %.",
+        "7. Assembly: all parts on the top side; BOM and CPL in fab/ (LCSC part numbers).",
+    ]
 
 
 def write_netclasses(cfg):
@@ -232,7 +283,13 @@ def build(cfg):
     comps, nets = netlist(cfg["here"], cfg["project"])
     write_netclasses(cfg)
     board = pcbnew.NewBoard(path)  # fresh board each run; the file is fully generated
-    board.SetCopperLayerCount(2)
+    board.SetCopperLayerCount(4)
+    for inner in (pcbnew.In1_Cu, pcbnew.In2_Cu):   # solid ground planes, poured by route_pcb.py
+        board.SetLayerType(inner, pcbnew.LT_POWER)
+    ds = board.GetDesignSettings()
+    ds.SetBoardThickness(mm(1.6))
+    ds.SetAuxOrigin(pcbnew.VECTOR2I(mm(OX), mm(OY + h)))  # board's bottom-left corner: zero for
+    # Gerbers, drill and pick-and-place (route_pcb.py exports with --use-drill-file-origin)
 
     netinfo = {}
     for name in sorted(set(nets.values())):
@@ -254,7 +311,8 @@ def build(cfg):
     footprints = {}
     for ref, c in comps.items():
         lib, name = c["footprint"].split(":")
-        fp = pcbnew.FootprintLoad(os.path.join(FPDIR, lib + ".pretty"), name)
+        libdir = os.path.join(HERE, "libraries", "gos.pretty") if lib == "gos" else os.path.join(FPDIR, lib + ".pretty")
+        fp = pcbnew.FootprintLoad(libdir, name)
         if fp is None:
             raise SystemExit(f"footprint {c['footprint']} not found for {ref}")
         fp.SetFPID(pcbnew.LIB_ID(lib, name))
@@ -266,12 +324,18 @@ def build(cfg):
             # small-part labels go on the assembly drawing, not the silkscreen
             fp.Reference().SetLayer(pcbnew.F_Fab)
         if ref.startswith("TP"):
-            fp.SetAttributes(fp.GetAttributes() | pcbnew.FP_EXCLUDE_FROM_BOM)
+            fp.SetAttributes(fp.GetAttributes() | pcbnew.FP_EXCLUDE_FROM_BOM | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
         for pad in fp.Pads():
             net = nets.get((ref, pad.GetNumber()))
             if net:
                 pad.SetNet(netinfo[net])
+        lib_layers = [(pad, pcbnew.LSET(pad.GetLayerSet())) for pad in fp.Pads()]
         board.Add(fp)
+        for pad, layers in lib_layers:
+            # on a 4-layer board KiCad widens unplated holes from F&B.Cu to all
+            # copper layers; keep the library's layer set so the footprint still
+            # matches the library
+            pad.SetLayerSet(layers)
         footprints[ref] = fp
 
     fixed, near = cfg["fixed"], cfg["near"]
@@ -303,10 +367,21 @@ def build(cfg):
             box = place_near(footprints[ref], ax, ay, [t for _, t in taken], w, h)
             taken.append((ref, box))
 
+    notes = pcbnew.PCB_TEXT(board)
+    notes.SetLayer(pcbnew.Cmts_User)
+    notes.SetText("\n".join(fab_notes(cfg)))
+    notes.SetPosition(pcbnew.VECTOR2I(mm(OX), mm(OY + h + 4)))
+    notes.SetHorizJustify(pcbnew.GR_TEXT_H_ALIGN_LEFT)
+    notes.SetVertJustify(pcbnew.GR_TEXT_V_ALIGN_TOP)
+    notes.SetTextSize(pcbnew.VECTOR2I(mm(1.0), mm(1.0)))
+    notes.SetTextThickness(mm(0.15))
+    board.Add(notes)
+
     for rect in cfg.get("copper_keepouts", []):
         add_copper_keepout(board, rect)
 
     board.Save(path)
+    write_stackup(path)
     print(f"placed {len(footprints)} footprints, {len(netinfo)} nets, board {w} x {h} mm")
     return path
 

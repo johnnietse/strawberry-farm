@@ -8,7 +8,7 @@ The rev 2 version of this page is in [`archive/hardware_specs_rev2.md`](archive/
 
 | Item | Value |
 |:---|:---|
-| Size | 40 x 65 mm, 2 layers, four M2.5 holes 5 mm in from each corner (matches `mechanical/enclosure_gen.scad`) |
+| Size | 40 x 65 mm, 4 layers (two inner GND planes, JLC04161H-1080, 1.6 mm, ENIG), four M2.5 holes 5 mm in from each corner (matches `mechanical/enclosure_gen.scad`, checked by `mechanical/fit_check.py`) |
 | MCU / radio | Raytac MDBT50Q-1MV2 (nRF52840), Thread 802.15.4 and BLE, antenna on the top edge |
 | Sensors | Sensirion SHT40-AD1B (temperature, humidity), ams TSL25911FN (light, lux) |
 | Battery | one 18650 Li-ion cell in the enclosure cradle, on a 2-pin JST-PH lead |
@@ -35,6 +35,8 @@ See its `README.md` for ratings.
 | Part | State |
 |:---|:---|
 | Schematic | complete, ERC clean |
-| Board | parts placed, not routed |
+| Board | routed (4 layers), DRC clean, Gerbers and JLCPCB BOM/placement files ready (`ordering.md`); not reviewed by hand, not made |
+| LED driver board | routed (4 layers), DRC clean, ready to order; not made |
+| Enclosure | rebuilt around the board, fit checked in software; not printed |
 | Firmware | builds; never run on hardware |
 | Gateway receiver | tested against PostgreSQL and Linux multicast; never received from a real node |

@@ -203,28 +203,39 @@ Not implemented: any use of the user button or the TSL2591 interrupt. Sleep curr
 
 ## Board layout
 
-Two scripts, both run with KiCad's Python (`"C:\Program Files\KiCad\9.0in\python.exe"`):
+Two scripts, both run with KiCad's Python (`C:\Program Files\KiCad\9.0\bin\python.exe`):
 
 1. `generate_pcb.py` builds `gos_sensor_node.kicad_pcb` from the schematic:
    - the 40 x 65 mm outline from `mechanical/enclosure_gen.scad`, with the four M2.5 holes 5 mm in from each corner where the enclosure posts are
+   - **4 layers**: F.Cu signals and parts, In1.Cu solid GND plane, In2.Cu solid GND plane, B.Cu signals. Stack-up JLCPCB JLC04161H-1080 (1.6 mm; 1080 prepreg 0.0764 mm between each outer layer and its plane), ENIG finish, written into the board file
    - all 70 footprints with every net, placed in groups: module on the top edge with a 6.5 mm part-free strip for the antenna, USB-C on the bottom edge, sensors on the side edges away from the charger and buck, battery connector and protection parts down the left side
-   - a copper keep-out (tracks, vias and pour) across the full width beside the antenna, wider than the module footprint's own keep-out
-   - net classes in `gos_sensor_node.kicad_pro`: 0.2 mm signal tracks with 0.15 mm clearance and 0.6/0.3 mm vias; 0.3 mm for VBUS, VSYS, VBAT, the cell path (BAT_P, BAT_N, FET_D) and the buck switch node. The highest current on any of them is the charger's 0.54 A input limit. +3V3 (300 mA buck limit) and GND use signal width: GND current flows in the pours.
-   - small-part reference labels on the fab (assembly) layer instead of the silkscreen
-2. `route_pcb.py` autoroutes the board with Freerouting, adds thermal vias (0.6/0.3 mm) in the charger and buck exposed pads, pours GND on both layers, runs DRC with schematic parity and, only if that is clean, writes `fab/`: Gerbers, Excellon drill files with drill maps, a pick-and-place CSV and `gos_sensor_node_gerbers.zip` for upload.
+   - a copper keep-out (tracks, vias and pour, all four layers) across the full width beside the antenna, wider than the module footprint's own keep-out
+   - net classes in `gos_sensor_node.kicad_pro`: 0.2 mm signal tracks with 0.15 mm clearance and 0.6/0.3 mm vias; 0.3 mm for VBUS, VSYS, VBAT, the cell path (BAT_P, BAT_N, FET_D) and the buck switch node. The highest current on any of them is the charger's 0.54 A input limit. +3V3 (300 mA buck limit) and GND use signal width: GND current flows in the planes and pours.
+   - the drill/place origin at the board's bottom-left corner, fabrication notes on User.Comments, small-part reference labels on the fab (assembly) layer
+2. `route_pcb.py` autoroutes with Freerouting, adds thermal vias in the charger and buck exposed pads, pours GND on all four layers, adds ground stitching vias on a 1.6 mm grid wherever they fit (about 230), runs DRC with schematic parity and, only if that is clean, writes:
+   - `fab/`: Gerbers for all layers, Excellon drill files with drill maps, KiCad and JLCPCB placement files, the JLCPCB BOM (LCSC part numbers) and `gos_sensor_node_gerbers.zip`
+   - `docs/`: assembly drawing, courtyards, user layers (fabrication notes) and all-layers PDFs, top and bottom renders, a STEP model
 
 ```
-set FREEROUTING_JAR=C:\path	oreerouting-2.0.1.jar
-set JAVA=C:\Program Files\Java\jdk-22in\java.exe
+set FREEROUTING_JAR=C:\path\to\freerouting-2.0.1.jar
+set JAVA=C:\Program Files\Java\jdk-22\bin\java.exe
 python generate_pcb.py
 python route_pcb.py
 ```
 
-Freerouting 2.0.1 runs on Java 21 or later; 2.2 and later need Java 25. 2.5.0 (Java 25) was tried on 2026-11-14 with the same script: the LED board came out clean but with 20 vias instead of 13, and the sensor board was left with 17 unrouted connections. The committed boards are routed with 2.0.1. Its result differs between runs, so `route_pcb.py` retries (up to 4 times) when connections are left unrouted. A typical clean result: about 900 track segments, 1.9 m of track, 100 vias.
+`route_pcb.py --fab-only` skips routing and regenerates `fab/` and `docs/` from the board as it is.
 
-Current result: KiCad DRC at every severity, with schematic parity: 0 violations, 0 unconnected items, 0 parity issues.
+Freerouting 2.0.1 runs on Java 21 or later; 2.2 and later need Java 25. 2.5.0 (Java 25) was tried on 2026-11-14 on the 2-layer version: the LED board came out clean but with more vias, and the sensor board was left with 17 unrouted connections. The boards are routed with 2.0.1. Its result differs between runs, so `route_pcb.py` retries (up to 4 times) when connections are left unrouted or no session is written.
+
+### Why 4 layers
+
+The two inner layers are unbroken ground planes. Every track on the outer layers runs 0.076 mm above one, so its return current flows directly underneath: small current loops, low radiated noise, and low coupling between the buck converter's switch node and the I2C sensors, the battery ADC input and the 32 kHz crystal. The radio module gets the solid ground under it that Raytac's layout guide asks for, and the USB pair has a continuous reference. The stitching vias tie the outer ground pours to both planes every 1.6 mm (2.4 GHz wavelength in FR-4 is about 62 mm; the usual limit is one twentieth of that, about 3 mm).
+
+Current result: KiCad DRC at every severity, with schematic parity: 0 violations, 0 unconnected items, 0 parity issues. No tracks on the inner layers.
 
 The routing is a machine result. Before ordering, look over in KiCad: the USB D+/D- pair (routed as two ordinary tracks, not length-matched; at 12 Mbit/s over a few cm that is acceptable), the buck switch node loop around U2/L1, and the antenna clearance. Both scripts regenerate the board from scratch, so hand edits in KiCad are lost if they are rerun.
+
+Ordering (manufacturer, settings, part availability, items bought separately): `documentation/ordering.md`. Enclosure fit: `mechanical/README.md`.
 
 ## Sources
 
@@ -234,8 +245,10 @@ The routing is a machine result. Before ordering, look over in KiCad: the USB D+
 | TPS62740 | TI SLVSB02B, https://www.ti.com/lit/ds/symlink/tps62740.pdf | pin table, VSEL table, input range, L and C values |
 | MDBT50Q-1MV2 | Raytac spec ver. K, sections 2.5, 2.6, 8 | pin table, low-frequency pins, supply circuit, crystal caps, USB resistors |
 | DW01A | H&M Semi datasheet, https://hmsemi.com/downfile/DW01A.PDF | pin table, application circuit, thresholds |
-| FS8205A | Fortune FS8205A-DS-12 | pin assignment, ratings |
-| 8205A-VB | VBsemi 8205A-VB TSSOP8 datasheet | pin assignment, ratings (replacement for FS8205A) |
+| FS8205A (Q1) | FUXINSEMI FS8205A datasheet Ver2.1 (LCSC C908265) | SOT-23-6 pinout (1 S1, 2 D, 3 S2, 4 G2, 5 D, 6 G1), 20 V, 25 mOhm max at 4.5 V |
+| SWPA3015S (L1) | Sunlord SWPA series catalogue, revised 2025-05-08 | 3 x 3 x 1.5 mm outline and recommended land pattern |
+| PJ-063AH (LED board J1) | CUI Devices datasheet 10/20/2022 | 2.0 mm centre pin, 5.5 mm plug, 24 V 8 A, pin numbering |
+| Stack-up | jlcpcb.com/impedance, JLC04161H-1080 | layer thicknesses |
 | ABS07 | Abracon ABS07 datasheet rev 08-10-22 | load capacitance options, ESR, tolerance |
 | SHT4x | Sensirion datasheet V7.3 (June 2026) | pin assignment, address, supply, land pattern, currents |
 | TSL2591 | ams datasheet ams163.5 (April 2013) | pin assignment, address, supply, temperature range, currents |
@@ -248,7 +261,9 @@ The routing is a machine result. Before ordering, look over in KiCad: the USB D+
 - Y1 is specified as Abracon ABS07-32.768KHZ-9-T (9 pF load, +/-20 ppm, ESR 70 kOhm max, shunt capacitance 2 pF max, same 3.2 x 1.5 mm footprint; Abracon ABS07 datasheet rev 08-10-22). The 9 pF figure assumes 4 pF nRF52840 pin capacitance, which Nordic states for the nRF5340; the nRF52840 crystal limits table could not be opened.
 - Q2 reverse-cell protection is an addition of this revision. It follows the standard P-FET arrangement and has not been simulated or bench tested.
 - Battery life is an estimate from datasheet figures (see Power budget), not a measurement.
-- Q1 is now specified as VBsemi 8205A-VB TSSOP8: same TSSOP-8 pinout as the discontinued Fortune FS8205A (1 D, 2-3 S1, 4 G1, 5 G2, 6-7 S2, 8 D), 25 V, 22 mOhm at 4.5 V gate (VBsemi datasheet). With 2 x 22 mOhm the DW01A 150 mV overcurrent trip is about 3.4 A instead of 3 A. Distributor stock was not checked. SemiWare SNM8205A shows the same pin layout in its drawing but its pin numbers were not confirmed. The TECH PUBLIC part sold as FS8205A (LCSC C2830320) is SOT-23-6 and does not fit.
+- Q1 is the FUXINSEMI FS8205A in SOT-23-6 (the TSSOP-8 parts were out of stock on 2026-11-14). With 2 x 25 mOhm maximum the DW01A 150 mV overcurrent trip is at least 3 A. The pinout is from its datasheet; the part itself has not been tested.
+- Part stock was checked on JLCPCB on 2026-11-14 (`documentation/ordering.md`). It changes daily.
 - The board is autorouted and passes DRC, but no one has reviewed the routing by hand and no board has been made (see Board layout). The SHT40 sits on the board edge for airflow; no slot or thermal isolation from the charger has been added.
+- The noise benefit of the 4-layer stack-up is standard practice, not a measurement on this board.
 - The firmware compiles (Zephyr `main` at f8da8ea, 2026-11-12, SDK 1.0.1, GCC 14.3) with no compiler warnings: 213 KB flash, 62 KB RAM with Thread (196 KB, 60 KB for the `low_power.conf` field build). The packet encoder was also checked on a PC against the Python decode. It has never run on hardware or joined a Thread network.
 - Zephyr warns that keys stored in flash, including the Thread network key, are protected only by a key derived from the chip ID. Anyone with the board and a debugger can read them. Built without `dtc`, so the overlay was parsed by Zephyr's Python devicetree tooling only.

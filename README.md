@@ -305,7 +305,7 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 |:---|:---|
 | `HARDWARE.md` | Design reference: pin map, power, signing, sources |
 | `generate_schematics.py`, `generate_pcb.py` | Generate the KiCad schematic and board |
-| `route_pcb.py` | Autoroute (Freerouting), pour ground, DRC, write Gerbers and drill files to `fab/` |
+| `route_pcb.py` | Autoroute (Freerouting), ground planes and stitching, DRC, write `fab/` (Gerbers, drill, JLCPCB BOM and placement) and `docs/` (PDFs, renders, STEP) |
 | `firmware/` | Zephyr firmware to build and flash (`raytac_mdbt50q_db_40/nrf52840`) |
 
 ### firmware/ - Legacy rev 2 research firmware (does not build for current hardware; see `firmware/README.md`)
@@ -345,6 +345,7 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 | `archive/` | Rev 2 hardware documents, kept for reference |
 | `bench_testing.md` | Validation procedures |
 | `bring_up.md` | First power-on of a rev 3.1 sensor node, step by step |
+| `ordering.md` | Ordering both boards assembled from JLCPCB: settings, part stock, items bought separately |
 | `hardware_protocol.md` | Communication protocol |
 | `requirements.md` | ELEC 490/498 checklist |
 

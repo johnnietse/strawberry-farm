@@ -25,6 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 KICAD = r"C:\Program Files\KiCad\9.0"
 SYMDIR = os.environ.get("KICAD9_SYMBOL_DIR", KICAD + r"\share\kicad\symbols")
 FPDIR = os.environ.get("KICAD9_FOOTPRINT_DIR", KICAD + r"\share\kicad\footprints")
+PROJECT_FP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "libraries", "gos.pretty")
 KICAD_CLI = os.environ.get("KICAD_CLI", KICAD + r"\bin\kicad-cli.exe")
 
 PROJECT = "gos_sensor_node"
@@ -153,15 +154,15 @@ def project_library():
          ("6", "LOAD", "power_out", "R", -2.54), ("7", "PG", "open_collector", "R", -7.62),
          ("3", "GND", "power_in", "B", -2.54), ("13", "EP", "passive", "B", 2.54)])
     fet = box_symbol(
-        "FS8205A", "Q", "Package_SO:TSSOP-8_4.4x3mm_P0.65mm",
-        "https://atta.szlcsc.com/upload/public/pdf/source/20140228/1457706997167.pdf",
-        "Dual N-channel MOSFET, common drain, 20 V, 6 A, 25 mOhm at 4.5 V, TSSOP-8",
-        "dual nmos battery protection", "TSSOP*4.4x3mm*P0.65mm*", 7.62, 5.08, -5.08,
-        [("2", "S1", "passive", "L", 2.54), ("3", "S1", "passive", "L", 0),
-         ("4", "G1", "input", "L", -2.54),
-         ("7", "S2", "passive", "R", 2.54), ("6", "S2", "passive", "R", 0),
-         ("5", "G2", "input", "R", -2.54),
-         ("1", "D12", "passive", "T", -2.54), ("8", "D12", "passive", "T", 2.54)])
+        "FS8205A", "Q", "Package_TO_SOT_SMD:SOT-23-6",
+        "https://www.fuxinsemi.com",
+        "Dual N-channel MOSFET, common drain, 20 V, 6 A, 25 mOhm max at 4.5 V, SOT-23-6 (FUXINSEMI FS8205A)",
+        "dual nmos battery protection", "SOT?23*", 7.62, 5.08, -5.08,
+        [("1", "S1", "passive", "L", 2.54),
+         ("6", "G1", "input", "L", -2.54),
+         ("3", "S2", "passive", "R", 2.54),
+         ("4", "G2", "input", "R", -2.54),
+         ("2", "D12", "passive", "T", -2.54), ("5", "D12", "passive", "T", 2.54)])
     return ('(kicad_symbol_lib (version 20241209) (generator "%s") (generator_version "9.0")\n%s\n%s\n)\n'
             % (GENERATOR, tps, fet))
 
@@ -237,6 +238,64 @@ def sym_flag(node, name, default="yes"):
 LIBS = Libs()
 POWER = {"GND": "power:GND", "+3V3": "power:+3V3", "VBUS": "power:VBUS"}
 NOT_IN_BOM = {"Connector:TestPoint"}  # bare copper pads, nothing to buy
+
+# Ordering data for JLCPCB assembly, matched to the JLCPCB/LCSC catalogue on 2026-11-14
+# (stock and ordering notes in documentation/ordering.md). Key: (value as written in the schematic, footprint name).
+# Value: (LCSC part, manufacturer part, manufacturer). part() copies these into the
+# symbol fields LCSC / MPN / Manufacturer unless the call sets them itself.
+SOURCING = {
+    # capacitors
+    ("1uF 50V X5R", "C_0603_1608Metric"): ("C15849", "CL10A105KB8NNNC", "Samsung Electro-Mechanics"),
+    ("10uF 25V X5R", "C_0805_2012Metric"): ("C15850", "CL21A106KAYNNNE", "Samsung Electro-Mechanics"),
+    ("100nF 50V X7R", "C_0603_1608Metric"): ("C14663", "CC0603KRX7R9BB104", "YAGEO"),
+    ("12pF C0G", "C_0603_1608Metric"): ("C38523", "CL10C120JB8NNNC", "Samsung Electro-Mechanics"),
+    ("10uF 50V X7R", "C_1210_3225Metric"): ("C138687", "CL32B106KBJNNNE", "Samsung Electro-Mechanics"),
+    ("47uF 50V", "CP_Elec_6.3x7.7"): ("C72523", "RVT1H470M0607", "ROQANG"),
+    # resistors, 0603 1 % thick film
+    ("100k", "R_0603_1608Metric"): ("C25803", "0603WAF1003T5E", "UNI-ROYAL"),
+    ("68k", "R_0603_1608Metric"): ("C23231", "0603WAF6802T5E", "UNI-ROYAL"),
+    ("3.0k 1%", "R_0603_1608Metric"): ("C4211", "0603WAF3001T5E", "UNI-ROYAL"),
+    ("1.8k 1%", "R_0603_1608Metric"): ("C4177", "0603WAF1801T5E", "UNI-ROYAL"),
+    ("1k", "R_0603_1608Metric"): ("C21190", "0603WAF1001T5E", "UNI-ROYAL"),
+    ("100R", "R_0603_1608Metric"): ("C22775", "0603WAF1000T5E", "UNI-ROYAL"),
+    ("2.2M 1%", "R_0603_1608Metric"): ("C22938", "0603WAF2204T5E", "UNI-ROYAL"),
+    ("4.7k", "R_0603_1608Metric"): ("C23162", "0603WAF4701T5E", "UNI-ROYAL"),
+    ("5.1k", "R_0603_1608Metric"): ("C23186", "0603WAF5101T5E", "UNI-ROYAL"),
+    ("27R", "R_0603_1608Metric"): ("C25190", "0603WAF270JT5E", "UNI-ROYAL"),
+    ("2.2k", "R_0603_1608Metric"): ("C4190", "0603WAF2201T5E", "UNI-ROYAL"),
+    ("0R30 1%", "R_0603_1608Metric"): ("C309621", "RL0603FR-070R3L", "YAGEO"),
+    ("NTC 10k", "R_0603_1608Metric"): ("C13564", "NCP18XH103F03RB", "Murata"),
+    # discretes, protection
+    ("LED yellow (charging)", "LED_0603_1608Metric"): ("C2287", "KT-0603Y", "Hubei KENTO"),
+    ("LED green (status)", "LED_0603_1608Metric"): ("C12624", "KT-0603G", "Hubei KENTO"),
+    ("PTC 0.75A 6V", "Fuse_1206_3216Metric"): ("C20987", "SMD1206P075TF", "RUILON"),
+    ("PTC 1.1A 30V", "Fuse_1206_3216Metric"): ("C21714343", "BSMD1206-110-30V", "BHFUSE"),
+    ("SS34", "D_SMA"): ("C8678", "SS34", "MDD (Microdiode)"),
+    ("2.2uH", "L_APV_ANR3015"): ("C43389", "SWPA3015S2R2MT", "Sunlord"),
+    ("47uH", "L_Bourns_SRN6045TA"): ("C5151734", "SRN6045TA-470M", "Bourns"),
+    ("8205A dual NMOS", "SOT-23-6"): ("C908265", "FS8205A", "FUXINSEMI"),
+    ("AO3401A", "SOT-23"): ("C15127", "AO3401A", "Alpha & Omega"),
+    ("DW01A", "SOT-23-6"): ("C351410", "DW01A", "PUOLOP"),
+    ("USBLC6-2SC6", "SOT-23-6"): ("C7519", "USBLC6-2SC6", "STMicroelectronics"),
+    # ICs, modules, sensors
+    ("BQ24074RGT", "VQFN-16-1EP_3x3mm_P0.5mm_EP1.6x1.6mm"): ("C54313", "BQ24074RGTR", "Texas Instruments"),
+    ("TPS62740DSS", "WSON-12-1EP_3x2mm_P0.5mm_EP1x2.65"): ("C128606", "TPS62740DSSR", "Texas Instruments"),
+    ("MDBT50Q-1MV2", "Raytac_MDBT50Q"): ("C5118826", "MDBT50Q-1MV2", "Raytac"),
+    ("SHT40-AD1B", "Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad"): ("C2909890", "SHT40-AD1B-R2", "Sensirion"),
+    ("TSL25911FN", "AMS_TSL25911FN"): ("C176812", "TSL25911FN", "ams OSRAM"),
+    ("AL8860MP", "MSOP-8-1EP_3x3mm_P0.65mm_EP1.5x1.8mm"): ("C500782", "AL8860MP-13", "Diodes Incorporated"),
+    ("32.768kHz 9pF", "Crystal_SMD_3215-2Pin_3.2x1.5mm"): ("C179635", "ABS07-32.768KHZ-9-T", "Abracon"),
+    # connectors, switches
+    ("USB-C USB4105-GF-A", "USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal"): ("C3020560", "USB4105-GF-A", "GCT"),
+    ("SWD 2x5 1.27mm", "PinHeader_2x05_P1.27mm_Vertical_SMD"): ("C5155080", "FTSH-105-01-L-DV-K", "Samtec"),
+    ("Battery JST-PH", "JST_PH_S2B-PH-K_1x02_P2.00mm_Horizontal"): ("C173752", "S2B-PH-K-S(LF)(SN)", "JST"),
+    ("RESET", "SW_SPST_B3U-1000P"): ("C231329", "B3U-1000P", "Omron"),
+    ("USER", "SW_SPST_B3U-1000P"): ("C231329", "B3U-1000P", "Omron"),
+    ("24V DC jack", "BarrelJack_CUI_PJ-063AH_Horizontal"): ("C22434582", "PJ-063AH", "CUI Devices"),
+    ("LED blue string", "PhoenixContact_MC_1,5_2-G-3.81_1x02_P3.81mm_Horizontal"): ("C480537", "1803277", "Phoenix Contact"),
+    ("LED red string", "PhoenixContact_MC_1,5_2-G-3.81_1x02_P3.81mm_Horizontal"): ("C480537", "1803277", "Phoenix Contact"),
+}
+HEADER_1X4 = ("C53055674", "254PZ-1x4P-V", "LXWCONN")  # every 1x4 2.54 mm pin header
 OUT = {0: (-1, 0), 180: (1, 0), 90: (0, 1), 270: (0, -1)}   # pin angle -> outward direction (y down)
 
 NETS = {}          # net -> {(ref, pin)}
@@ -315,6 +374,12 @@ class Sheet:
         if ref in PARTS:
             raise SystemExit("duplicate reference " + ref)
         PARTS[ref] = (lib_id, fp, [p.num for p in pins])
+        fpname = fp.split(":")[-1]
+        order = SOURCING.get((value, fpname)) or (HEADER_1X4 if fpname == "PinHeader_1x04_P2.54mm_Vertical" else None)
+        if order and lib_id not in NOT_IN_BOM:
+            fields.setdefault("MPN", order[1])
+            fields.setdefault("Manufacturer", order[2])
+            fields.setdefault("LCSC", order[0])
 
         default_stub = 0 if len(pins) == 2 else 2.54
         groups = {}
@@ -378,7 +443,7 @@ class Sheet:
         return self.part(next_ref("C"), "Device:C", x, y, value, fp, {"1": a, "2": b}, **kw)
 
     def C10u(self, a, b, x, y):
-        return self.C("10uF 16V X5R", a, b, x, y, fp="Capacitor_SMD:C_0805_2012Metric")
+        return self.C("10uF 25V X5R", a, b, x, y, fp="Capacitor_SMD:C_0805_2012Metric")
 
     def flag(self, net, x, y):
         ref = next_ref("#FLG")
@@ -474,7 +539,7 @@ def build():
             "6": "CHG_EN1", "14": "CHG_TMR", "12": "CHG_ILIM", "16": "CHG_ISET", "1": "CHG_TS",
             "7": "PGOOD_N", "9": "CHG_N"}, nc=["15"], MPN="BQ24074RGTR", Manufacturer="Texas Instruments")
     y = 137.16
-    s.C("1uF 25V X7R", "VBUS", "GND", 40.64, y)
+    s.C("1uF 50V X5R", "VBUS", "GND", 40.64, y)
     s.R("100k", "VBUS", "CHG_EN1", 58.42, y)
     s.R(R_TMR, "CHG_TMR", "GND", 76.2, y)
     s.R(R_ILIM, "CHG_ILIM", "GND", 93.98, y)
@@ -487,7 +552,7 @@ def build():
     s.R("100k", "+3V3", "PGOOD_N", 40.64, y)
     s.R("100k", "+3V3", "CHG_N", 58.42, y)
     s.R("1k", "+3V3", "CHG_LED_A", 76.2, y)
-    s.part("D1", "Device:LED", 104.14, y, "LED amber (charging)", "LED_SMD:LED_0603_1608Metric",
+    s.part("D1", "Device:LED", 104.14, y, "LED yellow (charging)", "LED_SMD:LED_0603_1608Metric",
            {"2": "CHG_LED_A", "1": "CHG_N"})
 
     s.part("U2", "gos:TPS62740DSS", 279.4, 81.28, "TPS62740DSS", "Package_SON:WSON-12-1EP_3x2mm_P0.5mm_EP1x2.65",
@@ -495,9 +560,9 @@ def build():
             "VSEL4": "VSYS", "SW": "BUCK_SW", "VOUT": "+3V3", "3": "GND", "13": "GND"},
            nc=["LOAD", "PG"], MPN="TPS62740DSSR", Manufacturer="Texas Instruments")
     s.C10u("VSYS", "GND", 243.84, 137.16)
-    s.part("L1", "Device:L", 261.62, 137.16, "2.2uH", "Inductor_SMD:L_Coilcraft_LPS3314",
-           {"1": "BUCK_SW", "2": "+3V3"}, Manufacturer="Coilcraft",
-           Description="Shielded inductor 2.2 uH, Coilcraft LPS3314 series, Isat above 0.5 A")
+    s.part("L1", "Device:L", 261.62, 137.16, "2.2uH", "Inductor_SMD:L_APV_ANR3015",
+           {"1": "BUCK_SW", "2": "+3V3"},
+           Description="Shielded inductor 2.2 uH, 3 x 3 x 1.5 mm, 2 A (Sunlord SWPA3015S2R2MT; land pattern per Sunlord, same as APV ANR3015)")
     s.C10u("+3V3", "GND", 279.4, 137.16)
 
     s.text("Cell protection. BAT_N is the cell negative, NOT system GND: the FS8205A sits between them.\n"
@@ -512,17 +577,16 @@ def build():
     s.part("Q2", "Transistor_FET:AO3401A", 83.82, y, "AO3401A", "Package_TO_SOT_SMD:SOT-23",
            {"1": "BAT_N", "2": "VBAT", "3": "BAT_P"}, MPN="AO3401A", Manufacturer="Alpha & Omega")
     s.R("100R", "VBAT", "DW_VCC", 116.84, y)
-    s.C("100nF", "DW_VCC", "BAT_N", 134.62, y)
+    s.C("100nF 50V X7R", "DW_VCC", "BAT_N", 134.62, y)
     s.part("U3", "Battery_Management:DW01A", 175.26, y, "DW01A", "Package_TO_SOT_SMD:SOT-23-6",
-           {"5": "DW_VCC", "6": "BAT_N", "1": "DW_OD", "3": "DW_OC", "2": "DW_CS"}, nc=["4"], MPN="DW01A")
+           {"5": "DW_VCC", "6": "BAT_N", "1": "DW_OD", "3": "DW_OC", "2": "DW_CS"}, nc=["4"])
     s.R("1k", "DW_CS", "GND", 215.9, y)
-    s.part("Q1", "gos:FS8205A", 254, y, "8205A dual NMOS", "Package_SO:TSSOP-8_4.4x3mm_P0.65mm",
+    s.part("Q1", "gos:FS8205A", 254, y, "8205A dual NMOS", "Package_TO_SOT_SMD:SOT-23-6",
            {"S1": "BAT_N", "G1": "DW_OD", "S2": "GND", "G2": "DW_OC", "D12": "FET_D"},
-           MPN="8205A-VB TSSOP8", Manufacturer="VBsemi",
-           Alternate="FS8205A (Fortune Semiconductor, discontinued); SNM8205A (SemiWare)")
+           Alternate="TECH PUBLIC FS8205A (LCSC C2830320), SOT-23-6; its pinout has not been checked")
     s.R(R_VBAT_DIV, "VBAT", "VBAT_SENSE", 325.12, 177.8)
     s.R(R_VBAT_DIV, "VBAT_SENSE", "GND", 325.12, 215.9)
-    s.C("100nF", "VBAT_SENSE", "GND", 350.52, 215.9)
+    s.C("100nF 50V X7R", "VBAT_SENSE", "GND", 350.52, 215.9)
     for i, net in enumerate(["GND", "VBUS", "+3V3", "BAT_N", "DW_VCC"]):
         s.flag(net, 325.12 + 15.24 * i, 132.08)
 
@@ -548,7 +612,7 @@ def build():
     s.C("12pF C0G", "XL1", "GND", 40.64, 83.82)
     s.C("12pF C0G", "XL2", "GND", 60.96, 83.82)
     s.C10u("+3V3", "GND", 40.64, 119.38)
-    s.C("100nF", "+3V3", "GND", 58.42, 119.38)
+    s.C("100nF 50V X7R", "+3V3", "GND", 58.42, 119.38)
     s.C10u("VBUS", "GND", 76.2, 119.38)
     sw = dict(MPN="B3U-1000P", Manufacturer="Omron")
     s.part("SW1", "Switch:SW_Push", 226.06, 60.96, "RESET", "Button_Switch_SMD:SW_SPST_B3U-1000P",
@@ -568,11 +632,11 @@ def build():
            "Sensor_Humidity:Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad",
            {"SDA": "I2C_SDA", "SCL": "I2C_SCL", "VDD": "+3V3", "VSS": "GND"},
            MPN="SHT40-AD1B-R2", Manufacturer="Sensirion")
-    s.C("100nF", "+3V3", "GND", 106.68, 88.9)
+    s.C("100nF 50V X7R", "+3V3", "GND", 106.68, 88.9)
     s.part("U6", "Sensor_Optical:TSL25911FN", 165.1, 88.9, "TSL25911FN", "OptoDevice:AMS_TSL25911FN",
            {"SCL": "I2C_SCL", "SDA": "I2C_SDA", "INT": "TSL_INT", "VDD": "+3V3", "GND": "GND"}, nc=["NC"],
            MPN="TSL25911FN", Manufacturer="ams OSRAM")
-    s.C("1uF 25V X7R", "+3V3", "GND", 215.9, 88.9)
+    s.C("1uF 50V X5R", "+3V3", "GND", 215.9, 88.9)
     s.R("4.7k", "+3V3", "I2C_SDA", 76.2, 139.7)
     s.R("4.7k", "+3V3", "I2C_SCL", 93.98, 139.7)
     s.R("100k", "+3V3", "TSL_INT", 111.76, 139.7)
@@ -584,7 +648,7 @@ def build():
            "(AL8860 needs at least 4.5 V; do not power it from this board). 100k pull-downs hold the signals low during reset.\n"
            "J2: standard 10-pin 1.27 mm Cortex debug header.", 25.4, 20.32)
     s.part("J1", "Connector:USB_C_Receptacle_USB2.0_16P", 60.96, 86.36, "USB-C USB4105-GF-A",
-           "Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal",
+           "gos:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal",
            {"VBUS": "VBUS_CONN", "GND": "GND", "SHIELD": "GND", "CC1": "CC1", "CC2": "CC2",
             "D+": "USB_CONN_DP", "D-": "USB_CONN_DN"}, nc=["SBU1", "SBU2"],
            MPN="USB4105-GF-A", Manufacturer="GCT")
@@ -652,7 +716,8 @@ def write_all():
         f.write('(sym_lib_table\n  (version 7)\n  (lib (name "gos")(type "KiCad")'
                 '(uri "${KIPRJMOD}/libraries/gos.kicad_sym")(options "")(descr "G.O.S. sensor node symbols"))\n)\n')
     with open(os.path.join(HERE, "fp-lib-table"), "w", encoding="utf-8", newline="\n") as f:
-        f.write("(fp_lib_table\n  (version 7)\n)\n")
+        f.write('(fp_lib_table\n  (version 7)\n  (lib (name "gos")(type "KiCad")'
+                '(uri "${KIPRJMOD}/libraries/gos.pretty")(options "")(descr "G.O.S. project footprints"))\n)\n')
     pro = os.path.join(HERE, PROJECT + ".kicad_pro")
     with open(pro, encoding="utf-8") as f:
         data = json.load(f)
@@ -672,7 +737,8 @@ def verify():
     # 1. footprint pads cover every symbol pin
     for ref, (lib_id, fp, pins) in sorted(PARTS.items()):
         lib, name = fp.split(":")
-        path = os.path.join(FPDIR, lib + ".pretty", name + ".kicad_mod")
+        libdir = PROJECT_FP_DIR if lib == "gos" else os.path.join(FPDIR, lib + ".pretty")
+        path = os.path.join(libdir, name + ".kicad_mod")
         if not os.path.isfile(path):
             print("FOOTPRINT MISSING %s: %s" % (ref, fp))
             bad += 1

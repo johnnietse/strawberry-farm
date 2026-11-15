@@ -40,7 +40,7 @@ def channel(s, name, x):
            nc=["NC"], MPN="AL8860MP-13", Manufacturer="Diodes Incorporated")
     s.R(R_SENSE, "VIN", f"SET_{name}", x + 60.96, 63.5)
     s.part(gs.next_ref("D"), "Diode:SS34", x + 60.96, 101.6, "SS34", "Diode_SMD:D_SMA",
-           {"A": f"SW_{name}", "K": "VIN"}, stub=2.54, MPN="SS34", Manufacturer="Vishay",
+           {"A": f"SW_{name}", "K": "VIN"}, stub=2.54,
            Description="Schottky 40 V 3 A, freewheel diode")
     s.part(gs.next_ref("L"), "Device:L", x + 78.74, 101.6, L_VALUE, "Inductor_SMD:L_Bourns_SRN6045TA",
            {"1": f"LEDK_{name}", "2": f"SW_{name}"}, MPN="SRN6045TA-470M", Manufacturer="Bourns",
@@ -51,7 +51,7 @@ def channel(s, name, x):
            {"1": f"SET_{name}", "2": f"LEDK_{name}"}, stub=2.54,
            Description="Pin 1 LED string anode, pin 2 cathode. Both float near the supply voltage.")
     s.C("10uF 50V X7R", "VIN", "GND", x + 7.62, 101.6, fp="Capacitor_SMD:C_1210_3225Metric")
-    s.C("100nF 50V", "VIN", "GND", x + 22.86, 101.6)
+    s.C("100nF 50V X7R", "VIN", "GND", x + 22.86, 101.6)
     s.R(R_CTRL_PULLDOWN, f"CTRL_{name}", "GND", x + 7.62, 63.5)
 
 
@@ -62,13 +62,13 @@ def build():
            "J2 takes the sensor node's PWM (3.3 V logic, 250 Hz). CTRL above 2.5 V = full current, below 0.2 V = off;\n"
            "the 2.2k pull-downs keep the LEDs off when J2 is unplugged or the node is in reset.\n"
            "J1: centre-positive 24 V barrel jack. F1 + D1 protect against overload and a reversed adapter.", 25.4, 20.32)
-    s.part("J1", "Connector:Barrel_Jack", 30.48, 152.4, "24V DC 2.1mm", "Connector_BarrelJack:BarrelJack_CUI_PJ-063AH_Horizontal",
+    s.part("J1", "Connector:Barrel_Jack", 30.48, 152.4, "24V DC jack", "Connector_BarrelJack:BarrelJack_CUI_PJ-063AH_Horizontal",
            {"1": "VIN_JACK", "2": "GND"}, stub=2.54, MPN="PJ-063AH", Manufacturer="CUI Devices",
-           Description="2.1 mm DC jack, centre positive")
+           Description="DC jack, 5.5 mm, 2.0 mm centre pin (takes 5.5 x 2.1 mm plugs), centre positive, 24 V 8 A")
     s.part("F1", "Device:Polyfuse_Small", 50.8, 152.4, "PTC 1.1A 30V", "Fuse:Fuse_1206_3216Metric",
            {"1": "VIN_JACK", "2": "VIN_FUSED"})
     s.part(gs.next_ref("D"), "Diode:SS34", 66.04, 152.4, "SS34", "Diode_SMD:D_SMA",
-           {"A": "VIN_FUSED", "K": "VIN"}, stub=2.54, MPN="SS34", Manufacturer="Vishay",
+           {"A": "VIN_FUSED", "K": "VIN"}, stub=2.54,
            Description="Schottky 40 V 3 A, reverse-polarity protection")
     s.part("C1", "Device:C_Polarized", 81.28, 152.4, "47uF 50V", "Capacitor_SMD:CP_Elec_6.3x7.7",
            {"1": "VIN", "2": "GND"}, Description="Bulk input capacitor")

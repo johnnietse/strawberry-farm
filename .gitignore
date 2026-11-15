@@ -55,3 +55,10 @@ pcbs/gos_sensor_node/firmware/credentials.conf
 
 # Sensor node signing keys (gateway/tools/provision_node.py)
 gateway/secrets/
+
+# fit_check.py output (regenerate it; 7 MB)
+mechanical/pcb_assembly.stl
+
+# KiCad lock files and per-user view settings
+*.lck
+pcbs/led_driver/led_driver.kicad_prl

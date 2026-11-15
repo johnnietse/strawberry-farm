@@ -1,270 +1,180 @@
 // ==============================================================
-// G.O.S. PHYTOTRON SENSOR NODE ENCLOSURE - PRODUCTION VERSION
+// G.O.S. PHYTOTRON SENSOR NODE ENCLOSURE (rev 3.1 board)
 // ==============================================================
-// Material: ASA (UV Resistant) or PETG for prototypes
-// Hardware: Custom G.O.S. PCB (nRF52840 aQFN-73) + SHT4x + TSL2591 + 18650 Battery
-// Author: G.O.S. Team | Queen's University EPOWER Lab
+// Material: ASA (UV resistant) for the phytotron, PETG for prototypes.
+// Holds: G.O.S. sensor node rev 3.1 (40 x 65 mm, 4-layer) + one 18650 cell.
+//
+// Board positions come from pcb_layout.scad, which mechanical/fit_check.py
+// generates from the KiCad board. Rerun fit_check.py after any board change;
+// it also checks the fit and renders the board inside the enclosure.
+//
+// Coordinates (mm): origin at the centre of the outer footprint, on the
+// underside of the floor. X across, Y along (USB-C in the front wall at -Y), Z up.
+//
+// Render parts:   openscad -D 'part="base"' -o base.stl enclosure_gen.scad
+//                 openscad -D 'part="lid"' -o lid.stl enclosure_gen.scad
 // ==============================================================
 
-$fn = 120; // High resolution for production
+include <pcb_layout.scad>
 
-// === PARAMETRIC DIMENSIONS (mm) ===
+$fn = 72;
+
+part = "assembly";       // "assembly", "base" or "lid"
+show_pcb = false;        // assembly view: import pcb_assembly.stl (from fit_check.py)
+show_lid = true;         // assembly view: lid in place
+cut = false;             // assembly view: cut away the -X half to see inside
+
+// === OUTER DIMENSIONS ===
 enclosure_width = 85;
 enclosure_length = 130;
-enclosure_height = 45;
-wall_thickness = 2.5;
+enclosure_height = 45;   // base, floor underside to rim
+wall = 2.5;
 corner_radius = 5;
 
-// Component mounting dimensions
-pcb_width = 40;      // Custom G.O.S. PCB width (per PCB spec §12.1)
-pcb_length = 65;     // Custom G.O.S. PCB length
-battery_diameter = 19; // 18650 battery
-battery_length = 68;
+// === BOARD MOUNTING ===
+post_d = 5;
+post_pilot_d = 2.2;      // M2.5 self-tapping screw (board holes are 2.7 mm)
 
-// === MAIN ENCLOSURE BODY ===
-module enclosure_base() {
+// === BATTERY ===
+battery_d = 19;          // 18650 with sleeve
+battery_len = 68;
+cradle_wall = 2;
+cradle_len = 60;         // shorter than the cell: the ends stay free for the lead
+
+// === LID ===
+lid_t = 3;
+lid_lip = 4;             // lip that drops inside the rim
+lid_fit = 0.3;           // clearance per side
+boss_d = 7;
+boss_pilot_d = 2.5;      // M3 self-tapping
+lid_screw_d = 3.4;
+window_d = 10;           // light window over the TSL2591
+window_disc_d = 16;      // clear PC/acrylic disc, glued into a recess from inside
+window_disc_t = 1.5;
+
+inner_x = enclosure_width / 2 - wall;
+inner_y = enclosure_length / 2 - wall;
+boss_xy = [[-(inner_x - boss_d / 2), -(inner_y - boss_d / 2)], [inner_x - boss_d / 2, -(inner_y - boss_d / 2)],
+           [-(inner_x - boss_d / 2), 30], [inner_x - boss_d / 2, 30]];
+
+module rounded_box(w, l, h, r) {
+    hull() for (sx = [-1, 1], sy = [-1, 1])
+        translate([sx * (w / 2 - r), sy * (l / 2 - r), 0]) cylinder(r = r, h = h);
+}
+
+// --- base -------------------------------------------------------
+module shell() {
     difference() {
-        // Outer shell with rounded corners
-        minkowski() {
-            cube([enclosure_width - corner_radius*2, 
-                  enclosure_length - corner_radius*2, 
-                  enclosure_height/2], center=true);
-            cylinder(r=corner_radius, h=1);
-        }
-        
-        // Inner cavity
-        translate([0, 0, wall_thickness])
-        minkowski() {
-            cube([enclosure_width - wall_thickness*2 - corner_radius*2,
-                  enclosure_length - wall_thickness*2 - corner_radius*2,
-                  enclosure_height], center=true);
-            cylinder(r=corner_radius-1, h=0.5);
-        }
+        rounded_box(enclosure_width, enclosure_length, enclosure_height, corner_radius);
+        translate([0, 0, wall])
+            rounded_box(enclosure_width - 2 * wall, enclosure_length - 2 * wall, enclosure_height, corner_radius - wall);
     }
 }
 
-// === SENSOR VENTILATION GRILLE ===
-// Allows airflow for accurate temperature/humidity readings
-module ventilation_grille() {
-    vent_spacing = 4;
-    vent_width = 2;
-    vent_count = 8;
-    
-    for(i = [0 : vent_count-1]) {
-        translate([enclosure_width/2 - wall_thickness/2, 
-                   -vent_count*vent_spacing/2 + i*vent_spacing, 
-                   enclosure_height/4])
-        rotate([0, 90, 0])
-        hull() {
-            cylinder(d=vent_width, h=wall_thickness*2);
-            translate([0, 0, 0])
-            cylinder(d=vent_width, h=wall_thickness*2);
-        }
-    }
-    
-    // Mirror to other side
-    mirror([1, 0, 0])
-    for(i = [0 : vent_count-1]) {
-        translate([enclosure_width/2 - wall_thickness/2, 
-                   -vent_count*vent_spacing/2 + i*vent_spacing, 
-                   enclosure_height/4])
-        rotate([0, 90, 0])
-        hull() {
-            cylinder(d=vent_width, h=wall_thickness*2);
-        }
-    }
-}
-
-// === USB PORT CUTOUT ===
-// For programming and power connection
-module usb_cutout() {
-    usb_width = 12;
-    usb_height = 7;
-    
-    translate([0, -enclosure_length/2, enclosure_height/4])
-    rotate([90, 0, 0])
-    hull() {
-        translate([-usb_width/2 + 1.5, 0, 0]) cylinder(d=3, h=wall_thickness*2);
-        translate([usb_width/2 - 1.5, 0, 0]) cylinder(d=3, h=wall_thickness*2);
-        translate([-usb_width/2 + 1.5, usb_height-3, 0]) cylinder(d=3, h=wall_thickness*2);
-        translate([usb_width/2 - 1.5, usb_height-3, 0]) cylinder(d=3, h=wall_thickness*2);
-    }
-}
-
-// === SENSOR PROBE PORT ===
-// External connector for SHT4x extender cable
-module sensor_port() {
-    translate([enclosure_width/2 - wall_thickness, 0, 0])
-    rotate([0, 90, 0])
-    cylinder(d=8, h=wall_thickness*2);
-}
-
-// === LED INDICATOR WINDOW ===
-// Transparent section for status LEDs
-module led_window() {
-    window_size = 15;
-    translate([0, enclosure_length/2 - wall_thickness, enclosure_height/3])
-    rotate([90, 0, 0])
-    hull() {
-        translate([-window_size/2, 0, 0]) cylinder(d=4, h=wall_thickness*2);
-        translate([window_size/2, 0, 0]) cylinder(d=4, h=wall_thickness*2);
-    }
-}
-
-// === PCB MOUNTING POSTS ===
-module pcb_mounts() {
-    post_height = 5;
-    post_diameter = 5;
-    hole_diameter = 2.5;
-    
-    mount_positions = [
-        [-pcb_width/2 + 5, -pcb_length/2 + 5],
-        [pcb_width/2 - 5, -pcb_length/2 + 5],
-        [-pcb_width/2 + 5, pcb_length/2 - 5],
-        [pcb_width/2 - 5, pcb_length/2 - 5]
-    ];
-    
-    for(pos = mount_positions) {
-        translate([pos[0], pos[1], -enclosure_height/2 + wall_thickness])
+module pcb_posts() {
+    for (h = pcb_holes) translate([h[0], h[1], wall - 0.01])
         difference() {
-            cylinder(d=post_diameter, h=post_height);
-            cylinder(d=hole_diameter, h=post_height + 1);
+            cylinder(d = post_d, h = pcb_z - wall + 0.01);
+            translate([0, 0, 1]) cylinder(d = post_pilot_d, h = pcb_z);
         }
-    }
 }
 
-// === BATTERY HOLDER ===
 module battery_cradle() {
-    translate([0, enclosure_length/4, -enclosure_height/2 + wall_thickness + battery_diameter/2])
-    rotate([0, 90, 0])
-    difference() {
-        // Outer cradle
-        cylinder(d=battery_diameter + 4, h=battery_length, center=true);
-        // Battery cavity
-        cylinder(d=battery_diameter + 0.5, h=battery_length + 2, center=true);
-        // Top opening
-        translate([0, battery_diameter/2 + 2, 0])
-        cube([battery_diameter + 5, battery_diameter, battery_length + 2], center=true);
-    }
-}
-
-// === LID WITH SNAP CLIPS ===
-module snap_clip() {
-    clip_width = 8;
-    clip_depth = 3;
-    clip_height = 4;
-    
-    translate([0, 0, 0])
-    hull() {
-        cube([clip_width, clip_depth, 1]);
-        translate([0, clip_depth, clip_height])
-        cube([clip_width, 0.5, 0.5]);
-    }
-}
-
-module lid() {
-    lid_height = 8;
-    
-    difference() {
-        // Lid body
-        translate([0, 0, enclosure_height/2 + 2])
-        minkowski() {
-            cube([enclosure_width - corner_radius*2 - 2,
-                  enclosure_length - corner_radius*2 - 2,
-                  lid_height/2], center=true);
-            cylinder(r=corner_radius - 0.5, h=0.5);
-        }
-        
-        // Inner lip
-        translate([0, 0, enclosure_height/2])
-        cube([enclosure_width - wall_thickness*4,
-              enclosure_length - wall_thickness*4,
-              lid_height], center=true);
-    }
-    
-    // Snap clips
-    clip_positions = [
-        [enclosure_width/2 - wall_thickness*2, 0, enclosure_height/2],
-        [-enclosure_width/2 + wall_thickness*2, 0, enclosure_height/2],
-        [0, enclosure_length/2 - wall_thickness*2, enclosure_height/2],
-        [0, -enclosure_length/2 + wall_thickness*2, enclosure_height/2]
-    ];
-}
-
-// === CABLE GLAND PORT ===
-// IP65-rated cable entry
-module cable_gland_port() {
-    gland_diameter = 12; // M12 cable gland
-    translate([-enclosure_width/4, -enclosure_length/2, 0])
-    rotate([90, 0, 0])
-    cylinder(d=gland_diameter, h=wall_thickness*2);
-}
-
-// === MOUNTING BRACKET HOLES ===
-// For pole/rail mounting in greenhouse
-module mounting_holes() {
-    hole_diameter = 4;
-    hole_spacing = 60;
-    
-    translate([0, 0, -enclosure_height/2])
-    for(x = [-hole_spacing/2, hole_spacing/2]) {
-        translate([x, enclosure_length/3, 0])
-        cylinder(d=hole_diameter, h=wall_thickness*2, center=true);
-    }
-}
-
-// === DRAINAGE HOLES ===
-// Prevents condensation buildup
-module drainage_holes() {
-    drain_diameter = 2;
-    
-    positions = [
-        [-enclosure_width/3, -enclosure_length/3],
-        [enclosure_width/3, -enclosure_length/3],
-        [-enclosure_width/3, enclosure_length/3],
-        [enclosure_width/3, enclosure_length/3]
-    ];
-    
-    for(pos = positions) {
-        translate([pos[0], pos[1], -enclosure_height/2])
-        cylinder(d=drain_diameter, h=wall_thickness*2);
-    }
-}
-
-// === FINAL ASSEMBLY ===
-module complete_enclosure() {
+    axis_z = wall + cradle_wall + battery_d / 2;
     difference() {
         union() {
-            enclosure_base();
-            pcb_mounts();
-            battery_cradle();
+            translate([0, battery_center_y, axis_z]) rotate([0, 90, 0])
+                cylinder(d = battery_d + 2 * cradle_wall, h = cradle_len, center = true);
+            translate([-cradle_len / 2, battery_center_y - battery_d / 2 - cradle_wall, wall - 0.01])
+                cube([cradle_len, battery_d + 2 * cradle_wall, axis_z - wall]);
         }
-        
-        // Cutouts
-        ventilation_grille();
-        usb_cutout();
-        sensor_port();
-        led_window();
-        cable_gland_port();
-        mounting_holes();
-        drainage_holes();
+        translate([0, battery_center_y, axis_z]) rotate([0, 90, 0])
+            cylinder(d = battery_d + 0.5, h = cradle_len + 2, center = true);
+        // snap opening: narrower than the cell, so it clips in
+        translate([-cradle_len / 2 - 1, battery_center_y - battery_d * 0.42, axis_z + battery_d * 0.25])
+            cube([cradle_len + 2, battery_d * 0.84, battery_d]);
     }
 }
 
-// === RENDER ===
-// Comment/uncomment to render different parts
+module lid_bosses() {
+    for (b = boss_xy) translate([b[0], b[1], wall - 0.01])
+        difference() {
+            cylinder(d = boss_d, h = enclosure_height - wall + 0.01 - lid_lip - 0.5);
+            cylinder(d = boss_pilot_d, h = enclosure_height);
+        }
+}
 
-// Full enclosure
-complete_enclosure();
+module usb_cutout() {   // fits a USB-C plug overmold up to 12 x 7 mm
+    translate([usb_center[0], -enclosure_length / 2 - 1, usb_center[1]]) rotate([-90, 0, 0])
+        hull() for (sx = [-1, 1], sz = [-1, 1])
+            translate([sx * (12 / 2 - 1.5), sz * (7 / 2 - 1.5), 0]) cylinder(d = 3, h = wall + 2);
+}
 
-// Lid (print separately)
-// translate([enclosure_width + 20, 0, 0]) lid();
+module sensor_vents() { // vertical slots in both side walls beside the SHT40, at board height
+    for (sx = [-1, 1]) for (i = [-3 : 3])
+        translate([sx * (enclosure_width / 2 - wall / 2), sht40[1] + i * 3.5, pcb_z + 1])
+            rotate([0, 90, 0]) hull() {
+                cylinder(d = 2, h = wall + 2, center = true);
+                translate([-10, 0, 0]) cylinder(d = 2, h = wall + 2, center = true);
+            }
+}
 
-// === PRINT SETTINGS ===
-echo("=== G.O.S. Phytotron Node Enclosure ===");
-echo("Recommended Material: ASA (UV stable, heat resistant)");
-echo("Layer Height: 0.2mm");
-echo("Infill: 20% for base, 100% for lid");
-echo("Supports: Yes, for ventilation grilles");
-echo("Print Time: ~4 hours per unit");
-echo("IP Rating: IP54 with gasket, IP65 with cable glands");
+module led_cable_gland() { // M12 gland for the cable to the LED driver board, beside J4
+    translate([enclosure_width / 2 - wall - 1, j4_led_cable[1], 25]) rotate([0, 90, 0]) cylinder(d = 12.2, h = wall + 2);
+}
+
+module floor_holes() {
+    for (sx = [-1, 1]) translate([sx * 30, 15, -1]) cylinder(d = 4, h = wall + 2);       // pole/rail mounting
+    for (sx = [-1, 1], y = [-55, 30]) translate([sx * 33, y, -1]) cylinder(d = 2, h = wall + 2);  // drainage
+}
+
+module base() {
+    difference() {
+        union() { shell(); pcb_posts(); battery_cradle(); lid_bosses(); }
+        usb_cutout();
+        sensor_vents();
+        led_cable_gland();
+        floor_holes();
+    }
+}
+
+// --- lid --------------------------------------------------------
+module lid() {
+    difference() {
+        union() {
+            rounded_box(enclosure_width, enclosure_length, lid_t, corner_radius);
+            translate([0, 0, -lid_lip]) difference() {
+                rounded_box(enclosure_width - 2 * (wall + lid_fit), enclosure_length - 2 * (wall + lid_fit),
+                            lid_lip + 0.01, corner_radius - wall);
+                translate([0, 0, -1]) rounded_box(enclosure_width - 2 * (wall + lid_fit) - 4,
+                                                  enclosure_length - 2 * (wall + lid_fit) - 4, lid_lip + 2,
+                                                  corner_radius - wall - 2);
+            }
+        }
+        for (b = boss_xy) translate([b[0], b[1], -lid_lip - 1]) cylinder(d = lid_screw_d, h = lid_t + lid_lip + 2);
+        // light window over the TSL2591 with a recess for the clear disc
+        translate([tsl2591[0], tsl2591[1], -lid_lip - 1]) cylinder(d = window_d, h = lid_t + lid_lip + 2);
+        translate([tsl2591[0], tsl2591[1], -0.01]) cylinder(d = window_disc_d, h = window_disc_t);
+    }
+}
+
+// --- views ------------------------------------------------------
+if (part == "base") base();
+else if (part == "lid") translate([0, 0, lid_t]) rotate([180, 0, 0]) lid();
+else difference() {
+    union() { assembly(); }
+    if (cut) translate([-enclosure_width, -enclosure_length, -10]) cube([enclosure_width, 2 * enclosure_length, 100]);
+}
+
+module assembly() {
+    color("SlateGray") base();
+    if (show_lid) color("LightSteelBlue", 0.5) translate([0, 0, enclosure_height]) lid();
+    if (show_pcb) color("DarkGreen") translate([pcb_origin[0], pcb_origin[1], pcb_z + pcb_thickness]) import("pcb_assembly.stl");  // STL: board top at z = 0
+    color("SteelBlue", 0.6) translate([0, battery_center_y, wall + cradle_wall + battery_d / 2]) rotate([0, 90, 0])
+        cylinder(d = 18.5, h = 65, center = true);
+}
+
+echo("=== G.O.S. sensor node enclosure ===");
+echo("Material: ASA (UV stable); PETG for prototypes. Layer 0.2 mm, 4 walls, 25 % infill.");
+echo("Hardware: 4 x M2.5x6 self-tapping (board), 4 x M3x10 self-tapping (lid), 1 x M12 cable gland,");
+echo("          16 mm x 1.5 mm clear polycarbonate disc for the light window.");

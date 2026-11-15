@@ -15,17 +15,24 @@ that every symbol pin has a footprint pad. Outputs: `led_driver.kicad_sch`,
 
 ## Board
 
-60 x 45 mm, two layers, four M3 holes 4 mm in from the corners. Generated, then autorouted:
+60 x 45 mm, **4 layers** (F.Cu signals and parts, In1.Cu and In2.Cu solid GND planes, B.Cu
+signals; JLCPCB JLC04161H-1080 stack-up, 1.6 mm, ENIG), four M3 holes 4 mm in from the corners.
+Generated, then autorouted:
 
 ```
-"C:\Program Files\KiCad\9.0in\python.exe" generate_pcb.py
-"C:\Program Files\KiCad\9.0in\python.exe" ..\gos_sensor_nodeoute_pcb.py .
+"C:\Program Files\KiCad\9.0\bin\python.exe" generate_pcb.py
+"C:\Program Files\KiCad\9.0\bin\python.exe" ..\gos_sensor_node\route_pcb.py .
 ```
 
 `route_pcb.py` needs `FREEROUTING_JAR` (and `JAVA` if the default java is too old); see the sensor
 node's `HARDWARE.md`, Board layout. It routes with Freerouting, adds thermal vias in each AL8860
-exposed pad, pours GND on both layers, runs DRC with schematic parity and writes `fab/` (Gerbers,
-drill files, pick-and-place, upload zip).
+exposed pad, pours GND on all four layers, adds ground stitching vias wherever they fit, runs DRC
+with schematic parity and writes `fab/` (Gerbers, drill files, JLCPCB BOM and placement files,
+upload zip) and `docs/` (assembly, courtyard, user-layer and all-layer PDFs, renders, STEP model).
+Ordering: `documentation/ordering.md`.
+
+The ground planes matter most on this board: two buck converters switch the 24 V supply, and a
+plane directly under every switching loop keeps the loop area, and so the radiated noise, small.
 
 Layout: 24 V jack on the left edge; blue channel (U1) in the top half and red (U2) in the bottom;
 each channel's diode and inductor in a row from the AL8860 SW pins to its LED terminal on the right
@@ -42,7 +49,7 @@ top of `generate_schematic.py` or a single part to swap.
 
 | Choice | Value | Why |
 |---|---|---|
-| Supply | 24 V DC adapter, 2.1 mm centre-positive jack | On 12 V a 3-4 LED blue string needs over 80 % switch duty; the AL8860 is specified for 25 to 75 %. On 24 V both strings sit at roughly 35 to 55 %. |
+| Supply | 24 V DC adapter, 5.5 x 2.1 mm centre-positive plug (the jack's centre pin is 2.0 mm) | On 12 V a 3-4 LED blue string needs over 80 % switch duty; the AL8860 is specified for 25 to 75 %. On 24 V both strings sit at roughly 35 to 55 %. |
 | Channels | blue 450 nm, red 660 nm | Same spectra as the rev 2 design. |
 | LEDs per channel | 4 in series, off-board | About 1 W per LED. Plain FR-4 cannot shed 8 W, so the LEDs go on star (MCPCB) heatsinks wired to J3 and J4. |
 | Current | 333 mA per channel | AL8860: I = 0.1 V / R_SENSE; 0.30 ohm gives 333 mA (datasheet table). Suits common 1 W horticulture LEDs. Change R_SENSE for other LEDs (1.0 A max in MSOP-8EP at 0.1 ohm, up to 1.5 A at 0.066 ohm). |
@@ -77,7 +84,7 @@ input capacitor close to VIN, 25 to 75 % recommended duty cycle.
 
 - LED forward voltages are typical values from memory, not from a chosen LED's datasheet.
   Pick the LEDs, then check the string voltage stays below about 20 V on a 24 V supply.
-- The Bourns SRN6045TA-470M saturation and RMS current ratings were not checked.
+- The Bourns SRN6045TA-470M ratings were read from the JLCPCB catalogue entry (1.6 A and 2 A, far above the 0.4 A peak), not from the Bourns datasheet.
 - The AL8860 CTRL pin's internal pull-up strength is not in the datasheet; 2.2 kOhm was chosen to
   overpower any plausible internal source. Confirm on the bench that the LEDs stay dark with J2
   unplugged.

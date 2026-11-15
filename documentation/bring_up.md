@@ -1,12 +1,22 @@
 # Sensor node bring-up (rev 3.1)
 
-Step-by-step first power-on, once boards exist. Each step says what "pass" looks like; stop at
-the first failure. Pin map: `nrf52840_pinout.md`. Design reference:
-`pcbs/gos_sensor_node/HARDWARE.md`.
+Step-by-step first power-on, once the assembled boards arrive (ordered as in `ordering.md`).
+Each step says what "pass" looks like; stop at the first failure. Pin map: `nrf52840_pinout.md`.
+Design reference: `pcbs/gos_sensor_node/HARDWARE.md`.
 
 You need: an SWD probe with a 10-pin 1.27 mm Cortex cable (J-Link, or an nRF52 DK's debug
 port), a USB-C cable, a 3.3 V USB-serial adapter for TP5/TP6, an 18650 cell with a JST-PH lead,
-and the Raspberry Pi border router from `raspberry_pi_setup.md`.
+a multimeter, and the Raspberry Pi border router from `raspberry_pi_setup.md`. The parts bought
+separately are listed in `ordering.md`.
+
+## 0. On arrival, before any power
+
+1. Look at every board under good light or a magnifier. Compare with
+   `pcbs/gos_sensor_node/docs/gos_sensor_node_assembly_top.pdf` (and the LED board's). **Pass:**
+   every part present, pin-1 marks on U1-U7, Q1 and Q2 match the drawing, LED and diode stripes on
+   the cathode side, no solder bridges on U1, U2 or the module.
+2. Meter, power off: resistance from VBUS (TP7), VSYS (TP2), +3V3 (TP1) and VBAT (TP3) to GND
+   (TP4). **Pass:** none below about 100 ohm. A dead short means a bridge: stop.
 
 ## 1. Power, no cell
 
@@ -16,7 +26,7 @@ and the Raspberry Pi border router from `raspberry_pi_setup.md`.
 ## 2. Cell and charger
 
 1. Check the lead: J5 pin 1 = positive. Connect the cell, keep USB plugged in.
-2. **Pass:** TP3 (VBAT) reads the cell voltage, amber LED D1 lights while charging and goes out when full.
+2. **Pass:** TP3 (VBAT) reads the cell voltage, the yellow LED D1 lights while charging and goes out when full.
 3. Unplug USB. **Pass:** +3V3 stays at 3.3 V on battery.
 
 ## 3. Provision and flash
@@ -74,6 +84,10 @@ FROM raw_telemetry WHERE node_id = 'RF-NODE-01' ORDER BY time DESC LIMIT 5;
 
 ## 7. LED board
 
+Check `docs/led_driver_assembly_top.pdf` as in step 0 first, and the input: resistance from the
+jack centre pin to GND above about 100 ohm. Use a 24 V adapter with a 5.5 x 2.1 mm
+centre-positive plug.
+
 1. 24 V adapter into the LED board, J2 **unplugged**, LED strings connected. **Pass:** LEDs stay dark.
 2. Connect J2 to the sensor node J4. LEDs stay dark (firmware starts at 0 %).
 3. Set a mix from firmware (`gos_set_spectral_mix(50, 50)`) on the bench build. **Pass:** both strings at half brightness, no visible flicker.
@@ -83,3 +97,16 @@ FROM raw_telemetry WHERE node_id = 'RF-NODE-01' ORDER BY time DESC LIMIT 5;
 Flash with `low_power.conf`, unplug USB, measure battery current with a meter in series with the
 cell. Expected average about 40 to 60 uA with Thread polling every second (estimate in
 `HARDWARE.md`). A reading in the hundreds of uA means something is not sleeping: start with the TSL2591.
+
+## 9. Into the enclosure
+
+Print the base and lid (`mechanical/README.md`; the fit was checked against this board with
+`mechanical/fit_check.py`).
+
+1. Board on the four posts with M2.5x6 screws, USB-C socket in the front cut-out. **Pass:** a
+   USB-C cable plugs in fully from outside.
+2. Cell into the cradle, lead to J5 (pin 1 positive).
+3. LED cable through the M12 gland to J4.
+4. Glue the clear disc into the lid recess, then fit the lid with 4 x M3x10.
+5. With the lid on, compare the lux reading with a reference meter and note the correction factor:
+   the window changes what the TSL2591 sees.
