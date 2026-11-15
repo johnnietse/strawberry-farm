@@ -147,9 +147,10 @@ west build -b raytac_mdbt50q_db_40/nrf52840
 | File | Role |
 |---|---|
 | `boards/raytac_mdbt50q_db_40_nrf52840.overlay` | turns the demo board into this board: pins, sensors, battery divider, charger status |
-| `src/main.c` | every 60 s reads SHT40, TSL2591, battery voltage and charger status, logs them and sends them over Thread; feeds the watchdog; holds both LED-board PWM channels at 0 % |
-| `src/uplink.c` | builds the 22-byte PACKET_V2 research packet and sends it as a non-confirmable CoAP POST |
-| `Kconfig` | node index (1 to 40), uplink address, port and CoAP path |
+| `src/main.c` | every 60 s reads SHT40, TSL2591, battery voltage and charger status, logs them and sends them over Thread; feeds the watchdog; LED-board PWM starts at 0 % and falls back to `CONFIG_GOS_LED_FALLBACK_*` if no LED command arrives for `CONFIG_GOS_LED_HOLD_S` |
+| `src/uplink.c` | builds and signs the 43-byte PACKET_V4 and sends it as a non-confirmable CoAP POST; its response handler applies the LED command in the gateway's reply |
+| `src/downlink.c` | checks an LED command (version, tag, counter, range); host test in `tests/host/test_downlink.c` |
+| `Kconfig` | node index (1 to 40), uplink address, port and CoAP path, LED hold time and fallback levels |
 | `credentials.conf` | Thread network key, node index and the node's own signing key; git-ignored. `gateway/tools/provision_node.py --index N` prints it. Without a valid signing key the node sends nothing. |
 | `prj.conf` | driver subsystems; Thread as a sleepy end device polling every 1 s, channel 15, PAN 0x1234, name GOS_PHYTOTRON |
 
@@ -177,6 +178,14 @@ Payload (PACKET_V4), 43 bytes, all fields little-endian, decode with Python `str
 | 22 | counter, u32 | boot epoch (kept in flash) << 16, plus a sequence number; never repeats |
 | 26 | flags | bit 7 charger state valid, bit 0 USB power present, bit 1 charging. The charger warms the board (up to about 0.65 W), so climate readings taken while charging read high; filter them with `payload->>'charging'`. |
 | 27 | tag, 16 bytes | first 16 bytes of HMAC-SHA256(node key, bytes 0 to 26) |
+
+### LED commands
+
+The gateway's 2.04 reply to each packet carries the LED level for this node (23 bytes, format in
+`documentation/hardware_protocol.md`), signed with the node's key and bound to the counter of the
+packet it answers. The node sets the PWM only if both check out. With the 1 s poll period the reply
+arrives within about a second. No command for `CONFIG_GOS_LED_HOLD_S` (900 s): fallback levels
+(default off).
 
 ### Packet authentication
 

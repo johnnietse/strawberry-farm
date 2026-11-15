@@ -99,13 +99,20 @@ with the adapter connected.
    end) reads below 0.2 V (simulation: at most 0.12 V with the 1.5 k pull-downs).
 2. Connect J2 to the sensor node J4 with the 4-wire cable, pin 1 to pin 1. LEDs stay dark
    (firmware starts at 0 %).
-3. Full brightness from firmware (`gos_set_spectral_mix(100, 100)`) on the bench build. **Pass:**
-   current in each string 320 to 350 mA (meter in series, or the voltage across R1 / R3 is 96 to
-   104 mV); simulation: 335 to 339 mA.
-4. `gos_set_spectral_mix(50, 50)`. **Pass:** about half the current (simulation: 168 mA), no
-   visible flicker.
+3. With the node joined to Thread and the gateway stack running (outside the dark period,
+   `LED_DARK_START` / `LED_DARK_END`), set the node to full brightness from the dashboard ("Set
+   LEDs by hand", blue 100, red 100) or with
+   `curl -X POST http://<pi>:5000/api/led -H "Content-Type: application/json" -d '{"node":"RF-NODE-01","blue_pct":100,"red_pct":100,"minutes":30}'`.
+   The ramp limit brings it up in 25 % steps, one per packet (about 4 minutes). The node log
+   shows `LED blue 100 %, red 100 %`. **Pass:** current in each string 320 to 350 mA (meter in
+   series, or the voltage across R1 / R3 is 96 to 104 mV); simulation: 335 to 339 mA.
+4. Set 50 / 50. **Pass:** about half the current (simulation: 168 mA), no visible flicker.
+   "LED commands sent" on the dashboard lists each command and any safety note.
 5. After 10 minutes at full brightness, the AL8860s and inductors are warm, not hot (below about
    60 C by touch or an IR thermometer).
+6. Stop the gateway stack (or unplug the border router). **Pass:** after 15 minutes
+   (`CONFIG_GOS_LED_HOLD_S`) the node logs `no LED command for 900 s: fallback levels` and the
+   LEDs go off. Then "Back to automatic" on the dashboard hands the node to the controller.
 
 ## 8. Sleep current (field build)
 

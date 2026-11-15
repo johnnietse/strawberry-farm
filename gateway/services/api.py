@@ -14,6 +14,10 @@ Endpoints:
 - GET /api/nodes - Get node status summary
 - GET /api/events - Get recent events
 - GET /api/curated - Get latest curated dataset
+- GET /api/plant - Latest plant state per node (biology engine)
+- GET /api/led/commands - LED commands sent to the nodes (after the safety monitor)
+- DELETE /api/led/override - End manual LED settings; the controller takes over again
+- POST /api/assistant - Turn a free-text note into a research event (LLM or rules)
 """
 
 from flask import Flask, request, jsonify, send_file
@@ -21,7 +25,12 @@ from flask_cors import CORS
 import psycopg2
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+try:
+    from assistant import parse_note
+except ImportError:  # imported as services.api
+    from services.assistant import parse_note
 
 app = Flask(__name__)
 CORS(app)  # Enable Dashboard to talk to API
@@ -49,7 +58,7 @@ def log_event():
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO research_events 
+                INSERT INTO research_events
                 (event_type, description, severity, created_via_llm, sector_id)
                 VALUES (%s, %s, %s, %s, %s)
             """, (
@@ -61,7 +70,7 @@ def log_event():
             ))
         conn.commit()
         conn.close()
-        logger.info(f"Event logged: {data.get('type')} - {data.get('description')[:50]}...")
+        logger.info(f"Event logged: {data.get('type')} - {(data.get('description') or '')[:50]}")
         return jsonify({
             "status": "success",
             "message": "Research event synchronized to data backbone."
@@ -86,7 +95,7 @@ def get_events():
             """, (limit,))
             rows = cur.fetchall()
         conn.close()
-        
+
         events = [{
             'time': row[0].isoformat() if row[0] else None,
             'type': row[1],
@@ -95,7 +104,7 @@ def get_events():
             'via_llm': row[4],
             'sector': row[5]
         } for row in rows]
-        
+
         return jsonify(events), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -111,7 +120,7 @@ def log_yield():
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO yield_logs 
+                INSERT INTO yield_logs
                 (row_index, weight_grams, brix_value, plant_id)
                 VALUES (%s, %s, %s, %s)
             """, (
@@ -133,32 +142,160 @@ def log_yield():
 
 # === LED CONTROL ===
 
+def _led_levels(data: dict) -> tuple:
+    """Blue and red level in % from either {"blue_pct", "red_pct"} or the older
+    {"blue_ratio", "red_ratio", "intensity"} form."""
+    if "blue_pct" in data or "red_pct" in data:
+        b, r = float(data.get("blue_pct", 0)), float(data.get("red_pct", 0))
+    else:
+        i = float(data.get("intensity", 100))
+        b, r = float(data.get("blue_ratio", 0.3)) * i, float(data.get("red_ratio", 0.7)) * i
+    if not (0 <= b <= 100 and 0 <= r <= 100):
+        raise ValueError("LED levels must be 0..100 %")
+    return b, r
+
+
 @app.route('/api/led', methods=['POST'])
 def update_led_schedule():
-    """Update LED spectral schedule (blue/red ratio, intensity)."""
-    data = request.json
+    """Set the LEDs by hand: {"node": "RF-NODE-01" or "ALL", "blue_pct": 30, "red_pct": 70,
+    "minutes": 60}. Overrides the ML controller for that long; the gateway's safety monitor
+    still applies (dark period, temperature cut-off, ramp limit)."""
+    data = request.json or {}
+    try:
+        b, r = _led_levels(data)
+        node = str(data.get('node') or data.get('sector') or 'ALL')
+        minutes = int(data.get('minutes', 60))
+        if not 1 <= minutes <= 7 * 24 * 60:
+            raise ValueError("minutes must be 1 .. 10080")
+    except (TypeError, ValueError) as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO led_schedule_history 
-                (blue_ratio, red_ratio, intensity_pct, sector_id)
+                INSERT INTO led_setpoints (node_id, blue_pct, red_pct, source, reason, expires_at)
+                VALUES (%s, %s, %s, 'manual', %s, %s)
+            """, (node, b, r, data.get('reason', 'dashboard'),
+                  datetime.now(timezone.utc) + timedelta(minutes=minutes)))
+            total = b + r
+            cur.execute("""
+                INSERT INTO led_schedule_history (blue_ratio, red_ratio, intensity_pct, sector_id)
                 VALUES (%s, %s, %s, %s)
-            """, (
-                data.get('blue_ratio', 0.3),
-                data.get('red_ratio', 0.7),
-                data.get('intensity', 100),
-                data.get('sector', 'ALL')
-            ))
+            """, (b / total if total else 0, r / total if total else 0, int(round(max(b, r))), node))
         conn.commit()
         conn.close()
-        logger.info(f"LED schedule: Blue={data.get('blue_ratio')}, Red={data.get('red_ratio')}")
+        logger.info(f"Manual LED setting for {node}: blue {b:.0f} %, red {r:.0f} % for {minutes} min")
         return jsonify({
             "status": "success",
-            "message": "LED schedule updated and logged."
+            "message": f"{node}: blue {b:.0f} %, red {r:.0f} % for {minutes} min (sent on each node's next packet).",
         }), 201
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/led/override', methods=['DELETE'])
+def end_led_override():
+    """End manual LED settings (one node with ?node=..., else all)."""
+    node = request.args.get('node')
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            if node:
+                cur.execute("UPDATE led_setpoints SET expires_at = NOW() WHERE source = 'manual' "
+                            "AND node_id = %s AND (expires_at IS NULL OR expires_at > NOW())", (node,))
+            else:
+                cur.execute("UPDATE led_setpoints SET expires_at = NOW() WHERE source = 'manual' "
+                            "AND (expires_at IS NULL OR expires_at > NOW())")
+            n = cur.rowcount
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "success", "ended": n}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/led/commands', methods=['GET'])
+def get_led_commands():
+    """LED commands the gateway sent to the nodes, newest first."""
+    limit = min(request.args.get('limit', 50, type=int), 500)
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT time, node_id, blue_pct, red_pct, requested_blue, requested_red, safety_notes
+                FROM led_commands ORDER BY time DESC LIMIT %s
+            """, (limit,))
+            rows = cur.fetchall()
+        conn.close()
+        return jsonify([{
+            'time': r[0].isoformat(), 'node_id': r[1], 'blue_pct': r[2], 'red_pct': r[3],
+            'requested_blue': r[4], 'requested_red': r[5], 'safety_notes': r[6],
+        } for r in rows]), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/plant', methods=['GET'])
+def get_plant_state():
+    """Latest plant state per node from the biology engine, with the active LED setpoint."""
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT DISTINCT ON (node_id) node_id, time, ppfd_ambient, ppfd_led, blue_fraction,
+                       vpd_kpa, an_umol, gc_mol, transpiration_g_m2_h, dli_mol, climate_forecast
+                FROM plant_state WHERE time > NOW() - INTERVAL '1 hour'
+                ORDER BY node_id, time DESC
+            """)
+            rows = cur.fetchall()
+            cur.execute("""
+                SELECT DISTINCT ON (node_id) node_id, blue_pct, red_pct, source, reason, expires_at
+                FROM led_setpoints WHERE expires_at IS NULL OR expires_at > NOW()
+                ORDER BY node_id, time DESC
+            """)
+            setpoints = {r[0]: r for r in cur.fetchall()}
+        conn.close()
+        out = []
+        for r in rows:
+            sp = setpoints.get(r[0]) or setpoints.get('ALL')
+            out.append({
+                'node_id': r[0], 'time': r[1].isoformat(), 'ppfd_ambient': r[2], 'ppfd_led': r[3],
+                'blue_fraction': r[4], 'vpd_kpa': r[5], 'photosynthesis_umol_m2_s': r[6],
+                'canopy_conductance_mol_m2_s': r[7], 'transpiration_g_m2_h': r[8], 'dli_mol_m2': r[9],
+                'forecast': r[10],
+                'led_setpoint': None if sp is None else {
+                    'blue_pct': sp[1], 'red_pct': sp[2], 'source': sp[3], 'reason': sp[4],
+                    'expires_at': sp[5].isoformat() if sp[5] else None},
+            })
+        return jsonify(out), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/assistant', methods=['POST'])
+def assistant_parse():
+    """{"text": "...", "commit": false} -> structured research event. With commit true the
+    event is also stored in research_events (created_via_llm unless the rules made it)."""
+    data = request.json or {}
+    try:
+        event, backend = parse_note(data.get('text', ''))
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    stored = False
+    if data.get('commit'):
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO research_events (event_type, description, severity, created_via_llm, sector_id)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (event['event_type'], data['text'], event['severity'], backend != 'rules', event['sector']))
+            conn.commit()
+            conn.close()
+            stored = True
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e), "event": event, "backend": backend}), 500
+    return jsonify({"event": event, "backend": backend, "stored": stored}), 200
 
 
 @app.route('/api/led', methods=['GET'])
@@ -175,7 +312,7 @@ def get_led_schedule():
             """)
             row = cur.fetchone()
         conn.close()
-        
+
         if row:
             return jsonify({
                 'time': row[0].isoformat() if row[0] else None,
@@ -200,14 +337,16 @@ def get_nodes():
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT DISTINCT ON (node_id)
-                    node_id, sample_identity, temp_c, humidity_pct, 
-                    par_umol, battery_mv, rssi, time
+                    node_id, sample_identity, temp_c, humidity_pct,
+                    par_umol, battery_mv, rssi, time,
+                    (payload->>'light_lux')::double precision, (payload->>'charging')::boolean
                 FROM raw_telemetry
+                WHERE time > NOW() - INTERVAL '1 day'
                 ORDER BY node_id, time DESC
             """)
             rows = cur.fetchall()
         conn.close()
-        
+
         nodes = [{
             'node_id': row[0],
             'sample_identity': row[1],
@@ -216,9 +355,11 @@ def get_nodes():
             'par_umol': row[4],
             'battery_mv': row[5],
             'rssi': row[6],
-            'last_seen': row[7].isoformat() if row[7] else None
+            'last_seen': row[7].isoformat() if row[7] else None,
+            'light_lux': row[8],
+            'charging': row[9],
         } for row in rows]
-        
+
         return jsonify(nodes), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -253,7 +394,7 @@ def get_curated_dataset():
 def calculate_phenotype():
     """
     Calculate real-time phenotype metrics from sensor data.
-    
+
     Input: {"temp_c": 25.0, "humidity_pct": 65.0, "par_umol": 800.0}
     Output: VPD, transpiration, stress score, recommendations
     """
@@ -262,13 +403,13 @@ def calculate_phenotype():
         temp_c = float(data.get('temp_c', 25.0))
         humidity_pct = float(data.get('humidity_pct', 60.0))
         par_umol = float(data.get('par_umol', 500.0))
-        
+
         # VPD Calculation (Tetens equation)
         import numpy as np
         svp = 0.6108 * np.exp((17.27 * temp_c) / (temp_c + 237.3))
         avp = svp * (humidity_pct / 100.0)
         vpd = round(svp - avp, 3)
-        
+
         # VPD Classification
         if vpd < 0.4:
             vpd_status = "LOW_TRANSPIRATION"
@@ -280,7 +421,7 @@ def calculate_phenotype():
             vpd_status = "MODERATE_STRESS"
         else:
             vpd_status = "SEVERE_STRESS"
-        
+
         # Transpiration Estimate (simplified Penman-Monteith)
         rn = par_umol * 0.22  # PAR to net radiation
         gamma = 0.066  # Psychrometric constant
@@ -291,7 +432,7 @@ def calculate_phenotype():
         et = (delta * rn * 0.0036 + gamma * vpd * stomatal_factor * stress_factor) / \
              (delta + gamma)
         transpiration = round(max(0, et * 1000 * 3.5), 2)  # g/m²/h
-        
+
         # Stress Detection
         stress_score = 0
         if temp_c > 30:
@@ -305,7 +446,7 @@ def calculate_phenotype():
         if humidity_pct > 90 or humidity_pct < 40:
             stress_score += 15
         stress_score = min(100, stress_score)
-        
+
         if stress_score < 10:
             stress_level = "OPTIMAL"
         elif stress_score < 25:
@@ -316,10 +457,10 @@ def calculate_phenotype():
             stress_level = "SEVERE"
         else:
             stress_level = "CRITICAL"
-        
+
         # LED Recommendations based on phenotype
         if vpd > 1.2:
-            led_recommendation = {"action": "INCREASE_BLUE", "blue": 0.6, "red": 0.4, 
+            led_recommendation = {"action": "INCREASE_BLUE", "blue": 0.6, "red": 0.4,
                                    "reason": "High VPD - blue light helps maintain stomatal conductance"}
         elif temp_c > 28:
             led_recommendation = {"action": "SHIFT_BLUE", "blue": 0.8, "red": 0.2,
@@ -330,7 +471,7 @@ def calculate_phenotype():
         else:
             led_recommendation = {"action": "MAINTAIN", "blue": 0.4, "red": 0.6,
                                    "reason": "Optimal conditions"}
-        
+
         return jsonify({
             "phenotype": {
                 "vpd_kpa": vpd,
@@ -347,7 +488,7 @@ def calculate_phenotype():
             "led_recommendation": led_recommendation,
             "timestamp": datetime.now().isoformat()
         }), 200
-        
+
     except Exception as e:
         logger.error(f"Phenotype calculation error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -363,7 +504,7 @@ def get_phenotype_summary():
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT 
+                SELECT
                     AVG(temp_c) as avg_temp,
                     AVG(humidity_pct) as avg_humidity,
                     AVG(par_umol) as avg_par,
@@ -375,18 +516,18 @@ def get_phenotype_summary():
             """)
             row = cur.fetchone()
         conn.close()
-        
+
         if row and row[0]:
             import numpy as np
             temp_c = float(row[0])
             humidity_pct = float(row[1])
             par_umol = float(row[2]) if row[2] else 500.0
-            
+
             # Calculate VPD
             svp = 0.6108 * np.exp((17.27 * temp_c) / (temp_c + 237.3))
             avp = svp * (humidity_pct / 100.0)
             vpd = round(svp - avp, 3)
-            
+
             return jsonify({
                 "period": "1 hour",
                 "active_nodes": row[5],
@@ -408,7 +549,7 @@ def get_phenotype_summary():
                 "status": "no_data",
                 "message": "No telemetry data in last hour"
             }), 200
-            
+
     except Exception as e:
         logger.error(f"Phenotype summary error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -424,5 +565,5 @@ def health_check():
 
 if __name__ == "__main__":
     logger.info("=== G.O.S. Research Support API ===")
-    logger.info("Endpoints: /api/event, /api/yield, /api/led, /api/nodes, /api/curated")
+    logger.info("Endpoints: /api/event, /api/yield, /api/led, /api/nodes, /api/curated, /api/plant, /api/assistant")
     app.run(host='0.0.0.0', port=5000)

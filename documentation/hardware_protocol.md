@@ -25,6 +25,33 @@ Sent via UDP (MQTT-SN / CoAP) from the nRF52 node to the Raspberry Pi.
 - The gateway receiver `gateway/services/coap_receiver.py` stores a packet only if the tag verifies, the counter is higher than the last stored for that node, and (when registered) the EUI-64 matches. It writes `node_id = RF-NODE-<index>`, `sample_identity = EUI64:<16 hex digits>`, temperature, humidity and battery to `raw_telemetry`. Lux, the counter, `authenticated`, `usb_power` and `charging` go in `payload`; `par_umol` stays NULL because the node measures lux, not PAR.
 - Keys are provisioned with `gateway/tools/provision_node.py`; see `pcbs/gos_sensor_node/HARDWARE.md`.
 
+### LED command (downlink, in the reply)
+
+The gateway answers every accepted PACKET_V4 with CoAP 2.04 (a NON response to the NON request,
+RFC 7252 section 8.2) whose payload is the node's LED command, 23 bytes:
+
+| Offset | Size | Field |
+|---|---|---|
+| 0x00 | 1 | 0xC1 (LED command, version 1) |
+| 0x01 | 1 | blue level, 0 to 100 % |
+| 0x02 | 1 | red level, 0 to 100 % |
+| 0x03 | 4 | counter of the packet this answers (u32 LE) |
+| 0x07 | 16 | first 16 bytes of HMAC-SHA256(node key, bytes 0x00 to 0x06) |
+
+- The node (`src/downlink.c`, called from the response handler in `src/uplink.c`) applies it only
+  if the tag verifies with its own key and the counter is the one it just sent, so a command
+  cannot be forged, sent to another node or replayed. The sleepy end device polls its parent
+  every second, so the reply arrives within about a second.
+- The level is the newest unexpired row in `led_setpoints` for that node (or `ALL`), after the
+  safety monitor `gateway/services/led_safety.py`: off in the dark period (default 22:00 to
+  06:00, `LED_TZ`), off above 32 C, at most 50 % without a temperature reading, at most +25 %
+  per command, fallback 0 % without a setpoint. Each command sent is logged in `led_commands`.
+- If no valid command arrives for `CONFIG_GOS_LED_HOLD_S` (default 900 s), the node switches the
+  LED board to `CONFIG_GOS_LED_FALLBACK_BLUE` / `_RED` (default 0 %).
+- Test vector (key 00 01 .. 0f, counter 0x00050003, blue 30, red 70):
+  `c11e4603000500b164775eb9c072c59ceccd347072416e`, pinned in
+  `firmware/tests/host/test_downlink.c` and `gateway/tests/test_led_control.py`.
+
 ## 🔗 2. The Database Sink (Integration)
 The Gateway translates the binary packet above into the following SQL Insert:
 

@@ -82,6 +82,21 @@ which keeps 24 V switching currents away from the sensors and the radio.
 | Material | Warm, humid, lit phytotron | ASA (UV-stable, 95 C); PETG acceptable; not PLA (creeps near 55 C) |
 | Sealing | Vents and the USB cut-out are open | Not waterproof by design (the sensor needs air). Use the USB-C dust plug and the cable gland; keep the node out of direct spray |
 
+## Software: control loop, plant model, ML (second review, 2026-11-15)
+
+| Area | What was found | Result |
+|---|---|---|
+| LED control loop | **Open.** The node sent readings but never received anything: no response handler in the firmware, no downlink in the gateway. The LEDs could only be set by reflashing. | **Fixed**: signed LED command in the CoAP reply to every packet, bound to that packet's counter (`documentation/hardware_protocol.md`); node falls back to off after 15 min without commands. Firmware builds (214 KB flash); host test passes on gateway-made commands. |
+| Safety | The "LTL safety monitor" was a demo script not in any data path | **Fixed**: `led_safety.py` runs inside coap_receiver, the only component holding node keys, so every command (controller or manual) passes it: dark period, over-temperature, missing temperature, ramp limit, clamp, fallback. 9 tests. |
+| Plant model | `plant_sim_c3.py` called itself FvCB but its photosynthesis ignored light and temperature | **Replaced**: FvCB with Bernacchi temperature responses, Medlyn conductance, canopy layers, Penman-Monteith, spectrum (McCree). Tests check light and CO2 response, temperature optimum, Fick's law consistency. |
+| RL agent | `agent_rl.py` was two if-statements on random numbers; nothing was trained | **Replaced**: PPO trained in the plant model, evaluated on 60 held-out days (matches the model-based optimiser within 0.5 %), exported to numpy for the Pi. |
+| Forecast | None | Chronos-Bolt Tiny (Hugging Face), chosen over TinyTimeMixer and persistence on a year of measured weather: VPD error at 6 h halved versus persistence. |
+| Real-node light | Real nodes store lux, so `par_umol` is NULL and plant calculations fell back to defaults | Biology engine converts lux to daylight PPFD after removing the LEDs' own share |
+| Docker defaults | Several services defaulted to a database password different from the database's, so the stack only worked with a `.env` file | **Fixed**: one default for every service |
+| Dashboard | Showed random "mesh health" and a hard-coded topology; the assistant was keyword matching in the browser | **Rebuilt** on live API data; assistant runs on the server (local Qwen2.5-1.5B, Claude, or rules) with schema-checked output; all values inserted as text (no HTML injection) |
+| API | Logging an event without a description returned 500 after inserting it | Fixed |
+| End to end | Nothing tested the pieces together | `tests/e2e/run_e2e.sh`: simulated node to signed command, verified, in Docker; passes |
+
 ## Open items (need hardware or a decision)
 
 1. Bench measurements in `documentation/bring_up.md`: sleep current, charge behaviour, Thread
@@ -89,6 +104,9 @@ which keeps 24 V switching currents away from the sensors and the radio.
 2. Temperature offset of the SHT40 while charging; if it matters, add a milled slot around the
    SHT40 (a later board revision) or only use readings with `charging = false`.
 3. Lux calibration factor with the lid on.
-4. Thread range across the phytotron: if nodes cannot reach the border router, add a mains-powered
+4. Calibrate the plant model (A-Ci curve, `vcmax25`, `jmax25`, `g1`) and measure the LED
+   photon flux at the canopy with a quantum sensor (`ml_engine/plant_model.py` `LedParams`).
+5. Rerun `ml_engine/eval_forecast.py` on a few weeks of node data.
+6. Thread range across the phytotron: if nodes cannot reach the border router, add a mains-powered
    router node (any nRF52840 board with a full-Thread-device build).
-5. Supply: re-check the pre-order and low-stock parts on the day of ordering (`ordering.md`).
+7. Supply: re-check the pre-order and low-stock parts on the day of ordering (`ordering.md`).

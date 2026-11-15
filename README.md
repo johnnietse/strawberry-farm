@@ -43,7 +43,7 @@ fully designed, DRC-clean and ready to order assembled from JLCPCB; none has bee
 |---|---|---|---|
 | **Sensor node** (40 x 65 mm) | nRF52840 module running Zephyr RTOS and OpenThread; SHT40 temperature/humidity, TSL2591 light, 18650 battery with USB-C charging; sends a signed reading every 60 s; drives the LED board with two PWM signals | one per measurement point, in its own enclosure | [`pcbs/gos_sensor_node`](pcbs/gos_sensor_node) |
 | **LED driver** (60 x 45 mm) | two AL8860 constant-current channels (blue 448 nm, red 655 nm strings, 333 mA) from a 24 V adapter, dimmed by the node's PWM | one per grow light, in its own enclosure at the light | [`pcbs/led_driver`](pcbs/led_driver) |
-| Border router | Raspberry Pi + Nordic nRF52840 Dongle running the OpenThread border router; the `coap_receiver` service checks each packet's signature and writes it to TimescaleDB | one per phytotron | [`documentation/raspberry_pi_setup.md`](documentation/raspberry_pi_setup.md) |
+| Border router | Raspberry Pi + Nordic nRF52840 Dongle running the OpenThread border router; the `coap_receiver` service checks each packet's signature, writes it to TimescaleDB and answers with the node's signed LED command | one per phytotron | [`documentation/raspberry_pi_setup.md`](documentation/raspberry_pi_setup.md) |
 
 ```mermaid
 graph LR
@@ -55,9 +55,17 @@ graph LR
     L --> LED[Blue + red LED strings]
     M -- "Thread 802.15.4, signed CoAP every 60 s" --> R[Raspberry Pi + nRF52840 Dongle<br/>OpenThread border router]
     R --> DB[(TimescaleDB)]
-    DB --> A[API / dashboard / RL agent]
-    A -. "LED mix" .-> M
+    DB --> BIO[biology engine<br/>plant model + forecast]
+    BIO --> CTL[LED controller<br/>PPO policy]
+    CTL --> SP[led_setpoints]
+    UI[dashboard: manual setting] --> SP
+    SP --> SAFE[safety monitor<br/>in coap_receiver]
+    SAFE -- "signed LED command in the CoAP reply" --> M
 ```
+
+The loop is closed: every packet a node sends is answered with its LED level, signed with the
+node's key and bound to that packet, after the safety monitor (dark period, over-temperature,
+ramp limit). The node falls back to "off" if it hears nothing for 15 minutes.
 
 ### Boards
 
@@ -105,7 +113,10 @@ print files in [`mechanical/print/`](mechanical/print) (ASA). Details: [`mechani
 | Layout review (USB pair, buck switching loop, antenna strip) | [`documentation/design_review.md`](documentation/design_review.md) |
 | LTspice: LED current, switching frequency, PWM dimming, fail-safe, battery sense, reversed cell | all pass after two design fixes: [`simulation/README.md`](simulation/README.md) |
 | Firmware build (Zephyr main, SDK 1.0.1) | no warnings, 214 KB flash, 62 KB RAM |
-| Gateway receiver tests | 44 pass |
+| Gateway tests (receiver, LED commands, safety monitor, assistant) | 66 pass |
+| ML engine tests (plant model physics, task, policy, controller) | 13 pass |
+| LED command check in firmware, host test against gateway-made commands | 8 pass |
+| End-to-end in Docker: simulated node to database to plant model to controller to safety to signed command, verified by the node; manual override; assistant (`tests/e2e/run_e2e.sh`) | pass, 8/8 commands verified |
 | Enclosure fit | 12 checks pass |
 
 | LED channel at 24 V (LTspice) | PWM dimming 50 % (LTspice) |
@@ -119,50 +130,23 @@ stock, what to buy separately). **Build it:** [`documentation/bring_up.md`](docu
 
 ## 🏗️ System Architecture
 
-### Service Topology (12 Docker Containers)
+### Services (Docker Compose)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    USER INTERFACE LAYER                      │
-│   Dashboard (:8080)  │  Grafana (:3000)  │  API (:5000)     │
-├─────────────────────────────────────────────────────────────┤
-│                    DATA STORAGE LAYER                        │
-│                   TimescaleDB (:5432)                        │
-│  ┌────────────┬────────────┬────────────┬────────────┐      │
-│  │raw_telemetry│met_station │research_   │led_schedule│      │
-│  │            │_data       │events      │_history    │      │
-│  └────────────┴────────────┴────────────┴────────────┘      │
-├─────────────────────────────────────────────────────────────┤
-│                  PROCESSING LAYER                            │
-│  sync_engine │ api │ ml_engine │ biology_engine │ safety    │
-├─────────────────────────────────────────────────────────────┤
-│                   INGESTION LAYER                            │
-│  mqtt_bridge │ ingest (farm_sim) │ met_station              │
-├─────────────────────────────────────────────────────────────┤
-│                   MESSAGING LAYER                            │
-│              Mosquitto MQTT (:1883 / :9001)                  │
-├─────────────────────────────────────────────────────────────┤
-│                    HARDWARE LAYER                            │
-│  Raspberry Pi (OTBR) ─── nRF52840 Nodes (x40) ─── Sensors   │
-└─────────────────────────────────────────────────────────────┘
-```
+| Service | What it does | Code |
+|---|---|---|
+| `db` | TimescaleDB: telemetry, plant state, LED setpoints and commands, events, yield | `gateway/schema.sql` |
+| `coap_receiver` (profile `hardware`) | Real nodes over Thread: verifies, stores, replies with the signed LED command after the safety monitor | `gateway/services/coap_receiver.py`, `led_safety.py` |
+| `biology_engine` | Strawberry canopy model on live data each minute, daily light integral, 2 h climate forecast (Chronos-Bolt Tiny) | `ml_engine/biology_engine.py` |
+| `ml_engine` | LED controller: PPO policy picks blue and red levels per node every 5 min | `ml_engine/controller.py` |
+| `api` | REST API for the dashboard: nodes, plant state, LED control, events, assistant | `gateway/services/api.py` |
+| `dashboard` | Web GUI on port 8080 | `dashboard/` |
+| `ollama` (profile `assistant`) | Local language model (Qwen2.5-1.5B) for the research assistant, offline | `gateway/services/assistant.py` |
+| `sync_engine` | Joins telemetry, met station, LED history, events and yield into the ML dataset | `gateway/services/sync.py` |
+| `ingest`, `met_station` | Simulated 40 nodes and met station (switch off with real hardware) | `gateway/services/farm_sim.py`, `met_station.py` |
+| `mqtt`, `mqtt_bridge` | MQTT input for other instruments | `gateway/services/mqtt_bridge.py` |
+| `grafana` | Monitoring dashboards on port 3000 | `monitoring/` |
 
-### Service Dependencies
-
-```mermaid
-graph TD
-    DB[TimescaleDB] --> MQTT_BRIDGE[mqtt_bridge]
-    DB --> INGEST[ingest/farm_sim]
-    DB --> MET[met_station]
-    DB --> API[api]
-    INGEST --> SYNC[sync_engine]
-    MET --> SYNC
-    SYNC --> ML[ml_engine]
-    BIO[biology_engine] --> ML
-    MQTT[Mosquitto] --> MQTT_BRIDGE
-    API --> DASH[dashboard]
-    DB --> GRAFANA[Grafana]
-```
+![Dashboard](docs/images/dashboard.png)
 
 ---
 
@@ -198,20 +182,22 @@ graph TD
        └── yield_logs (harvest data)
    └── Outputs curated_research_dataset.csv
 
-6. PHENOTYPING LAYER
-   └── api.py exposes /api/phenotype endpoint
-   └── Calculates VPD, transpiration, stress in real-time
-   └── Returns LED recommendations
+6. PLANT MODEL (biology_engine, every minute)
+   └── Photosynthesis, stomatal conductance, transpiration, VPD per node
+       (Farquhar / Medlyn / Penman-Monteith), daily light integral
+   └── 2 h temperature / humidity / VPD forecast (Chronos-Bolt Tiny)
+   └── Writes plant_state
 
-7. ML LAYER
-   └── agent_rl.py loads curated dataset
-   └── Trains/runs RL policy for LED optimization
-   └── biology_engine provides physics constraints
+7. LED CONTROL (ml_engine, every 5 minutes)
+   └── PPO policy (trained in the plant model) picks blue / red levels per node
+   └── Writes led_setpoints; a manual setting from the dashboard takes priority
+   └── coap_receiver sends each node its level in the reply to its next packet,
+       after the safety monitor, signed with the node's key; logged in led_commands
 
 8. VISUALIZATION LAYER
-   └── dashboard/ displays real-time data
+   └── dashboard/ shows nodes, plant state, LED commands and events, sets LEDs by hand
+   └── Research assistant turns free-text notes into events (local LLM, Claude or rules)
    └── Grafana provides monitoring dashboards
-   └── LLM assistant enables natural language queries
 ```
 
 ---
@@ -242,7 +228,7 @@ pip install -r requirements.txt
 ### Running the System
 
 ```bash
-# Start all 12 services
+# Start all services
 python run.py --up
 
 # Check service status
@@ -283,7 +269,7 @@ python run.py --clean
 # Check all containers are running
 docker compose ps
 
-# Expected: 12 services with "Up" status
+# Expected: every service "Up" (coap_receiver and ollama only with their profiles)
 ```
 
 ### 2. Test Database Connection
@@ -329,7 +315,15 @@ ls -la data/
 # Should see: curated_research_dataset.csv
 ```
 
-### 5. Test MQTT (Real Hardware)
+### 5. Automated tests
+
+```bash
+cd gateway && python -m pytest tests && cd ..          # receiver, LED commands, safety, assistant
+cd ml_engine && python -m pytest tests && cd ..        # plant model, policy, controller
+bash tests/e2e/run_e2e.sh                              # whole loop in Docker, simulated node
+```
+
+### 6. Test MQTT (Real Hardware)
 
 ```bash
 # Subscribe to all topics
@@ -348,7 +342,7 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 
 | File | Purpose |
 |:---|:---|
-| `docker-compose.yml` | Orchestrates 12 Docker services |
+| `docker-compose.yml` | Orchestrates the Docker services |
 | `run.py` | CLI tool for system management |
 | `setup.bat` | Windows environment setup |
 | `requirements.txt` | Python dependencies |
@@ -366,21 +360,24 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 | `services/met_station.py` | Met station simulation | `met_station_data` |
 | `services/coap_receiver.py` | Receives signed packets from real sensor nodes over Thread | `raw_telemetry` |
 | `tools/provision_node.py` | Creates a node's signing key and its `credentials.conf` | `secrets/node_keys.json` |
-| `services/mqtt_sn_bridge.py` | MQTT-SN for nRF52 | — |
-| `services/safety_ltl.py` | LTL safety monitor | — |
+| `services/led_safety.py` | LED safety monitor (dark period, over-temperature, ramp limit); applied to every LED command | `led_commands` |
+| `services/assistant.py` | Research assistant: free-text note to structured event (Qwen via Ollama, Claude, or rules) | `research_events` |
 | `Dockerfile` | Container build | — |
 | `requirements.txt` | Python deps | — |
 
-### ml_engine/ - Machine Learning
+### ml_engine/ - Plant model, LED controller, forecast
 
-| File | Purpose | Input | Output |
-|:---|:---|:---|:---|
-| `phenotyping.py` | VPD, transpiration, stress | Sensor data | Phenotype metrics |
-| `plant_sim_c3.py` | FvCB photosynthesis model | T, CO2, PAR | Assimilation rate |
-| `agent_rl.py` | LED control RL agent | Curated CSV | LED recommendations |
-| `spectral_opt.py` | Spectral optimization | LED params | Optimal ratios |
-| `macq_learner.py` | Action model learning | Trace data | PDDL actions |
-| `domain.pddl` | AI planning domain | — | — |
+Details and results: [`ml_engine/README.md`](ml_engine/README.md).
+
+| File | Purpose |
+|:---|:---|
+| `plant_model.py` | Strawberry canopy model: photosynthesis, conductance, transpiration, spectrum |
+| `biology_engine.py` | Service: plant model and forecast on live data, writes `plant_state` |
+| `greenhouse_env.py`, `train_rl.py` | Lighting task and PPO training (PC) |
+| `policy.py`, `models/led_policy.npz` | Trained LED policy, numpy inference |
+| `controller.py` | Service: LED setpoints per node |
+| `forecaster.py`, `eval_forecast.py` | Climate forecast backends and their evaluation |
+| `phenotyping.py` | VPD, transpiration and stress helpers for the API |
 
 ### pcbs/gos_sensor_node/ - Sensor Node Hardware and Firmware (rev 3.1)
 
@@ -434,7 +431,7 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 | `index.html` | Main UI |
 | `css/style.css` | Styling |
 | `js/dashboard.js` | Data fetching, node display |
-| `js/llm_assistant.js` | LLM chat for event annotation |
+| `js/dashboard.js` | Live data from the API, manual LED control, research assistant |
 
 ### monitoring/ - Observability
 
@@ -475,7 +472,9 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 |:---|:---|:---|
 | POST | `/api/event` | Log research event (pest, fertilizer, equipment) |
 | POST | `/api/yield` | Log harvest yield data |
-| POST | `/api/led` | Update LED schedule |
+| POST | `/api/led` | Set LEDs by hand: `{"node": "RF-NODE-01" or "ALL", "blue_pct", "red_pct", "minutes"}` |
+| DELETE | `/api/led/override` | End manual settings (`?node=` for one node); the controller takes over |
+| POST | `/api/assistant` | `{"text": "...", "commit": true}`: note to structured research event |
 
 ### Data Output
 
@@ -484,6 +483,8 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 | GET | `/api/nodes` | Get all node status |
 | GET | `/api/events` | Get recent events |
 | GET | `/api/curated` | Download ML-ready dataset (CSV) |
+| GET | `/api/plant` | Latest plant state per node (biology engine) with the active LED setpoint |
+| GET | `/api/led/commands` | LED commands sent to the nodes, after the safety monitor |
 
 ### Health
 
@@ -519,13 +520,15 @@ mosquitto_pub -h localhost -t "gos/node/test01/telemetry" \
 |:---|:---|:---:|
 | Data backbone pipeline | `sync.py` - 5-source joins | ✅ |
 | PostgreSQL database | TimescaleDB hypertables | ✅ |
-| Docker orchestration | 12-service compose | ✅ |
+| Docker orchestration | Compose: 11 services, plus `hardware` and `assistant` profiles | ✅ |
 | 40 wireless nodes | Thread mesh; sensor node rev 3.1 designed, ready to order, not yet built | in progress |
 | Preserved sample identity | EUI64 in all tables | ✅ |
 | Group 2 GUI | Dashboard + LLM | ✅ |
 | ML-ready datasets | `/api/curated` | ✅ |
 | Phenotyping | VPD, transpiration | ✅ |
-| RL model (stretch) | `agent_rl.py` | ✅ |
+| Plant model (biology engine) | `ml_engine/plant_model.py`, `biology_engine.py`: FvCB, Medlyn, Penman-Monteith on live data | ✅ (tested; parameters not yet calibrated on real plants) |
+| RL model (stretch) | `ml_engine/controller.py`: PPO policy closes the loop to the LEDs through signed CoAP replies | ✅ (simulation and end-to-end test; not yet on real plants) |
+| Climate forecast | Chronos-Bolt Tiny (Hugging Face), evaluated on a year of measured weather | ✅ |
 
 ---
 

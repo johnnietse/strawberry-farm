@@ -31,7 +31,10 @@
  * per boot and once every 65536 packets, not once per packet.
  *
  * Sent as a non-confirmable CoAP POST so a sleepy end device does not have
- * to stay awake for an acknowledgement.
+ * to stay awake for an acknowledgement. The gateway's 2.04 reply carries a signed LED
+ * command (downlink.c); with the 1 s poll period of the sleepy end device it arrives
+ * within about a second. It is applied only if its tag is valid and it answers the
+ * counter just sent.
  */
 #include <math.h>
 #include <string.h>
@@ -50,6 +53,7 @@
 #include <openthread/message.h>
 #include <openthread/thread.h>
 
+#include "downlink.h"
 #include "gos_main.h"
 #include "uplink.h"
 
@@ -68,6 +72,9 @@ static psa_key_id_t key_id;
 static bool ready;
 static uint32_t epoch;
 static uint32_t sequence;
+static atomic_t sent_counter;      /* counter of the last packet sent */
+static atomic_t has_sent;
+static atomic_t last_command_s;     /* uptime in s + 1 of the last valid command, 0 = none */
 
 static void put_float(float v, uint8_t *dst)
 {
@@ -186,6 +193,51 @@ static int sign(uint8_t pkt[PACKET_LEN])
 	return 0;
 }
 
+int64_t gos_downlink_last_command_ms(void)
+{
+	atomic_val_t v = atomic_get(&last_command_s);
+
+	return v == 0 ? -1 : (int64_t)(v - 1) * 1000;
+}
+
+/* Called by OpenThread for the gateway's reply (and with an error when the wait for
+ * more replies to the multicast request ends). Runs in the OpenThread thread. */
+static void response_handler(void *ctx, otMessage *msg, const otMessageInfo *info, otError result)
+{
+	uint8_t cmd[GOS_LED_CMD_LEN + 1];
+	uint8_t mac[PSA_HASH_LENGTH(PSA_ALG_SHA_256)];
+	struct gos_led_cmd led;
+	size_t mac_len;
+	uint16_t len;
+	int err;
+
+	ARG_UNUSED(ctx);
+	ARG_UNUSED(info);
+	if (result != OT_ERROR_NONE || msg == NULL || otCoapMessageGetCode(msg) != OT_COAP_CODE_CHANGED) {
+		return;
+	}
+	len = otMessageRead(msg, otMessageGetOffset(msg), cmd, sizeof(cmd));
+	if (len != GOS_LED_CMD_LEN || !atomic_get(&has_sent)) {
+		return;
+	}
+	if (psa_mac_compute(key_id, PSA_ALG_HMAC(PSA_ALG_SHA_256), cmd, GOS_LED_CMD_BODY_LEN,
+			    mac, sizeof(mac), &mac_len) != PSA_SUCCESS || mac_len < GOS_LED_CMD_TAG_LEN) {
+		return;
+	}
+	err = gos_led_command_parse(cmd, len, (uint32_t)atomic_get(&sent_counter), mac, &led);
+	if (err) {
+		LOG_WRN("LED command rejected: %d", err);
+		return;
+	}
+	err = gos_set_spectral_mix(led.blue_pct, led.red_pct);
+	if (err) {
+		LOG_ERR("LED board PWM failed: %d", err);
+		return;
+	}
+	atomic_set(&last_command_s, (atomic_val_t)(k_uptime_get() / 1000 + 1));
+	LOG_INF("LED blue %u %%, red %u %%", led.blue_pct, led.red_pct);
+}
+
 int gos_uplink_send(const struct gos_sensor_data *d)
 {
 	otInstance *ot = openthread_get_default_instance();
@@ -220,6 +272,8 @@ int gos_uplink_send(const struct gos_sensor_data *d)
 
 	otLinkGetFactoryAssignedIeeeEui64(ot, &eui);
 	gos_uplink_build_body(pkt, &eui, d, (epoch << 16) | sequence);
+	atomic_set(&sent_counter, (atomic_val_t)((epoch << 16) | sequence));
+	atomic_set(&has_sent, 1);
 	sequence++; /* never reuse a counter, even if the send below fails */
 	ret = sign(pkt);
 	if (ret) {
@@ -249,7 +303,7 @@ int gos_uplink_send(const struct gos_sensor_data *d)
 		err = otMessageAppend(msg, pkt, sizeof(pkt));
 	}
 	if (err == OT_ERROR_NONE) {
-		err = otCoapSendRequest(ot, msg, &info, NULL, NULL);
+		err = otCoapSendRequest(ot, msg, &info, response_handler, NULL);
 	}
 	if (err != OT_ERROR_NONE) {
 		otMessageFree(msg);

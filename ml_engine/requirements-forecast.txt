@@ -1,0 +1,6 @@
+# Climate forecast with Chronos-Bolt Tiny (FORECAST_BACKEND=chronos). Tested 2026-11-15.
+# Without these the biology engine uses the persistence forecast.
+torch>=2.4
+chronos-forecasting==2.3.2
+# Optional TinyTimeMixer backend (FORECAST_BACKEND=ttm):
+# granite-tsfm==0.3.12

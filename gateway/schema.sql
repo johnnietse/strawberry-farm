@@ -81,6 +81,53 @@ CREATE TABLE IF NOT EXISTS node_health (
 
 SELECT create_hypertable('node_health', 'time', if_not_exists => TRUE);
 
+-- 7. LED setpoints: what the controller, a person (dashboard) or a schedule asks for.
+--    coap_receiver sends the newest unexpired row per node (node_id 'ALL' = every node),
+--    after the safety monitor, in its reply to the node's next packet.
+CREATE TABLE IF NOT EXISTS led_setpoints (
+    time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    node_id TEXT NOT NULL,
+    blue_pct DOUBLE PRECISION NOT NULL CHECK (blue_pct >= 0 AND blue_pct <= 100),
+    red_pct DOUBLE PRECISION NOT NULL CHECK (red_pct >= 0 AND red_pct <= 100),
+    source TEXT NOT NULL,          -- 'controller', 'manual', 'schedule'
+    reason TEXT,
+    expires_at TIMESTAMPTZ
+);
+SELECT create_hypertable('led_setpoints', 'time', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_led_setpoints_node ON led_setpoints (node_id, time DESC);
+
+-- 8. LED commands actually sent to each node (after the safety monitor): the LED state
+--    the plants really got, for the ML dataset.
+CREATE TABLE IF NOT EXISTS led_commands (
+    time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    node_id TEXT NOT NULL,
+    blue_pct INT NOT NULL,
+    red_pct INT NOT NULL,
+    requested_blue DOUBLE PRECISION,
+    requested_red DOUBLE PRECISION,
+    counter BIGINT,
+    safety_notes TEXT
+);
+SELECT create_hypertable('led_commands', 'time', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_led_commands_node ON led_commands (node_id, time DESC);
+
+-- 9. Plant state from the biology engine (ml_engine/plant_model.py), one row per node per run
+CREATE TABLE IF NOT EXISTS plant_state (
+    time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    node_id TEXT NOT NULL,
+    ppfd_ambient DOUBLE PRECISION,     -- umol m-2 s-1 from daylight / room light
+    ppfd_led DOUBLE PRECISION,         -- umol m-2 s-1 from the LED board
+    blue_fraction DOUBLE PRECISION,
+    vpd_kpa DOUBLE PRECISION,
+    an_umol DOUBLE PRECISION,          -- canopy net photosynthesis, umol CO2 m-2 s-1
+    gc_mol DOUBLE PRECISION,           -- canopy conductance, mol H2O m-2 s-1
+    transpiration_g_m2_h DOUBLE PRECISION,
+    dli_mol DOUBLE PRECISION,          -- daily light integral so far today, mol m-2
+    climate_forecast JSONB             -- forecast temperature / humidity / VPD
+);
+SELECT create_hypertable('plant_state', 'time', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_plant_state_node ON plant_state (node_id, time DESC);
+
 -- Compression policies (commented out - requires enabling columnstore first)
 -- For TimescaleDB 2.x, enable compression on table first with:
 -- ALTER TABLE raw_telemetry SET (timescaledb.compress);

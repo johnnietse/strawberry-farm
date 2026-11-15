@@ -21,3 +21,6 @@ flask-cors>=4.0
 # Utilities
 python-dotenv>=1.0
 requests>=2.31
+
+# Research assistant, Claude backend (optional: used only if ANTHROPIC_API_KEY is set)
+anthropic

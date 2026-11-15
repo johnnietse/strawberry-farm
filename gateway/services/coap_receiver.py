@@ -1,7 +1,7 @@
 """
 G.O.S. CoAP Receiver
 ====================
-Receives signed PACKET_V3 research packets that sensor nodes send over Thread,
+Receives signed PACKET_V4 (and older V3) research packets that sensor nodes send over Thread,
 checks each one against that node's key, and stores it in raw_telemetry.
 
 Nodes send a CoAP POST to /telemetry on UDP 5683, by default to the
@@ -13,6 +13,15 @@ little-endian: version u8 (=3), node index u8, EUI-64 u64, temperature f32 degC,
 humidity f32 %RH, light u16 lux, battery u16 mV, counter u32, then a 16-byte tag
 = first 16 bytes of HMAC-SHA256(node key, first 26 bytes). NaN / 0xFFFF =
 failed reading.
+
+LED commands (downlink): the reply to each accepted v4 packet carries the LED level for that
+node, so a sleepy node gets its command the moment it is awake anyway (no CoAP server on the
+node). 23 bytes: 0xC1, blue %, red %, the packet's counter (u32 LE), then the first 16 bytes
+of HMAC-SHA256(node key, first 7 bytes). The node applies it only if the tag matches and the
+counter is the one it just sent, so a command cannot be forged or replayed. The level is the
+newest unexpired row in led_setpoints for the node, after led_safety.LedSafetyMonitor; every
+command sent is logged in led_commands. A NON request gets a NON 2.04 response (RFC 7252 8.2,
+responses to multicast requests), a CON request a piggybacked ACK.
 
 A packet is stored only if
   - its node index has a key in the key file and the tag matches,
@@ -48,7 +57,13 @@ import struct
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Callable, Optional
+
+try:
+    from led_safety import LedSafetyConfig, LedSafetyMonitor
+except ImportError:  # imported as services.coap_receiver (tests)
+    from services.led_safety import LedSafetyConfig, LedSafetyMonitor
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [COAP-RX] %(message)s")
 logger = logging.getLogger("CoapReceiver")
@@ -62,6 +77,9 @@ V4_FORMAT = "<BBQffHHIB16s"                  # signed, adds a flags byte (curren
 V4_LEN = struct.calcsize(V4_FORMAT)          # 43
 V4_BODY_LEN = V4_LEN - 16
 FLAG_VALID, FLAG_USB, FLAG_CHARGING = 0x80, 0x01, 0x02
+LED_CMD_VERSION = 0xC1
+LED_CMD_BODY_LEN = 7
+LED_CMD_LEN = LED_CMD_BODY_LEN + 16          # 23
 TAG_LEN = 16
 KEY_LEN = 16
 U16_INVALID = 0xFFFF
@@ -111,6 +129,10 @@ class NodeKeys:
         with open(path, encoding="utf-8") as f:
             return cls(json.load(f)["nodes"])
 
+    def key(self, index: int) -> Optional[bytes]:
+        entry = self.nodes.get(index)
+        return entry[0] if entry else None
+
     def verify(self, payload: bytes, index: int, eui: int, tag: bytes) -> None:
         if index not in self.nodes:
             raise AuthError(f"node {index} has no key")
@@ -125,6 +147,29 @@ class NodeKeys:
 def sign_packet(body: bytes, key: bytes) -> bytes:
     """Reference signer (same as the firmware); used by tests and tools."""
     return body + hmac.new(key, body, hashlib.sha256).digest()[:TAG_LEN]
+
+
+def build_led_command(key: bytes, counter: int, blue_pct: int, red_pct: int) -> bytes:
+    """Signed LED command, bound to the uplink counter it answers (firmware src/downlink.c)."""
+    if not (0 <= blue_pct <= 100 and 0 <= red_pct <= 100):
+        raise ValueError("LED levels must be 0..100")
+    body = struct.pack("<BBBI", LED_CMD_VERSION, blue_pct, red_pct, counter & 0xFFFFFFFF)
+    return body + hmac.new(key, body, hashlib.sha256).digest()[:TAG_LEN]
+
+
+def parse_led_command(key: bytes, data: bytes, expected_counter: int) -> tuple:
+    """Reference check, the same steps as the firmware. Raises AuthError."""
+    if len(data) != LED_CMD_LEN or data[0] != LED_CMD_VERSION:
+        raise AuthError("not an LED command")
+    body, tag = data[:LED_CMD_BODY_LEN], data[LED_CMD_BODY_LEN:]
+    if not hmac.compare_digest(hmac.new(key, body, hashlib.sha256).digest()[:TAG_LEN], tag):
+        raise AuthError("bad LED command signature")
+    _, blue, red, counter = struct.unpack("<BBBI", body)
+    if counter != expected_counter:
+        raise AuthError("LED command for another packet")
+    if blue > 100 or red > 100:
+        raise AuthError("LED level out of range")
+    return blue, red
 
 
 @dataclass
@@ -191,10 +236,17 @@ def parse_coap(data: bytes) -> CoapMessage:
     return CoapMessage(mtype, code, message_id, token, "/".join(path), payload)
 
 
-def build_reply(request: CoapMessage, code: int) -> bytes:
-    """Piggybacked ACK for a confirmable request."""
-    first = (COAP_VERSION << 6) | (TYPE_ACK << 4) | len(request.token)
-    return bytes([first, code]) + struct.pack(">H", request.message_id) + request.token
+def build_reply(request: CoapMessage, code: int, payload: bytes = b"",
+                message_id: Optional[int] = None) -> bytes:
+    """Piggybacked ACK for a confirmable request, or (with message_id) a NON response
+    to a non-confirmable one. Same token as the request."""
+    if message_id is None:
+        mtype, mid = TYPE_ACK, request.message_id
+    else:
+        mtype, mid = TYPE_NON, message_id & 0xFFFF
+    first = (COAP_VERSION << 6) | (mtype << 4) | len(request.token)
+    out = bytes([first, code]) + struct.pack(">H", mid) + request.token
+    return out + (b"\xff" + payload if payload else b"")
 
 
 def decode_packet(payload: bytes, keys: Optional[NodeKeys] = None) -> dict:
@@ -279,6 +331,45 @@ class PostgresStore:
             self._conn.rollback()
             raise
 
+    def _cursor(self):
+        if self._conn is None or self._conn.closed:
+            self._conn = self._connect()
+        return self._conn.cursor()
+
+    def led_setpoint(self, node_id: str) -> Optional[tuple]:
+        """Newest unexpired LED setpoint for this node (a node-specific row wins over 'ALL')."""
+        try:
+            with self._cursor() as cur:
+                cur.execute(
+                    "SELECT blue_pct, red_pct FROM led_setpoints "
+                    "WHERE node_id IN (%s, 'ALL') AND (expires_at IS NULL OR expires_at > NOW()) "
+                    "ORDER BY (node_id = %s) DESC, time DESC LIMIT 1",
+                    (node_id, node_id),
+                )
+                row = cur.fetchone()
+            self._conn.commit()
+        except Exception:
+            if self._conn is not None and not self._conn.closed:
+                self._conn.rollback()
+            raise
+        return None if row is None else (float(row[0]), float(row[1]))
+
+    def log_led_command(self, node_id: str, decision, counter: int) -> None:
+        try:
+            with self._cursor() as cur:
+                req = decision.requested
+                cur.execute(
+                    "INSERT INTO led_commands (node_id, blue_pct, red_pct, requested_blue, requested_red, "
+                    "counter, safety_notes) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    (node_id, decision.blue, decision.red, req[0] if req else None, req[1] if req else None,
+                     counter, "; ".join(decision.notes) or None),
+                )
+            self._conn.commit()
+        except Exception:
+            if self._conn is not None and not self._conn.closed:
+                self._conn.rollback()
+            raise
+
     def last_counter(self, node_id: str) -> Optional[int]:
         """Highest authenticated counter stored for this node, or None."""
         if self._conn is None or self._conn.closed:
@@ -296,8 +387,14 @@ class PostgresStore:
 
 class CoapReceiver(asyncio.DatagramProtocol):
     def __init__(self, store: Callable[[dict, str], None], uri_path: str = "telemetry",
-                 clock: Callable[[], float] = time.monotonic, keys: Optional[NodeKeys] = None):
+                 clock: Callable[[], float] = time.monotonic, keys: Optional[NodeKeys] = None,
+                 safety: Optional[LedSafetyMonitor] = None,
+                 wallclock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
         self.store = store
+        self.safety = safety or LedSafetyMonitor()
+        self._wallclock = wallclock
+        self._next_mid = int.from_bytes(os.urandom(2), "big")
+        self.commands_sent = 0
         self.uri_path = uri_path.strip("/")
         self.keys = keys
         self.transport = None
@@ -386,8 +483,40 @@ class CoapReceiver(asyncio.DatagramProtocol):
                 logger.info(f"{reading['node_id']} {reading['sample_identity']}: "
                             f"{reading['temp_c']} C, {reading['humidity_pct']} %RH, "
                             f"{reading['light_lux']} lux, {reading['battery_mv']} mV")
-                code = CODE_CHANGED
+                command = self._led_command(reading)
+                if confirmable:
+                    return build_reply(msg, CODE_CHANGED, command)
+                if command:
+                    self._next_mid = (self._next_mid + 1) & 0xFFFF
+                    return build_reply(msg, CODE_CHANGED, command, self._next_mid)
+                return None
         return build_reply(msg, code) if confirmable else None
+
+    def _led_command(self, reading: dict) -> bytes:
+        """Signed LED command for this node after the safety checks, or b"" if none can be
+        sent (bench mode without keys, or a v3 node that cannot apply it)."""
+        if not reading["authenticated"] or reading["packet_version"] < 4 or self.keys is None:
+            return b""
+        node = reading["node_id"]
+        try:
+            lookup = getattr(self.store, "led_setpoint", None)
+            requested = lookup(node) if lookup else None
+        except Exception as e:  # database down: the safety fallback decides
+            logger.error(f"LED setpoint lookup failed for {node}: {e}")
+            requested = None
+        decision = self.safety.check(node, requested, reading["temp_c"], self._wallclock())
+        command = build_led_command(self.keys.key(reading["node_index"]), reading["counter"],
+                                    decision.blue, decision.red)
+        try:
+            log = getattr(self.store, "log_led_command", None)
+            if log:
+                log(node, decision, reading["counter"])
+        except Exception as e:
+            logger.error(f"LED command log failed for {node}: {e}")
+        self.commands_sent += 1
+        logger.info(f"{node}: LED blue {decision.blue} %, red {decision.red} %"
+                    + (f" ({'; '.join(decision.notes)})" if decision.notes else ""))
+        return command
 
 
     def _check_counter(self, reading: dict) -> None:
@@ -427,7 +556,8 @@ def open_socket(port: int, group: str, interface: str) -> socket.socket:
 async def run(store, port: int, uri_path: str, group: str, interface: str, keys: Optional[NodeKeys]):
     loop = asyncio.get_running_loop()
     sock = open_socket(port, group, interface)
-    await loop.create_datagram_endpoint(lambda: CoapReceiver(store, uri_path, keys=keys), sock=sock)
+    safety = LedSafetyMonitor(LedSafetyConfig.from_env())
+    await loop.create_datagram_endpoint(lambda: CoapReceiver(store, uri_path, keys=keys, safety=safety), sock=sock)
     logger.info(f"Listening for CoAP POST /{uri_path.strip('/')} on UDP {port}")
     await asyncio.Event().wait()
 

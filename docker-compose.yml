@@ -47,7 +47,7 @@ services:
     build: ./gateway
     command: python services/mqtt_bridge.py
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:REMOVED-DEFAULT-PASSWORD@db/strawberry_research}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-researcher}:${POSTGRES_PASSWORD:-REMOVED-DEFAULT-PASSWORD}@db/${POSTGRES_DB:-strawberry_research}}
       - MQTT_BROKER=mqtt
       - MQTT_PORT=1883
     depends_on:
@@ -59,7 +59,8 @@ services:
       - gos_net
     restart: unless-stopped
 
-  # 3b. CoAP receiver for real sensor nodes (Thread / PACKET_V2)
+  # 3b. CoAP receiver for real sensor nodes (Thread / PACKET_V4). Also the only path to the
+  # LEDs: it signs each node's LED command after the safety monitor (led_safety.py).
   # Runs on the Thread border router host: host networking so it can join
   # ff03::1 on the Thread interface. Start with: docker compose --profile hardware up
   coap_receiver:
@@ -68,11 +69,17 @@ services:
     network_mode: host
     profiles: ["hardware"]
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:REMOVED-DEFAULT-PASSWORD@localhost/strawberry_research}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-researcher}:${POSTGRES_PASSWORD:-REMOVED-DEFAULT-PASSWORD}@localhost/${POSTGRES_DB:-strawberry_research}}
       - COAP_PORT=5683
       - COAP_MULTICAST_GROUP=ff03::1
       - COAP_INTERFACE=${THREAD_INTERFACE:-wpan0}
       - GOS_NODE_KEYS=/run/gos/node_keys.json
+      # LED safety monitor (gateway/services/led_safety.py)
+      - LED_TZ=${LED_TZ:-America/Toronto}
+      - LED_DARK_START=${LED_DARK_START:-22}
+      - LED_DARK_END=${LED_DARK_END:-6}
+      - LED_T_CUTOFF_C=${LED_T_CUTOFF_C:-32}
+      - LED_MAX_STEP_PCT=${LED_MAX_STEP_PCT:-25}
     volumes:
       # written by: python gateway/tools/provision_node.py --index N
       - ./gateway/secrets/node_keys.json:/run/gos/node_keys.json:ro
@@ -87,8 +94,7 @@ services:
     build: ./gateway
     command: python services/farm_sim.py
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:REMOVED-DEFAULT-PASSWORD@db/strawberry_research}
-
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-researcher}:${POSTGRES_PASSWORD:-REMOVED-DEFAULT-PASSWORD}@db/${POSTGRES_DB:-strawberry_research}}
     depends_on:
       db:
         condition: service_healthy
@@ -100,8 +106,7 @@ services:
     build: ./gateway
     command: python services/met_station.py
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:REMOVED-DEFAULT-PASSWORD@db/strawberry_research}
-
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-researcher}:${POSTGRES_PASSWORD:-REMOVED-DEFAULT-PASSWORD}@db/${POSTGRES_DB:-strawberry_research}}
     depends_on:
       db:
         condition: service_healthy
@@ -116,8 +121,12 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:REMOVED-DEFAULT-PASSWORD@db/strawberry_research}
-
+      # research assistant (services/assistant.py): Claude if a key is set, else the local
+      # model in the ollama service (docker compose --profile assistant up), else rules
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:1.5b}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-researcher}:${POSTGRES_PASSWORD:-REMOVED-DEFAULT-PASSWORD}@db/${POSTGRES_DB:-strawberry_research}}
     depends_on:
       db:
         condition: service_healthy
@@ -127,7 +136,7 @@ services:
   # === DATA BACKBONE (ELEC 490/498 Core Requirement) ===
 
   # 7. Synchronization Engine - Triple-Sync Data Curation
-  # "Design and implement a robust (pre)processing pipeline to ingest, 
+  # "Design and implement a robust (pre)processing pipeline to ingest,
   #  validate, synchronize, and curate data"
   sync_engine:
     build: ./gateway
@@ -135,45 +144,64 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:REMOVED-DEFAULT-PASSWORD@db/strawberry_research}
-
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-researcher}:${POSTGRES_PASSWORD:-REMOVED-DEFAULT-PASSWORD}@db/${POSTGRES_DB:-strawberry_research}}
     depends_on:
       - ingest
       - met_station
     networks:
       - gos_net
 
-  # === ML & RL LAYER (Stretch Goal) ===
+  # === PLANT MODEL AND LED CONTROL ===
 
-  # 8. Plant Physiology Simulator (Physics-Informed Model)
+  # 8. Biology engine: strawberry canopy model on live data (photosynthesis, transpiration,
+  #    VPD, daily light integral) plus a 2 h climate forecast (Chronos-Bolt Tiny)
   biology_engine:
     build: ./ml_engine
-    command: python plant_sim_c3.py
+    command: python biology_engine.py
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-researcher}:${POSTGRES_PASSWORD:-REMOVED-DEFAULT-PASSWORD}@db/${POSTGRES_DB:-strawberry_research}}
+      - FORECAST_BACKEND=${FORECAST_BACKEND:-chronos}
+      - LED_TZ=${LED_TZ:-America/Toronto}
+      - HF_HOME=/app/hf_cache
+    volumes:
+      - hf_cache:/app/hf_cache
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - gos_net
+    restart: unless-stopped
 
-  # 9. Reinforcement Learning Agent
-  # "Prototype a RL model to predict transpiration and recommend LED control"
+  # 9. LED controller: PPO policy trained on the plant model (models/led_policy.npz),
+  #    writes led_setpoints; coap_receiver sends them to the nodes after the safety checks
   ml_engine:
     build: ./ml_engine
-    command: python agent_rl.py
+    command: python controller.py
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://researcher:REMOVED-DEFAULT-PASSWORD@db/strawberry_research}
-
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-researcher}:${POSTGRES_PASSWORD:-REMOVED-DEFAULT-PASSWORD}@db/${POSTGRES_DB:-strawberry_research}}
+      - CONTROL_POLICY=${CONTROL_POLICY:-ppo}
+      - LED_TZ=${LED_TZ:-America/Toronto}
+      - LED_DARK_START=${LED_DARK_START:-22}
+      - LED_DARK_END=${LED_DARK_END:-6}
+      - LED_T_CUTOFF_C=${LED_T_CUTOFF_C:-32}
     depends_on:
-      - biology_engine
-      - sync_engine
+      db:
+        condition: service_healthy
     networks:
       - gos_net
-    volumes:
-      - ./data:/app/data
+    restart: unless-stopped
 
-  # 10. LTL Safety Monitor
-  safety_monitor:
-    build: ./gateway
-    command: python services/safety_ltl.py
+  # 10. Local language model for the research assistant (optional, offline):
+  #     docker compose --profile assistant up -d ollama
+  #     docker compose exec ollama ollama pull qwen2.5:1.5b
+  ollama:
+    image: ollama/ollama:0.40.16
+    profiles: ["assistant"]
+    volumes:
+      - ollama_data:/root/.ollama
     networks:
       - gos_net
+    restart: unless-stopped
 
   # === MONITORING & VISUALIZATION ===
 
@@ -216,3 +244,5 @@ volumes:
   grafana_data:
   mosquitto_data:
   mosquitto_logs:
+  hf_cache:
+  ollama_data:

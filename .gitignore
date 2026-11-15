@@ -64,3 +64,4 @@ mechanical/pcb_assembly.stl
 pcbs/led_driver/led_driver.kicad_prl
 mechanical/led_assembly.stl
 pcbs/led_driver/fp-info-cache
+tests/e2e/node_keys.json

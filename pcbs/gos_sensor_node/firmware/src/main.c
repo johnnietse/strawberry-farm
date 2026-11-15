@@ -25,6 +25,7 @@
 
 #include <stdlib.h>
 
+#include "downlink.h"
 #include "gos_main.h"
 #include "uplink.h"
 
@@ -275,6 +276,23 @@ static int watchdog_start(void)
 	return 0;
 }
 
+/* No valid LED command for CONFIG_GOS_LED_HOLD_S (gateway, controller or radio down):
+ * go to the fallback levels instead of holding a stale setting forever. */
+static void led_hold_check(void)
+{
+	static bool fallback;
+	int64_t last = gos_downlink_last_command_ms();
+	int64_t now = k_uptime_get();
+	bool expired = (last < 0) ? (now > (int64_t)CONFIG_GOS_LED_HOLD_S * 1000)
+				  : (now - last > (int64_t)CONFIG_GOS_LED_HOLD_S * 1000);
+
+	if (expired && !fallback) {
+		LOG_WRN("no LED command for %d s: fallback levels", CONFIG_GOS_LED_HOLD_S);
+		(void)gos_set_spectral_mix(CONFIG_GOS_LED_FALLBACK_BLUE, CONFIG_GOS_LED_FALLBACK_RED);
+	}
+	fallback = expired;
+}
+
 int main(void)
 {
 	struct gos_sensor_data data;
@@ -315,6 +333,7 @@ int main(void)
 			LOG_WRN("uplink failed: %d", err);
 		}
 		gpio_pin_set_dt(&status_led, 0);
+		led_hold_check();
 
 		for (int waited = 0; waited < SAMPLE_PERIOD_S; waited += WDT_FEED_PERIOD_S) {
 			if (wdt_channel >= 0) {

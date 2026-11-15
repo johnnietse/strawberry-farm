@@ -10,5 +10,5 @@ endif()
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(gos_sensor_node VERSION 3.1.0)
 
-target_sources(app PRIVATE src/main.c src/uplink.c)
+target_sources(app PRIVATE src/main.c src/uplink.c src/downlink.c)
 target_include_directories(app PRIVATE include)

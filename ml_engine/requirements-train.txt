@@ -1,0 +1,5 @@
+# Training the LED policy (python train_rl.py) on a PC. Tested 2026-11-15.
+-r requirements.txt
+torch>=2.4
+gymnasium==1.4.0
+stable-baselines3==2.9.2
