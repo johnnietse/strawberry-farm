@@ -13,6 +13,16 @@ Print-ready STL files (base and lid of each, in print orientation): `print/`.
 ![Sensor node enclosure, exploded](../docs/images/sensor_enclosure_exploded.png)
 ![LED driver enclosure, exploded](../docs/images/led_enclosure_exploded.png)
 
+## Engineering drawings
+
+`make_drawings.py` makes one drawing sheet per enclosure in `docs/images/drawings/`: third-angle
+orthographic views (top, front, right side) with overall dimensions measured from the exported
+model, an exploded isometric view with numbered balloons, a parts list and a title block.
+Run it after `fit_check.py` (which exports the board models it draws).
+
+![Sensor node enclosure drawing](../docs/images/drawings/sensor_node_enclosure_drawing.png)
+![LED driver enclosure drawing](../docs/images/drawings/led_driver_enclosure_drawing.png)
+
 ## Fit check
 
 ```

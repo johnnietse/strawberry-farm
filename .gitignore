@@ -68,3 +68,4 @@ tests/e2e/node_keys.json
 ml_engine/models/ollama/*.gguf
 ml_engine/models/ollama/*.part
 !ml_engine/data/
+simulation/*.db

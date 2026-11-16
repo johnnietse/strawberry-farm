@@ -21,6 +21,11 @@ fail=0
 check() { if eval "$2"; then echo "ok   $1"; else echo "FAIL $1"; fail=1; fi; }
 
 export GOS_API_TOKEN="e2e-$($PY -c 'import secrets;print(secrets.token_hex(16))')"
+# passwords: from .env if there is one, otherwise throw-away ones for this run
+if [ ! -f .env ]; then
+  export POSTGRES_PASSWORD="e2e-$($PY -c 'import secrets;print(secrets.token_hex(12))')"
+  export GF_SECURITY_ADMIN_PASSWORD="e2e-$($PY -c 'import secrets;print(secrets.token_hex(12))')"
+fi
 AUTH=(-H "Authorization: Bearer $GOS_API_TOKEN")
 $PY - <<'EOF'
 import json, os
@@ -83,7 +88,7 @@ check "event visible through the API" "curl -sf $API/api/events | grep -q 'Grey 
 # ML dataset (sync engine) and Grafana, after the data above exists
 "${P[@]}" up -d sync_engine grafana
 GF=http://localhost:3088
-GFPW=$(grep -s '^GF_SECURITY_ADMIN_PASSWORD=' .env | cut -d= -f2- || true); GFPW=${GFPW:-REMOVED-DEFAULT-PASSWORD}
+GFPW=${GF_SECURITY_ADMIN_PASSWORD:-$(grep -s '^GF_SECURITY_ADMIN_PASSWORD=' .env | cut -d= -f2- || true)}
 for i in $(seq 1 30); do curl -sf "$GF/api/health" >/dev/null && curl -sf "$API/api/curated" -o /dev/null -w "%{http_code}" | grep -q 200 && break; sleep 3; done
 curated=$(curl -s "$API/api/curated" | head -1 || true)
 check "curated dataset carries the LED commands and plant state" 'echo "$curated" | grep -q led_blue_pct && echo "$curated" | grep -q an_umol'

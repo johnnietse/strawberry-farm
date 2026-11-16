@@ -8,6 +8,16 @@ Evidence for "fixed": gateway 81 tests, ml_engine 13 tests, firmware host test, 
 builds, and `tests/e2e/run_e2e.sh` (17 checks, with torch, the Chronos model, the local Qwen
 model, the curated dataset and Grafana) all pass.
 
+## Round 6: secrets, crystal, drawings (2026-11-16)
+
+| # | Issue | Effect | Status |
+|---|---|---|---|
+| 39 | `docker-compose.yml` fell back to a fixed database password (in the repository since the first commit) and Grafana to a fixed admin password | anyone could read the default; a stack started without `.env` used it | **fixed**: no defaults; compose refuses to start without the passwords. History: see the PR notes (rewriting `main` needs your decision) |
+| 40 | Secrets audit of both branches, the PR and the release | none of `.env`, the API token, node keys or `credentials.conf` was ever pushed; the only network key in history is OpenThread's public example key (legacy rev 2 firmware) | **checked** |
+| 41 | Crystal Y1 checked by datasheet only | load capacitance not shown in a circuit | **verified**: Nordic reference circuit uses the same 9 pF crystal with 12 pF NP0; LTspice loop model: +0.3 ppm at the design stray, at most 38 ppm over 0 to 4 pF |
+| 42 | No engineering drawings of the enclosures | nothing to hand to a print shop or reviewer | **added**: two drawing sheets (orthographic views, exploded view, parts list, title block) |
+| 43 | Docker Desktop failed to start ("rename ... engine.sock ... cannot be accessed") | development PC only | **fixed (development PC)**: stale secrets-engine socket removed, WSL restarted |
+
 ## Round 5: whole-system review (`system_review.md`)
 
 | # | Issue | Effect | Status |

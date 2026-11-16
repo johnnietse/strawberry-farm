@@ -19,6 +19,12 @@ part = "assembly";      // "assembly", "base" or "lid"
 show_pcb = false;       // assembly view: import led_assembly.stl (from fit_check.py)
 show_lid = true;        // assembly view: lid in place
 lid_lift = 0;           // assembly view: raise the lid (exploded view)
+pcb_lift = 0;           // assembly view: raise the board (exploded view)
+only = "all";           // assembly view: "all", "base", "lid" or "pcb" (drawings)
+lid_alpha = 0.5;        // assembly view: lid transparency (1 = opaque, for drawings)
+wall_view = "none";     // drawings: "front" keeps only the -Y wall (y < slab_y), "right" only the +X wall (x > slab_x)
+slab_y = 0;
+slab_x = 0;
 cut = false;            // assembly view: cut away the -Y half
 
 wall = 2.5;
@@ -110,13 +116,18 @@ module lid() {
 }
 
 module assembly() {
-    color("SlateGray") base();
-    if (show_lid) color("LightSteelBlue", 0.5) translate([0, 0, enclosure_height + lid_lift]) lid();
-    if (show_pcb) color("DarkGreen") translate([pcb_origin[0], pcb_origin[1], pcb_z + pcb_thickness]) import("led_assembly.stl");
+    if (only == "all" || only == "base") color("SlateGray") base();
+    if (show_lid && (only == "all" || only == "lid"))
+        color("LightSteelBlue", lid_alpha) translate([0, 0, enclosure_height + lid_lift]) lid();
+    if (show_pcb && (only == "all" || only == "pcb"))
+        color("DarkGreen") translate([pcb_origin[0], pcb_origin[1], pcb_z + pcb_thickness + pcb_lift])
+            import("led_assembly.stl");
 }
 
 if (part == "base") base();
 else if (part == "lid") translate([0, 0, lid_t]) rotate([180, 0, 0]) lid();
+else if (wall_view == "front") intersection() { assembly(); translate([-1000, -1000, -1000]) cube([2000, 1000 + slab_y, 3000]); }
+else if (wall_view == "right") intersection() { assembly(); translate([slab_x, -1000, -1000]) cube([1000, 2000, 3000]); }
 else difference() {
     assembly();
     if (cut) translate([-enclosure_width, -enclosure_length - flange_w, -10]) cube([2 * enclosure_width, enclosure_length + flange_w, 100]);

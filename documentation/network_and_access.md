@@ -41,6 +41,15 @@ so changing the Wi-Fi does not affect them.
 - From anywhere (off-site): put the Pi on a VPN such as Tailscale or WireGuard and use its VPN
   address. This is also the safe way to reach it over the internet; do not port-forward 8080.
 
+## Passwords and secrets
+
+`.env` holds every password and the API token. It is git-ignored and must never be committed;
+`.env.example` is the template. There are no default passwords: `docker compose` refuses to
+start until `POSTGRES_PASSWORD` and `GF_SECURITY_ADMIN_PASSWORD` are set. Node signing keys
+(`gateway/secrets/`) and each node's `credentials.conf` (Thread network key) are git-ignored too.
+Before the 2026-11-16 change, `docker-compose.yml` fell back to a fixed database password; a
+database created with that default should get a new password.
+
 ## The API token
 
 Reading needs nothing. Every change (set LEDs, end an override, log an event or harvest, use

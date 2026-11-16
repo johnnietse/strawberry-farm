@@ -289,7 +289,11 @@ Checked since the first version of this list (2026-11-15):
 - **Y1 crystal**: the nRF52840 Product Specification (LFXO table, docs.nordicsemi.com) gives C_L max
   12.5 pF, C0 max 2 pF, ESR max 100 kOhm, drive level max 0.5 uW and pin capacitance 4 pF typical.
   With 12 pF capacitors the load is (12 + 4 + about 2 pF board) / 2 = about 9 pF, the ABS07's
-  9 pF; its 70 kOhm ESR and 2 pF C0 are within the limits.
+  9 pF; its 70 kOhm ESR and 2 pF C0 are within the limits. Nordic's own reference circuit
+  (Product Specification, Reference circuitry) uses the same: a 32.768 kHz crystal with
+  C_L = 9 pF and 12 pF NP0 capacitors (C17, C18). LTspice (`simulation/crystal_lfxo.cir`):
+  +0.3 to +0.9 ppm at the design stray, -29 to +38 ppm over 0 to 4 pF of stray, far inside
+  the +/-500 ppm requirement.
 - **Q1 FS8205A pinout**: FUXINSEMI datasheet (Ver 2.1, page 1): 1 S1, 2 D1/D2, 3 S2, 4 G2, 5 D1/D2,
   6 G1. The schematic symbol uses exactly these pins. The TECH PUBLIC alternate in the BOM is not
   checked.

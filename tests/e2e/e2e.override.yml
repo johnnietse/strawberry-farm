@@ -17,7 +17,7 @@ services:
     build: ./gateway
     command: python services/coap_receiver.py
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-researcher}:${POSTGRES_PASSWORD:-REMOVED-DEFAULT-PASSWORD}@db/${POSTGRES_DB:-strawberry_research}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-researcher}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env, see .env.example}@db/${POSTGRES_DB:-strawberry_research}
       - COAP_INTERFACE=
       - COAP_MULTICAST_GROUP=
       - GOS_NODE_KEYS=/run/gos/node_keys.json
