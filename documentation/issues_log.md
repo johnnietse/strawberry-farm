@@ -4,9 +4,24 @@ Every problem found while finishing G.O.S. rev 3.1, what it would have caused, a
 done. Newest round first. Status: **fixed**, **open (needs hardware)**, or **outside the
 project** (the development PC, not the system). Last updated 2026-11-15.
 
-Evidence for "fixed": gateway 79 tests, ml_engine 13 tests, firmware host test, both firmware
-builds, and `tests/e2e/run_e2e.sh` (14 checks, with torch, the Chronos model and the local Qwen
-model) all pass.
+Evidence for "fixed": gateway 81 tests, ml_engine 13 tests, firmware host test, all four firmware
+builds, and `tests/e2e/run_e2e.sh` (17 checks, with torch, the Chronos model, the local Qwen
+model, the curated dataset and Grafana) all pass.
+
+## Round 5: whole-system review (`system_review.md`)
+
+| # | Issue | Effect | Status |
+|---|---|---|---|
+| 29 | Every node was a sleepy end device; those never relay | no mesh: each node had to reach the border router directly | **fixed**: `router.conf` (Thread router) for USB-powered light nodes; deployment plan in `system_review.md` |
+| 30 | Thread poll every 1 s | an estimated 20 to 40 uA, more than the rest of the sleeping board | **fixed**: 30 s poll, fast polls only after each packet |
+| 31 | Keys readable with a debugger | a stolen node gives away the Thread network key | **added**: `lock.conf` (APPROTECT) for nodes in service |
+| 32 | ML dataset joined the requested LED schedule, had no plant-model columns, and the API could not serve it (no `data/` mount) | wrong training data; `/api/curated` always "pending" | **fixed**: joins `led_commands` and `plant_state` per node; API mounts `data/`; e2e checks the columns |
+| 33 | `/api/phenotype` made its own fixed LED recommendation | two contradicting sources of LED decisions | **fixed**: one source (controller and manual settings) |
+| 34 | Simulators ran in every deployment unless compose was edited; `sync_engine` depended on them | simulated rows mixed with real ones | **fixed**: `--profile sim` |
+| 35 | Grafana: fixed database password and user in its datasource, no dashboards, plugins downloaded at each start, unpinned image | Grafana could not reach the database with any `.env`; nothing to look at | **fixed**: credentials from `.env`, provisioned phytotron dashboard, Grafana 13.2.6; e2e checks it |
+| 36 | Database healthcheck passed during first-start setup (and assumed user "researcher") | services and tests started against a database about to restart | **fixed**: ready only when the schema exists, with the configured user |
+| 37 | Assistant rate limit trusted `X-Forwarded-For` from anyone | a direct caller could bypass the limit by changing the header | **fixed**: trusted only behind nginx (`GOS_TRUST_PROXY`), port 5000 local by default, global limit for the paid backend |
+| 38 | Plugin hooks call `python3`, which is the Windows Store stub here | "Python was not found" on every tool call (no effect on the project) | **fixed (development PC)**: `~/bin/python3` forwards to `py -3`; hooks now run (hookify tested) |
 
 ## Round 4: access, models, end-to-end with every model
 
@@ -56,7 +71,7 @@ model) all pass.
 
 | # | Issue | Effect | What to do |
 |---|---|---|---|
-| 25 | `python3` is the Microsoft Store stub, so plugin hooks written in Python fail ("Python was not found", about 1,900 times this session) | none on the project | Windows Settings > Apps > Advanced app settings > App execution aliases: turn off `python.exe` and `python3.exe`. A change to Windows settings is yours to make. Real Python: `py -3`. |
+| 25 | `python3` is the Microsoft Store stub, so plugin hooks written in Python fail ("Python was not found", about 1,900 times this session) | none on the project | **worked around** (#38): `~/bin/python3` forwards to `py -3`. For a permanent fix you can also turn off `python.exe` and `python3.exe` under Windows Settings > Apps > Advanced app settings > App execution aliases. |
 | 26 | 74 plugins enabled; several have slow start-up and prompt hooks | the "didn't answer in time" notices | turn off plugins you do not use (`/plugin` in Claude Code) |
 | 27 | Drive C: has 3 to 4 GB free | Docker builds can fail | free space before large builds; the e2e test removes its images |
 | 28 | HawkScan (DAST) not run: no `HAWK_API_KEY` | no external scan result | set a StackHawk key to run it; the API's own security tests cover auth, CORS and limits |

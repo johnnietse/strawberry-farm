@@ -131,10 +131,12 @@ Standing current with the node asleep, typical datasheet values, at the battery:
 On top of the floor:
 
 - One sensor reading a minute adds about 2 uA, if the TSL2591 is put back to sleep between readings. Left awake it draws 275 uA on its own.
-- Thread polling dominates. Nordic publishes no nRF52840 figure; its nRF5340 board measures 17.8 uC per poll at 0 dBm, and the nRF52840 radio draws roughly twice the current. At 20 to 40 uC per poll, a 1 s poll period costs 20 to 40 uA and a 10 s period 2 to 4 uA.
+- Thread polling: Nordic publishes no nRF52840 figure; its nRF5340 board measures 17.8 uC per poll at 0 dBm, and the nRF52840 radio draws roughly twice the current. At 20 to 40 uC per poll a 1 s poll period would cost 20 to 40 uA, so the firmware polls every 30 s (about 1 uA) and polls fast for 2.5 s only after each packet, to collect the LED reply.
+- One packet a minute with its fast polls: a few uA.
+- LED PWM: the PWM peripheral keeps the 16 MHz clock running only while a channel is dimmed (not 0 % or 100 %; Zephyr's nRF driver stops the peripheral otherwise). Nodes that drive an LED board run on USB power as routers (see `documentation/system_review.md`).
 - An 18650 loses about 2 % a month by itself, the equivalent of roughly 80 uA from a 3000 mAh cell.
 
-So with sleep implemented properly the electronics draw 40 to 60 uA at a 1 s poll, less than the cell's own self-discharge, and the 6-month target has a wide margin. The current firmware does not sleep and has no radio code, so none of this applies to it yet. Nothing here has been measured.
+So a sleepy climate node draws an estimated 20 to 30 uA, less than the cell's own self-discharge: years on a 3000 mAh cell by the electronics alone, so the 6-month target has a wide margin. Nothing here has been measured; `bring_up.md` step 8 measures it.
 
 ## Firmware
 
@@ -211,6 +213,19 @@ west build -b raytac_mdbt50q_db_40/nrf52840 -- -DEXTRA_CONF_FILE=low_power.conf
 
 Not implemented: any use of the user button or the TSL2591 interrupt. Sleep current has not been measured.
 
+### Builds
+
+| Node | Build | Flash / RAM |
+|---|---|---|
+| bench (logging on) | `west build -b raytac_mdbt50q_db_40/nrf52840` | 214.6 KB / 62.4 KB |
+| climate node in the field (battery, sleepy) | `... -- -DEXTRA_CONF_FILE=low_power.conf` | 197.3 KB / 60.1 KB |
+| same, debugger locked (keys cannot be read out) | `... -- -DEXTRA_CONF_FILE="low_power.conf;lock.conf"` | 197.3 KB / 60.1 KB |
+| light node (USB powered, Thread router, relays for others) | `... -- -DEXTRA_CONF_FILE=router.conf` | 261.6 KB / 70.6 KB |
+
+A locked node can only be reflashed after a full chip erase (`nrfjprog --recover`), which also
+erases its message-counter epoch: re-provision it (new key) before reflashing, or the gateway
+rejects its packets as replays.
+
 ## Board layout
 
 Two scripts, both run with KiCad's Python (`C:\Program Files\KiCad\9.0\bin\python.exe`):
@@ -267,13 +282,38 @@ Ordering (manufacturer, settings, part availability, items bought separately): `
 
 ## Not verified
 
-- TSL2591 decoupling: 1 uF is a choice. The datasheet pages read give no value.
-- Y1 is specified as Abracon ABS07-32.768KHZ-9-T (9 pF load, +/-20 ppm, ESR 70 kOhm max, shunt capacitance 2 pF max, same 3.2 x 1.5 mm footprint; Abracon ABS07 datasheet rev 08-10-22). The 9 pF figure assumes 4 pF nRF52840 pin capacitance, which Nordic states for the nRF5340; the nRF52840 crystal limits table could not be opened.
-- Q2 reverse-cell protection is an addition of this revision. It follows the standard P-FET arrangement and has not been simulated or bench tested.
+Checked since the first version of this list (2026-11-15):
+
+- **TSL2591 decoupling**: the ams datasheet (v3-00, page 22) specifies a 1 uF low-ESR capacitor as
+  close as possible to VDD. The board has 1 uF: matches.
+- **Y1 crystal**: the nRF52840 Product Specification (LFXO table, docs.nordicsemi.com) gives C_L max
+  12.5 pF, C0 max 2 pF, ESR max 100 kOhm, drive level max 0.5 uW and pin capacitance 4 pF typical.
+  With 12 pF capacitors the load is (12 + 4 + about 2 pF board) / 2 = about 9 pF, the ABS07's
+  9 pF; its 70 kOhm ESR and 2 pF C0 are within the limits.
+- **Q1 FS8205A pinout**: FUXINSEMI datasheet (Ver 2.1, page 1): 1 S1, 2 D1/D2, 3 S2, 4 G2, 5 D1/D2,
+  6 G1. The schematic symbol uses exactly these pins. The TECH PUBLIC alternate in the BOM is not
+  checked.
+- **Q2 reverse-cell protection**: simulated in LTspice (`simulation/cell_reverse.cir`): reversed
+  cell gives 0 V on the board and 8 pA; correct cell 29 mV drop, 15 mW at 500 mA.
+- **Routing**: the switching loops were placed and routed by hand and measured with
+  `review_layout.py` (USB pair matched to 0.1 mm, buck switch node 2.6 mm on one layer, antenna
+  strip free of copper); DRC clean.
+- **Devicetree**: the bench and field builds' devicetrees compile with `dtc` 1.7.2; its only
+  warnings are four shared-address notices in Zephyr's own nRF52840 SoC file.
+- **Key protection**: `lock.conf` blocks debugger access (nRF APPROTECT) for nodes in service.
+
+Still not verified (needs hardware, or a decision):
+
 - Battery life is an estimate from datasheet figures (see Power budget), not a measurement.
-- Q1 is the FUXINSEMI FS8205A in SOT-23-6 (the TSSOP-8 parts were out of stock on 2026-11-14). With 2 x 25 mOhm maximum the DW01A 150 mV overcurrent trip is at least 3 A. The pinout is from its datasheet; the part itself has not been tested.
-- Part stock was checked on JLCPCB on 2026-11-14 (`documentation/ordering.md`). It changes daily.
-- The board is autorouted and passes DRC, but no one has reviewed the routing by hand and no board has been made (see Board layout). The SHT40 sits on the board edge for airflow; no slot or thermal isolation from the charger has been added.
+- Q1 and Q2 as parts: datasheet and simulation only; nothing has been built.
+- Part stock was checked on 2026-11-14 and 2026-11-15 (`documentation/ordering.md`). It changes daily.
+- The SHT40 sits on the board edge for airflow; no slot or thermal isolation from the charger has
+  been added (the charging flag lets readings taken while charging be filtered; a slot is proposed
+  for revision 3.2 in `documentation/system_review.md`).
 - The noise benefit of the 4-layer stack-up is standard practice, not a measurement on this board.
-- The firmware compiles (Zephyr `main` at f8da8ea, 2026-11-12, SDK 1.0.1, GCC 14.3) with no compiler warnings: 213 KB flash, 62 KB RAM with Thread (196 KB, 60 KB for the `low_power.conf` field build). The packet encoder was also checked on a PC against the Python decode. It has never run on hardware or joined a Thread network.
-- Zephyr warns that keys stored in flash, including the Thread network key, are protected only by a key derived from the chip ID. Anyone with the board and a debugger can read them. Built without `dtc`, so the overlay was parsed by Zephyr's Python devicetree tooling only.
+- The firmware compiles with no warnings from the project's code (Zephyr `main` at f8da8ea,
+  SDK 1.0.1, GCC 14.3; sizes in Builds above). The packet encoder and the LED-command check were
+  tested on a PC against the gateway's code. It has never run on hardware or joined a Thread
+  network.
+- Without `lock.conf`, anyone with the board and a debugger can read the keys in flash (Zephyr
+  stores them under a key derived from the chip ID).

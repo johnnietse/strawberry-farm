@@ -35,6 +35,14 @@ trap cleanup EXIT
 
 "${P[@]}" up -d --build db
 "${P[@]}" up -d --wait db
+# "healthy" is also reported by the temporary server that runs the first-start scripts, which
+# then restarts: wait until the schema's tables can be queried twice in a row
+DBQ=("${P[@]}" exec -T db psql -q -U "${POSTGRES_USER:-researcher}" -d "${POSTGRES_DB:-strawberry_research}")
+ok_count=0
+for i in $(seq 1 60); do
+  if "${DBQ[@]}" -c "SELECT 1 FROM led_commands LIMIT 1" >/dev/null 2>&1; then ok_count=$((ok_count+1)); else ok_count=0; fi
+  [ $ok_count -ge 2 ] && break; sleep 2
+done
 # 24 h of history for the test node, so the climate forecast has context from the first cycle
 "${P[@]}" exec -T db psql -q -U "${POSTGRES_USER:-researcher}" -d "${POSTGRES_DB:-strawberry_research}" -c "
   INSERT INTO raw_telemetry (time, node_id, sample_identity, temp_c, humidity_pct, battery_mv, payload)
@@ -72,6 +80,16 @@ echo "     assistant: $asst"
 check "assistant files the note as DISEASE in row 1" "echo '$asst' | $PY -c \"import json,sys; d=json.load(sys.stdin); assert d['event']['event_type']=='DISEASE' and d['event']['sector']=='row 1' and d['stored']\""
 check "event visible through the API" "curl -sf $API/api/events | grep -q 'Grey mould'"
 
-check "no errors in service logs" '! "${P[@]}" logs biology_engine ml_engine coap_receiver_e2e api 2>&1 | grep -E "Traceback|cycle failed|ERROR" | grep -v "assistant backend" '
+# ML dataset (sync engine) and Grafana, after the data above exists
+"${P[@]}" up -d sync_engine grafana
+GF=http://localhost:3088
+GFPW=$(grep -s '^GF_SECURITY_ADMIN_PASSWORD=' .env | cut -d= -f2- || true); GFPW=${GFPW:-REMOVED-DEFAULT-PASSWORD}
+for i in $(seq 1 30); do curl -sf "$GF/api/health" >/dev/null && curl -sf "$API/api/curated" -o /dev/null -w "%{http_code}" | grep -q 200 && break; sleep 3; done
+curated=$(curl -s "$API/api/curated" | head -1 || true)
+check "curated dataset carries the LED commands and plant state" 'echo "$curated" | grep -q led_blue_pct && echo "$curated" | grep -q an_umol'
+check "Grafana reaches the database with the .env credentials" "curl -sf -u admin:$GFPW $GF/api/datasources/uid/gos-timescaledb/health | grep -q '\"status\":\"OK\"'"
+check "Grafana phytotron dashboard provisioned" "curl -sf -u admin:$GFPW '$GF/api/search?query=phytotron' | grep -q gos-phytotron"
+
+check "no errors in service logs" '! "${P[@]}" logs biology_engine ml_engine coap_receiver_e2e api sync_engine 2>&1 | grep -E "Traceback|cycle failed|ERROR" | grep -v "assistant backend" '
 
 [ $fail = 0 ] && echo "E2E PASSED" || { echo "E2E FAILED"; exit 1; }

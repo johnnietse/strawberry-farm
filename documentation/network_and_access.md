@@ -12,7 +12,7 @@ graph LR
     subgraph Pi["Raspberry Pi"]
         D --> RX[coap_receiver<br/>wpan0 only]
         RX --> DB[(TimescaleDB<br/>127.0.0.1 only)]
-        API[api :5000] --> DB
+        API[api :5000<br/>127.0.0.1 only] --> DB
         NG[dashboard nginx :8080<br/>page + /api proxy] --> API
         MQ[MQTT :1883<br/>127.0.0.1 only]
     end
@@ -24,7 +24,7 @@ graph LR
 | Port | What | Reachable from | Protection |
 |---|---|---|---|
 | 8080 | dashboard and `/api` (nginx) | every network the Pi is on | reads open; every change needs the API token |
-| 5000 | API directly (scripts) | every network the Pi is on | same token |
+| 5000 | API directly | the Pi only (`API_BIND`); from the network use `:8080/api/` | same token |
 | 3000 | Grafana | every network the Pi is on | Grafana login (`GF_SECURITY_ADMIN_PASSWORD`) |
 | 5432 | database | the Pi only (`DB_BIND`) | password; opening it to the network is not recommended |
 | 1883, 9001 | MQTT | the Pi only (`MQTT_BIND`) | anonymous by default, so kept local; add a `password_file` before opening it |
@@ -76,5 +76,7 @@ other web site can make a visitor's browser change the lights (no cross-site req
 | `GOS_API_TOKEN` | empty (read-only) | token for changes |
 | `GOS_CORS_ORIGINS` | empty | other web sites allowed to call the API from a browser; `*` = any |
 | `ASSISTANT_MAX_CHARS`, `ASSISTANT_RATE` | 8000, 30 | assistant limits; rate 0 = none |
-| `DB_BIND`, `MQTT_BIND` | 127.0.0.1 | 0.0.0.0 opens the database / MQTT to the network |
+| `DB_BIND`, `MQTT_BIND`, `API_BIND` | 127.0.0.1 | 0.0.0.0 opens the database / MQTT / port 5000 to the network (with `API_BIND` open, set `GOS_TRUST_PROXY=0`) |
+| `GOS_TRUST_PROXY` | 1 | the API trusts the client address nginx forwards (for the assistant rate limit) |
+| `ASSISTANT_PAID_RATE` | 60 | assistant requests per minute for all clients together when Claude is the backend |
 | `LED_TZ`, `LED_DARK_START`, `LED_DARK_END` | America/Toronto, 22, 6 | photoperiod of the safety monitor |

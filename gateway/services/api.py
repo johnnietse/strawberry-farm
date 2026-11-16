@@ -32,9 +32,9 @@ from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 
 try:
-    from assistant import parse_note
+    from assistant import has_claude_credentials, parse_note
 except ImportError:  # imported as services.api
-    from services.assistant import parse_note
+    from services.assistant import has_claude_credentials, parse_note
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -58,6 +58,11 @@ if CORS_ORIGINS:
          allow_headers=["Content-Type", "Authorization"], methods=["GET", "POST", "DELETE"])
 ASSISTANT_MAX_CHARS = int(os.getenv("ASSISTANT_MAX_CHARS", "8000"))
 ASSISTANT_RATE = int(os.getenv("ASSISTANT_RATE", "30"))
+# all clients together, for the paid Claude backend only (0 = no limit)
+ASSISTANT_PAID_RATE = int(os.getenv("ASSISTANT_PAID_RATE", "60"))
+# Only behind the dashboard's nginx, which overwrites X-Forwarded-For with the real client, is
+# that header trustworthy. Compose sets this to 1 and keeps port 5000 local (API_BIND).
+TRUST_PROXY = os.getenv("GOS_TRUST_PROXY", "0") == "1"
 MAX_OVERRIDE_MIN = 90 * 24 * 60   # timed settings up to 90 days; "minutes": 0 = until cleared
 _rate = defaultdict(deque)
 _rate_lock = threading.Lock()
@@ -82,6 +87,9 @@ def rate_limited(key: str, limit: int, window_s: float = 60.0) -> bool:
         return False
     now = time.monotonic()
     with _rate_lock:
+        if len(_rate) > 1000:   # drop clients with no request in the window
+            for k in [k for k, q in _rate.items() if not q or now - q[-1] > window_s]:
+                del _rate[k]
         q = _rate[key]
         while q and now - q[0] > window_s:
             q.popleft()
@@ -335,12 +343,13 @@ def assistant_parse():
     text = str(data.get('text', ''))
     if len(text) > ASSISTANT_MAX_CHARS:
         return jsonify({"status": "error", "message": f"note longer than {ASSISTANT_MAX_CHARS} characters"}), 413
-    # behind the dashboard's nginx every request comes from nginx: use the client it forwarded.
-    # (A direct caller could forge the header, but only after passing the token check.)
-    client = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-              or request.remote_addr or "?")
-    if rate_limited(client, ASSISTANT_RATE):
+    client = request.remote_addr or "?"
+    if TRUST_PROXY and request.headers.get("X-Forwarded-For"):
+        client = request.headers["X-Forwarded-For"].split(",")[-1].strip()   # set by nginx
+    if rate_limited("client:" + client, ASSISTANT_RATE):
         return jsonify({"status": "error", "message": "too many requests, try again in a minute"}), 429
+    if has_claude_credentials() and rate_limited("paid-backend", ASSISTANT_PAID_RATE):
+        return jsonify({"status": "error", "message": "assistant busy, try again in a minute"}), 429
     try:
         event, backend = parse_note(text)
     except ValueError as e:
@@ -486,7 +495,8 @@ def calculate_phenotype():
         else:
             vpd_status = "SEVERE_STRESS"
 
-        # Transpiration Estimate (simplified Penman-Monteith)
+        # Quick transpiration estimate for arbitrary inputs. The canopy model's value for each
+        # node (Penman-Monteith with modelled conductance) is in /api/plant.
         rn = par_umol * 0.22  # PAR to net radiation
         gamma = 0.066  # Psychrometric constant
         delta = 4098 * 0.6108 * np.exp((17.27 * temp_c) / (temp_c + 237.3)) / \
@@ -522,19 +532,12 @@ def calculate_phenotype():
         else:
             stress_level = "CRITICAL"
 
-        # LED Recommendations based on phenotype
-        if vpd > 1.2:
-            led_recommendation = {"action": "INCREASE_BLUE", "blue": 0.6, "red": 0.4,
-                                   "reason": "High VPD - blue light helps maintain stomatal conductance"}
-        elif temp_c > 28:
-            led_recommendation = {"action": "SHIFT_BLUE", "blue": 0.8, "red": 0.2,
-                                   "reason": "Heat stress - blue spectrum reduces thermal load"}
-        elif par_umol < 200:
-            led_recommendation = {"action": "INCREASE_RED", "blue": 0.3, "red": 0.7,
-                                   "reason": "Low light - red promotes photosynthesis"}
-        else:
-            led_recommendation = {"action": "MAINTAIN", "blue": 0.4, "red": 0.6,
-                                   "reason": "Optimal conditions"}
+        # LED decisions come from one place only: the ML controller (ml_engine/controller.py),
+        # after the gateway's safety monitor. This endpoint reports them, it does not make them.
+        led_recommendation = {
+            "source": "ml_engine controller (PPO policy) and manual settings",
+            "see": "/api/plant (led_setpoint per node) and /api/led/commands",
+        }
 
         return jsonify({
             "phenotype": {

@@ -51,4 +51,11 @@ config GOS_UPLINK_URI_PATH
 
 endmenu
 
+# Sleepy end device: ask the parent for queued messages every 30 s (the child timeout is
+# 240 s). After each packet, uplink.c polls fast for about 2 s so the LED reply arrives
+# within a second. A 1 s period would cost 20 to 40 uA; 30 s costs about 1 uA. Set here as a
+# default (not in prj.conf) so the router build, which has no poll period, gets no warning.
+config OPENTHREAD_POLL_PERIOD
+	default 30000
+
 source "Kconfig.zephyr"

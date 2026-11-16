@@ -11,6 +11,8 @@ services:
     environment:
       - CONTROL_PERIOD_S=20
       - LED_TZ=UTC
+      - LED_DARK_START=0      # no dark period, so the test does not depend on the time of day
+      - LED_DARK_END=0
   coap_receiver_e2e:
     build: ./gateway
     command: python services/coap_receiver.py
@@ -20,6 +22,8 @@ services:
       - COAP_MULTICAST_GROUP=
       - GOS_NODE_KEYS=/run/gos/node_keys.json
       - LED_TZ=UTC
+      - LED_DARK_START=0      # dark-period behaviour is covered by gateway/tests
+      - LED_DARK_END=0
     volumes:
       - ./tests/e2e/node_keys.json:/run/gos/node_keys.json:ro
     depends_on:
@@ -48,3 +52,6 @@ services:
   dashboard:
     ports: !override
       - "8088:80"
+  grafana:
+    ports: !override
+      - "3088:3000"

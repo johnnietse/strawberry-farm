@@ -93,3 +93,25 @@ def test_assistant_length_cap_and_rate_limit(monkeypatch):
     assert c.post("/api/assistant", json={"text": "x" * 51}, headers=auth).status_code == 413
     codes = [c.post("/api/assistant", json={"text": "aphids on row 2"}, headers=auth).status_code for _ in range(4)]
     assert codes == [200, 200, 200, 429]
+
+
+def test_forwarded_for_ignored_unless_behind_proxy(monkeypatch):
+    monkeypatch.delenv("OLLAMA_URL", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    c = load_api(monkeypatch, ASSISTANT_RATE="2", GOS_TRUST_PROXY="0")
+    auth = {"Authorization": "Bearer s3cret-token-0123456789"}
+    # a direct caller changing X-Forwarded-For on every request still hits the limit
+    codes = [c.post("/api/assistant", json={"text": "aphids"}, headers={**auth, "X-Forwarded-For": f"10.0.0.{i}"}).status_code
+             for i in range(3)]
+    assert codes == [200, 200, 429]
+
+
+def test_paid_backend_has_a_global_limit(monkeypatch):
+    import assistant
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    monkeypatch.setattr(assistant, "parse_claude", lambda text: (_ for _ in ()).throw(RuntimeError("offline")))
+    c = load_api(monkeypatch, ASSISTANT_RATE="100", ASSISTANT_PAID_RATE="2", GOS_TRUST_PROXY="1")
+    auth = {"Authorization": "Bearer s3cret-token-0123456789"}
+    codes = [c.post("/api/assistant", json={"text": "aphids"}, headers={**auth, "X-Forwarded-For": f"10.0.0.{i}"}).status_code
+             for i in range(3)]
+    assert codes == [200, 200, 429]

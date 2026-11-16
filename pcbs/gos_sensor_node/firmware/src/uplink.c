@@ -32,8 +32,9 @@
  *
  * Sent as a non-confirmable CoAP POST so a sleepy end device does not have
  * to stay awake for an acknowledgement. The gateway's 2.04 reply carries a signed LED
- * command (downlink.c); with the 1 s poll period of the sleepy end device it arrives
- * within about a second. It is applied only if its tag is valid and it answers the
+ * command (downlink.c). The parent holds it until this node polls; the normal poll period
+ * is 30 s to save power, so after each send the node polls fast (FAST_POLL_DELAYS_MS)
+ * until the reply arrives. It is applied only if its tag is valid and it answers the
  * counter just sent.
  */
 #include <math.h>
@@ -75,6 +76,33 @@ static uint32_t sequence;
 static atomic_t sent_counter;      /* counter of the last packet sent */
 static atomic_t has_sent;
 static atomic_t last_command_s;     /* uptime in s + 1 of the last valid command, 0 = none */
+static atomic_t reply_received;     /* set by the response handler; stops the fast polls */
+
+/* Data requests to the parent after each packet: the reply is usually waiting within
+ * 100 to 300 ms. Cumulative from the send: 0.15, 0.4, 0.8, 1.5, 2.5 s. */
+static const uint16_t FAST_POLL_DELAYS_MS[] = { 150, 250, 400, 700, 1000 };
+static atomic_t fast_poll_index;
+
+static void fast_poll_handler(struct k_work *work);
+static K_WORK_DELAYABLE_DEFINE(fast_poll_work, fast_poll_handler);
+
+static void fast_poll_handler(struct k_work *work)
+{
+	otInstance *ot = openthread_get_default_instance();
+	atomic_val_t i;
+
+	ARG_UNUSED(work);
+	if (ot == NULL || atomic_get(&reply_received)) {
+		return;
+	}
+	openthread_mutex_lock();
+	(void)otLinkSendDataRequest(ot);
+	openthread_mutex_unlock();
+	i = atomic_inc(&fast_poll_index) + 1;
+	if (i < (atomic_val_t)ARRAY_SIZE(FAST_POLL_DELAYS_MS)) {
+		k_work_schedule(&fast_poll_work, K_MSEC(FAST_POLL_DELAYS_MS[i]));
+	}
+}
 
 static void put_float(float v, uint8_t *dst)
 {
@@ -216,6 +244,7 @@ static void response_handler(void *ctx, otMessage *msg, const otMessageInfo *inf
 	if (result != OT_ERROR_NONE || msg == NULL || otCoapMessageGetCode(msg) != OT_COAP_CODE_CHANGED) {
 		return;
 	}
+	atomic_set(&reply_received, 1);
 	len = otMessageRead(msg, otMessageGetOffset(msg), cmd, sizeof(cmd));
 	if (len != GOS_LED_CMD_LEN || !atomic_get(&has_sent)) {
 		return;
@@ -309,6 +338,10 @@ int gos_uplink_send(const struct gos_sensor_data *d)
 		otMessageFree(msg);
 		LOG_WRN("CoAP send failed: %s", otThreadErrorToString(err));
 		ret = -EIO;
+	} else {
+		atomic_set(&reply_received, 0);
+		atomic_set(&fast_poll_index, 0);
+		k_work_reschedule(&fast_poll_work, K_MSEC(FAST_POLL_DELAYS_MS[0]));
 	}
 
 out:
