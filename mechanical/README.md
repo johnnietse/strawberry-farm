@@ -23,6 +23,35 @@ Run it after `fit_check.py` (which exports the board models it draws).
 ![Sensor node enclosure drawing](../docs/images/drawings/sensor_node_enclosure_drawing.png)
 ![LED driver enclosure drawing](../docs/images/drawings/led_driver_enclosure_drawing.png)
 
+It also makes the system assembly drawing GOS-MECH-003 (two sheets), for putting the units
+together after printing:
+
+- **Sheet 1**: the light node and the LED driver in third-angle views at the same true scale
+  (1:2 on A3), one exploded view of both with the control cable, a combined parts list (items
+  1 to 11) and assembly notes.
+- **Sheet 2**: installation layout in the growth chamber, interconnect list (cables W1 to W7,
+  radio R1), assembly sequence and where to put the Thread Dongle.
+
+`python make_drawings.py --system` makes only GOS-MECH-003 (about 10 minutes, mostly OpenSCAD
+renders); `--sheet2` only its second sheet.
+
+![System assembly, sheet 1](../docs/images/drawings/system_assembly_sheet1.png)
+![System assembly, sheet 2](../docs/images/drawings/system_assembly_sheet2.png)
+
+**Gateway (Raspberry Pi + nRF52840 Dongle)**: bought boards, no printed enclosure. Use the
+official case for the Pi model; put the Dongle on a short USB extension in a USB 2.0 port,
+outside the case (USB 3.0 ports radiate in the 2.4 GHz band, and a case or a metal chamber wall
+shields the antenna). If the growth chamber is metal and closed, put the Dongle inside it, at a
+window or a cable port: the light node routes for the climate nodes, so only its link must reach
+the Dongle.
+
+**Climate nodes** use the same enclosure as the light node without the LED cable: close the
+gland hole with an M12 x 1.5 blanking plug.
+
+**Getting the control cable through the gland**: the 2.54 mm housing does not pass the gland's
+seal. Release the four crimped pins from one housing (lift each latch with a needle), thread the
+wires through the dome nut, seal and gland body, then refit the pins in the same positions.
+
 ## Fit check
 
 ```

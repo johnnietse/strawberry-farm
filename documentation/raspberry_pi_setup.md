@@ -6,6 +6,10 @@ The Raspberry Pi is the bridge between the Thread mesh of sensor nodes (IPv6/UDP
 ## 🛠 1. Hardware Preparation
 1.  **Raspberry Pi 4B**: Main processor.
 2.  **nRF52840 Dongle (PCA10059)**: Connect this to the Pi's USB port. It will act as the **Radio Co-Processor (RCP)**.
+    Use a USB 2.0 port and a short USB extension, so the Dongle sits outside the Pi's case and
+    away from the USB 3.0 ports (they radiate noise in the 2.4 GHz band). In a closed metal
+    growth chamber, put the Dongle inside, at a window or a cable port. Placement and cables:
+    system assembly drawing, sheet 2 (`docs/images/drawings/system_assembly_sheet2.png`).
 3.  **Flash RCP Firmware**:
     - Download `ot-rcp.nrf52840.hex` from the nRF Connect SDK.
     - Put the dongle in DFU mode (Reset button) and flash using `nrfutil`:

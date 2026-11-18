@@ -17,6 +17,10 @@ model, the curated dataset and Grafana) all pass.
 | 41 | Crystal Y1 checked by datasheet only | load capacitance not shown in a circuit | **verified**: Nordic reference circuit uses the same 9 pF crystal with 12 pF NP0; LTspice loop model: +0.3 ppm at the design stray, at most 38 ppm over 0 to 4 pF |
 | 42 | No engineering drawings of the enclosures | nothing to hand to a print shop or reviewer | **added**: two drawing sheets (orthographic views, exploded view, parts list, title block) |
 | 43 | Docker Desktop failed to start ("rename ... engine.sock ... cannot be accessed") | development PC only | **fixed (development PC)**: stale secrets-engine socket removed, WSL restarted |
+| 44 | No drawing of how the units go together, and nothing about the gateway's housing | assembler has to work out cable routing, order and placement | **added**: system assembly drawing GOS-MECH-003 (both enclosures at 1:2, joint exploded view, interconnect list W1 to W7, assembly sequence); gateway uses the Pi's official case, Dongle on a USB 2.0 extension |
+| 45 | The control cable's 2.54 mm housing does not pass the M12 gland's seal | cable cannot be fitted as bought | **documented**: release the pins, thread the wires through the gland, refit the pins (drawing sheet 1 note 2, mechanical/README.md) |
+| 46 | Climate nodes have an open gland hole (no LED cable) | humid air and drips enter | **documented**: M12 x 1.5 blanking plug (ordering.md) |
+| 47 | Light node 5 V adapter, Pi case and power supply, USB extension missing from the shopping list | incomplete order | **added** to ordering.md |
 
 ## Round 5: whole-system review (`system_review.md`)
 

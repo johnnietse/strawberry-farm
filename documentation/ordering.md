@@ -141,6 +141,10 @@ All schematics, boards, BOMs, Gerbers and documents were regenerated after each 
 | Light window | sensor enclosure lid | clear polycarbonate disc 16 mm x 1.5 mm (cut from sheet, or a laser-cut service) | - |
 | Screws | enclosures | sensor: 4 x M2.5x6 + 4 x M3x10 self-tapping; LED: 4 x M3x6 + 4 x M3x10 self-tapping | - |
 | USB-C dust plug | sensor enclosure | silicone USB-C port plug, keeps the cut-out closed when not charging | - |
+| 5 V USB-C adapter and cable | light node power (cable W5) | any 5 V USB-C wall adapter of at least 1 A | - |
+| Blanking plug M12 x 1.5 | climate node enclosure, closes the unused gland hole | nylon blanking plug with sealing ring | - |
+| Raspberry Pi case and power supply | gateway | the official case and the official power supply for the Pi model | Raspberry Pi approved resellers |
+| USB extension cable | gateway, Dongle (cable W6) | short USB-A male to female extension, into a USB 2.0 port | - |
 
 **Battery polarity:** JST-PH battery leads are not standardised. Adafruit states its cells match
 its own boards; no Adafruit document states the pin numbering. Before plugging any cell in, check
