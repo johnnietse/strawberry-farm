@@ -5,6 +5,8 @@ To fulfill the **"Preserved Sample Identity"** requirement, all nRF52 nodes must
 ## 📡 1. The Research Packet (PACKET_V2)
 Sent via UDP (MQTT-SN / CoAP) from the nRF52 node to the Raspberry Pi.
 
+*Table 1. The original PACKET_V2 layout from node to Pi: byte offset, field, type and unit. The current signed PACKET_V4 layout is in pcbs/gos_sensor_node/HARDWARE.md.*
+
 | Offset | Field | Type | Unit | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | **0x00** | PROTOCOL_VER | uint8 | - | Always `0x02` |
@@ -29,6 +31,8 @@ Sent via UDP (MQTT-SN / CoAP) from the nRF52 node to the Raspberry Pi.
 
 The gateway answers every accepted PACKET_V4 with CoAP 2.04 (a NON response to the NON request,
 RFC 7252 section 8.2) whose payload is the node's LED command, 23 bytes:
+
+*Table 2. The LED command the Pi returns in the CoAP reply: 23 bytes, signed with the node's key and bound to the reading it answers.*
 
 | Offset | Size | Field |
 |---|---|---|

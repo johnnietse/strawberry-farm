@@ -17,6 +17,8 @@ The schematic is generated. Edit `generate_schematics.py`, then run:
 
 ## What changed from rev 2
 
+*Table 1. What changed from rev 2 to rev 3, and why.*
+
 | Area | Rev 2 | Rev 3 | Why |
 |---|---|---|---|
 | MCU | bare nRF52840-QIAA | Raytac MDBT50Q-1MV2 module | no RF layout, crystal and DC/DC inductor inside the module |
@@ -32,6 +34,8 @@ The schematic is generated. Edit `generate_schematics.py`, then run:
 
 ## Power tree
 
+*Table 2. Power tree: each supply net, its source, voltage and loads.*
+
 | Net | Source | Voltage | Loads |
 |---|---|---|---|
 | `VBUS_CONN` | USB-C J1 | 5 V | F1 only |
@@ -44,6 +48,8 @@ The schematic is generated. Edit `generate_schematics.py`, then run:
 `BAT_N` is not `GND`. The FS8205A sits between them and opens on a fault.
 
 ## Charger settings (BQ24074)
+
+*Table 3. BQ24074 charger pin settings: what each connection sets, and the datasheet rule it follows.*
 
 | Pin | Connection | Result | Datasheet rule |
 |---|---|---|---|
@@ -61,6 +67,8 @@ The three resistor values are constants at the top of `generate_schematics.py`.
 
 ## Cell protection (DW01A + FS8205A)
 
+*Table 4. Cell protection thresholds (DW01A controller with FS8205A switches).*
+
 | Event | Threshold |
 |---|---|
 | Overcharge | 4.30 V +/- 0.05 V, release 4.10 V |
@@ -70,6 +78,8 @@ The three resistor values are constants at the top of `generate_schematics.py`.
 After a cell is fitted the DW01A may stay off until USB is plugged in once.
 
 ## Module pin map (MDBT50Q-1MV2)
+
+*Table 5. Module pin map: each net, its nRF52840 pin, its module pin and where it goes.*
 
 | Net | nRF pin | Module pin | Goes to |
 |---|---|---|---|
@@ -96,6 +106,8 @@ All other pins carry no-connect flags.
 
 ## Connectors
 
+*Table 6. Connectors on the sensor node.*
+
 | Ref | Type | Pins |
 |---|---|---|
 | J1 | USB-C, USB 2.0 device | 5.1k on CC1 and CC2 |
@@ -105,6 +117,8 @@ All other pins carry no-connect flags.
 | J5 | 2-pin JST-PH battery | 1 cell positive, 2 cell negative. The 18650 sits in the enclosure cradle. |
 
 ## Sensors, checked against datasheets
+
+*Table 7. Sensors checked against their datasheets: pins and the limits that matter here.*
 
 | Part | Pins | Limits that matter here |
 |---|---|---|
@@ -116,6 +130,8 @@ Both match the KiCad stock symbols used.
 ## Power budget (estimate)
 
 Standing current with the node asleep, typical datasheet values, at the battery:
+
+*Table 8. Sleep current budget at the battery, from typical datasheet values (an estimate, not a measurement).*
 
 | Consumer | Current |
 |---|---|
@@ -146,6 +162,8 @@ So a sleepy climate node draws an estimated 20 to 30 uA, less than the cell's ow
 west build -b raytac_mdbt50q_db_40/nrf52840
 ```
 
+*Table 9. Firmware files and the role of each.*
+
 | File | Role |
 |---|---|
 | `boards/raytac_mdbt50q_db_40_nrf52840.overlay` | turns the demo board into this board: pins, sensors, battery divider, charger status |
@@ -160,6 +178,8 @@ It uses Zephyr's own SHT4x, TSL2591 and voltage-divider drivers. There are no pr
 
 ### Uplink
 
+*Table 10. Uplink settings: default and how to change each.*
+
 | Setting | Default | Change with |
 |---|---|---|
 | Destination | `ff03::1` (all Thread devices, including the border router) port 5683 | `CONFIG_GOS_UPLINK_PEER_ADDR`, `CONFIG_GOS_UPLINK_PEER_PORT` |
@@ -167,6 +187,8 @@ It uses Zephyr's own SHT4x, TSL2591 and voltage-divider drivers. There are no pr
 | Node index | 1 | `CONFIG_GOS_NODE_INDEX` |
 
 Payload (PACKET_V4), 43 bytes, all fields little-endian, decode with Python `struct.unpack("<BBQffHHIB16s", payload)`:
+
+*Table 11. PACKET_V4 payload: 43 bytes, little-endian, field by field.*
 
 | Offset | Field | Notes |
 |---|---|---|
@@ -214,6 +236,8 @@ west build -b raytac_mdbt50q_db_40/nrf52840 -- -DEXTRA_CONF_FILE=low_power.conf
 Not implemented: any use of the user button or the TSL2591 interrupt. Sleep current has not been measured.
 
 ### Builds
+
+*Table 12. Firmware builds and the flash and RAM each uses.*
 
 | Node | Build | Flash / RAM |
 |---|---|---|
@@ -263,6 +287,8 @@ Layout review (`review_layout.py`, results in `documentation/design_review.md`):
 Ordering (manufacturer, settings, part availability, items bought separately): `documentation/ordering.md`. Enclosure fit: `mechanical/README.md`.
 
 ## Sources
+
+*Table 13. Datasheets and documents used, and what each was used for.*
 
 | Part | Document | Used for |
 |---|---|---|

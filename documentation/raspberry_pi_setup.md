@@ -72,6 +72,8 @@ from this repository's GitHub release. Ports, the token and use on other network
 The network settings must match the node firmware (`pcbs/gos_sensor_node/firmware/prj.conf` and
 the node's `credentials.conf`):
 
+*Table 1. Thread network settings the border router forms; every node is provisioned with the same values.*
+
 | Setting | Value |
 |---|---|
 | Channel | 15 |
@@ -97,6 +99,8 @@ Never use an example key on a real network. The nodes join with the key from the
 `credentials.conf`; see `documentation/bring_up.md` step 3.
 
 ## Parts
+
+*Table 2. Gateway parts to buy.*
 
 | Item | Part | Where (stock checked 2026-11-14) |
 |---|---|---|

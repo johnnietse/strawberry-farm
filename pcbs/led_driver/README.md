@@ -47,6 +47,8 @@ issues.
 No requirements were given, so these are engineering defaults. Each one is a constant at the
 top of `generate_schematic.py` or a single part to swap.
 
+*Table 1. Design choices for the LED driver and the reason for each.*
+
 | Choice | Value | Why |
 |---|---|---|
 | Supply | 24 V DC adapter, 5.5 x 2.1 mm centre-positive plug (the jack's centre pin is 2.0 mm) | On 12 V a 3-4 LED blue string needs over 80 % switch duty; the AL8860 is specified for 25 to 75 %. On 24 V both strings sit at roughly 35 to 55 %. |
@@ -72,6 +74,8 @@ AL8860 and inductor limits. Mount the stars on a heatsink and use twisted pair f
 Do not plug or unplug an LED string while the board is powered.
 
 ## Connectors
+
+*Table 2. Connectors on the LED driver board.*
 
 | Ref | What | Pins |
 |---|---|---|

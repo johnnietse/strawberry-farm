@@ -35,6 +35,8 @@ which keeps 24 V switching currents away from the sensors and the radio.
 
 ## Electrical: sensor node
 
+*Table 1. Sensor node: electrical checks and their results.*
+
 | Area | Check | Result |
 |---|---|---|
 | Power path | BQ24074 input limit 0.54 A (R_ILIM 3.0 k), charge current about 0.49 A (R_ISET 1.8 k), 0.22 C for a 2200 mAh cell | OK |
@@ -52,6 +54,8 @@ which keeps 24 V switching currents away from the sensors and the radio.
 
 ## Electrical: LED driver
 
+*Table 2. LED driver: electrical checks and their results.*
+
 | Area | Check | Result |
 |---|---|---|
 | Switching frequency | AL8860 limit 1 MHz, on-time at least 500 ns for 4 % accuracy | **Fixed after simulation**: 47 uH ran at up to 1.27 MHz; 100 uH runs at 435 to 672 kHz over 20 to 28 V, both colours, typical and maximum LED voltage |
@@ -64,6 +68,8 @@ which keeps 24 V switching currents away from the sensors and the radio.
 
 ## Firmware and gateway
 
+*Table 3. Firmware and gateway checks.*
+
 | Area | Check | Result |
 |---|---|---|
 | Build | Zephyr main f8da8ea, SDK 1.0.1 | Builds with no warnings |
@@ -72,6 +78,8 @@ which keeps 24 V switching currents away from the sensors and the radio.
 | Border router doc | `raspberry_pi_setup.md` described an unused MQTT-SN bridge and network settings that did not match the firmware | **Fixed**: now matches `prj.conf` (channel 15, PAN 0x1234, GOS_PHYTOTRON) |
 
 ## Mechanical
+
+*Table 4. Mechanical checks of the enclosures.*
 
 | Area | Check | Result |
 |---|---|---|
@@ -83,6 +91,8 @@ which keeps 24 V switching currents away from the sensors and the radio.
 | Sealing | Vents and the USB cut-out are open | Not waterproof by design (the sensor needs air). Use the USB-C dust plug and the cable gland; keep the node out of direct spray |
 
 ## Software: control loop, plant model, ML (second review, 2026-11-15)
+
+*Table 5. Second review of the software (control loop, plant model, ML): what was found and how it was resolved.*
 
 | Area | What was found | Result |
 |---|---|---|

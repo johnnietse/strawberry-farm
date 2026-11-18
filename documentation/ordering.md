@@ -19,6 +19,8 @@ published comparisons are written by board houses, so treat them as indications.
 
 ### Files to upload
 
+*Table 1. Files to upload to JLCPCB for each board.*
+
 | Board | Gerbers + drill | BOM | Placement (CPL) |
 |---|---|---|---|
 | Sensor node | `pcbs/gos_sensor_node/fab/gos_sensor_node_gerbers.zip` | `.../fab/gos_sensor_node_jlcpcb_bom.csv` | `.../fab/gos_sensor_node_jlcpcb_cpl.csv` |
@@ -27,6 +29,8 @@ published comparisons are written by board houses, so treat them as indications.
 Placement coordinates are measured from each board's bottom-left corner.
 
 ### Order-form settings (both boards)
+
+*Table 2. JLCPCB order-form settings, the same for both boards.*
 
 | Setting | Choose |
 |---|---|
@@ -62,6 +66,8 @@ or you can send it parts as consignment).
 
 ### Sensor node
 
+*Table 3. Sensor node parts: manufacturer part number, LCSC number, and stock at JLCPCB and Mouser.*
+
 | Ref | Part | Manufacturer, MPN | LCSC | JLCPCB stock | Mouser stock |
 |---|---|---|---|---|---|
 | U4 | nRF52840 radio module | Raytac MDBT50Q-1MV2 | C5118826 | **0, pre-order (about 12 days, about $18)** | Raytac part not listed; Adafruit 4078 (same module): 0, 1,378 on order |
@@ -92,6 +98,8 @@ or you can send it parts as consignment).
 
 ### LED driver board
 
+*Table 4. LED driver parts: manufacturer part number, LCSC number, and stock at JLCPCB and Mouser.*
+
 | Ref | Part | Manufacturer, MPN | LCSC | JLCPCB stock | Mouser stock |
 |---|---|---|---|---|---|
 | U1, U2 | LED driver | Diodes AL8860MP-13 | C500782 | 228 | 199 (97,500 on order) |
@@ -113,6 +121,8 @@ all are sufficient; if JLCPCB runs out, Mouser has thousands of each except the 
 
 ## 3. Parts changed because of stock or simulation
 
+*Table 5. Parts changed because of stock or simulation results, and why.*
+
 | Ref | Was | Now | Why |
 |---|---|---|---|
 | Q1 (sensor) | VBsemi 8205A-VB, TSSOP-8 | FUXINSEMI FS8205A, SOT-23-6, C908265 | TSSOP part had 15 in stock. Same dual N-MOSFET, 25 mOhm max at 4.5 V. Pinout from the FUXINSEMI datasheet Ver2.1 (1 S1, 2 D, 3 S2, 4 G2, 5 D, 6 G1); schematic symbol and footprint changed to match. |
@@ -124,6 +134,8 @@ all are sufficient; if JLCPCB runs out, Mouser has thousands of each except the 
 All schematics, boards, BOMs, Gerbers and documents were regenerated after each change.
 
 ## 4. Bought separately
+
+*Table 6. Items bought separately (not assembled by JLCPCB): what each is for, a specific part, and where to get it.*
 
 | Item | Use | Specific part | Where, stock |
 |---|---|---|---|
@@ -156,6 +168,8 @@ is damaged; swap the two contacts in the plug (a JST-PH pin extractor or a fine 
 
 Print-ready files: `mechanical/print/` (sensor node base and lid, LED driver base and lid). See
 `mechanical/README.md` for the design.
+
+*Table 7. Enclosure material: recommended, acceptable and to avoid.*
 
 | | Recommended | Acceptable | Avoid |
 |---|---|---|---|

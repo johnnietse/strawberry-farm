@@ -8,6 +8,8 @@ Run with LTspice 26.1.1 on 2026-11-15.
 
 ## Results
 
+*Table 1. The LTspice circuits: what each models, what it was checked against, and the result.*
+
 | File | Circuit | Checked against | Result |
 |---|---|---|---|
 | `led_channel.cir` | LED board: one AL8860 channel at full brightness, 20 / 24 / 28 V supply, blue and red strings, typical and maximum LED forward voltage (12 cases) | AL8860 datasheet: f below 1 MHz, on-time above 500 ns for 4 % accuracy, duty 25 to 75 %; inductor rating | **Pass** (after the change below): LED current 335 to 339 mA (target 333 mA, +0.6 to +1.7 %), 435 to 672 kHz, on-time 545 to 1566 ns, duty 32 to 68 %, inductor peak 392 mA (rated 0.92 A), efficiency 94 to 97 % |
@@ -18,9 +20,20 @@ Run with LTspice 26.1.1 on 2026-11-15.
 | `cell_reverse.cir` | Sensor node: 18650 the right way round and reversed, through Q2 (AO3401A) and Q1 (FS8205A), 500 mA load | No current and no voltage on the board when reversed | **Pass**: reversed, 0 V on the board and 8 pA from the cell; correct, 3.61 V on the board, 29 mV and 15 mW in Q2 |
 
 ![LED channel at 24 V](plots/led_channel_24V.png)
+
+*Figure 1. LED channel at 24 V: current in one AL8860 channel for the blue and red strings, about 0.55 MHz switching with 104 mA ripple around the 333 mA target.*
+
 ![PWM dimming at 50 %](plots/led_pwm_50pct.png)
+
+*Figure 2. PWM dimming at 50 % and 250 Hz: the LED current (blue) follows the CTRL voltage (orange) and averages 168 mA, exactly half of full.*
+
 ![Battery sense divider](plots/vbat_sense.png)
+
+*Figure 3. Battery sense divider: the ADC input after the cell steps from 3.0 to 4.2 V at t = 1 s, for the four resistor-tolerance corners. It settles to 1 % in 0.38 s; the worst-case reading error is +/-1.1 %.*
+
 ![Crystal oscillator loop](plots/crystal_lfxo.png)
+
+*Figure 4. Crystal oscillator loop: frequency error against board stray capacitance (left), loop transimpedance showing where the loop oscillates and the gain it needs (middle), and the drive level in the crystal against its 0.5 uW limit (right).*
 
 The crystal check: the oscillator amplifier inside the nRF52840 is not published, so the loop is
 broken at its output and the frequency where the loop is purely real (where it must oscillate)
