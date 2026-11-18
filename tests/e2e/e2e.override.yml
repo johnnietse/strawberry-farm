@@ -1,0 +1,57 @@
+# End-to-end test overrides (tests/e2e/run_e2e.sh). Same images as production, including torch
+# and Chronos in the ML image; faster cycles; no host ports except the API (5055) and the
+# dashboard (8088); the research assistant uses the Ollama running on the host, if any.
+services:
+  biology_engine:
+    environment:
+      - BIO_PERIOD_S=10
+      - LED_TZ=UTC
+      - HF_HUB_OFFLINE=1          # the forecast model must come from the repository copy
+  ml_engine:
+    environment:
+      - CONTROL_PERIOD_S=20
+      - LED_TZ=UTC
+      - LED_DARK_START=0      # no dark period, so the test does not depend on the time of day
+      - LED_DARK_END=0
+  coap_receiver_e2e:
+    build: ./gateway
+    command: python services/coap_receiver.py
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-researcher}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env, see .env.example}@db/${POSTGRES_DB:-strawberry_research}
+      - COAP_INTERFACE=
+      - COAP_MULTICAST_GROUP=
+      - GOS_NODE_KEYS=/run/gos/node_keys.json
+      - LED_TZ=UTC
+      - LED_DARK_START=0      # dark-period behaviour is covered by gateway/tests
+      - LED_DARK_END=0
+    volumes:
+      - ./tests/e2e/node_keys.json:/run/gos/node_keys.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - gos_net
+  fake_node:
+    build: ./gateway
+    command: python /e2e/fake_node.py
+    profiles: ["e2e"]
+    volumes:
+      - ./tests/e2e:/e2e:ro
+      - ./tests/e2e/node_keys.json:/run/gos/node_keys.json:ro
+    networks:
+      - gos_net
+  db:
+    ports: !reset []
+  api:
+    ports: !override
+      - "5055:5000"
+    environment:
+      - OLLAMA_URL=${E2E_OLLAMA_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  dashboard:
+    ports: !override
+      - "8088:80"
+  grafana:
+    ports: !override
+      - "3088:3000"

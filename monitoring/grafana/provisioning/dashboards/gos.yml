@@ -1,0 +1,10 @@
+apiVersion: 1
+
+providers:
+  - name: G.O.S.
+    folder: G.O.S.
+    type: file
+    disableDeletion: true
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

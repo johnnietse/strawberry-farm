@@ -1,3 +1,5 @@
+> **Superseded.** Planning notes from July 2026 for the rev 2 board. The built design is rev 3.1: see `pcbs/gos_sensor_node/HARDWARE.md`.
+
 # G.O.S. Sensor Node — PCB Completion Design
 
 ## Goal

@@ -18,7 +18,7 @@ def run_up():
     print("[SYSTEM] Launching ALL 10 G.O.S. Research Microservices...")
     try:
         # Using modern 'docker compose' (V2) for maximum compatibility
-        subprocess.run(["docker", "compose", "up", "-d", "--build"], check=True)
+        subprocess.run(["docker", "compose", "--profile", "sim", "up", "-d", "--build"], check=True)  # simulator on: PC demo
         print("[SUCCESS] Infrastructure established.")
         print(" -> Dashboard: http://localhost:8080")
         print(" -> Backbone: PostgreSQL (Port 5432)")
@@ -35,17 +35,17 @@ def show_backbone_logs():
     subprocess.run(["docker", "compose", "logs", "-f", "sync_engine"])
 
 def show_ai_logs():
-    print("[SYSTEM] Tailing RL-Agent & MACQ-Learner Intelligence...")
-    subprocess.run(["docker", "compose", "logs", "-f", "ml_engine", "macq_learner"])
+    print("[SYSTEM] Tailing the LED controller and biology engine...")
+    subprocess.run(["docker", "compose", "logs", "-f", "ml_engine", "biology_engine"])
 
 def main():
     parser = argparse.ArgumentParser(description="G.O.S. Ultimatum CLI")
-    parser.add_argument("--up", action="store_true", help="Start the full 10-service cluster")
+    parser.add_argument("--up", action="store_true", help="Start the full cluster")
     parser.add_argument("--down", action="store_true", help="Shutdown all services")
     parser.add_argument("--logs", choices=["backbone", "ai"], help="Tail specific research logs")
     parser.add_argument("--clean", action="store_true", help="Purge research datasets and DB volumes")
     parser.add_argument("--status", action="store_true", help="Heartbeat check on all services")
-    
+
     args = parser.parse_args()
     print_header()
 

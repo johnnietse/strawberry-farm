@@ -34,4 +34,4 @@ This document is the "Hands-on" guide for researchers. It ensures every node in 
 2.  Apply an O-ring or silicone bead to the lid before deployment.
 
 ---
-*Follow the [Pinout Map](file:///c:/Users/Johnnie/Documents/Stawberry_Farm/documentation/nrf52840_pinout.md) for final wiring.*
+*Follow the [Pinout Map](nrf52840_pinout.md) for final wiring.*

@@ -1,3 +1,5 @@
+> **Superseded.** Planning notes from July 2026 for the rev 2 board. The built design is rev 3.1: see `pcbs/gos_sensor_node/HARDWARE.md`.
+
 # G.O.S. Sensor Node — PCB Completion Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

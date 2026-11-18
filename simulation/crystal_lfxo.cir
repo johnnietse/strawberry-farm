@@ -1,0 +1,43 @@
+* Y1 32.768 kHz crystal (Abracon ABS07-32.768KHZ-9-T) in the nRF52840 LFXO Pierce loop
+*
+* Question: with the board's 12 pF load capacitors (C17/C18 in Nordic's reference design, same
+* values), the 4 pF nRF52840 pin capacitance (PS, LFXO table) and an unknown 0 to 4 pF of board
+* stray per side, how far is the oscillation frequency from 32.768 kHz, and how much gain must
+* the chip's oscillator supply?
+*
+* Method: the LFXO amplifier is an inverting transconductance from XL1 to XL2. Breaking the loop
+* at its output, an AC current i is injected into XL2 and V(XL1)/i = Zt is measured. The loop
+* oscillates where Zt is real (Im(Zt) = 0): that frequency is the oscillation frequency,
+* whatever the amplifier's gm. The smallest gm that sustains oscillation is 1/|Zt| there.
+*
+* Crystal: Butterworth-Van Dyke model from the ABS07 datasheet (rev 08-10-22): ESR R1 70 kOhm
+* max, C0 1.2 pF typ (2.0 max), Q 10 000 min / 30 000 typ, so motional C1 = 1/(2 pi f Q R1)
+* = 2.3 fF (Q 30 000) to 6.9 fF (Q 10 000). The "-9" part is specified at CL = 9 pF, so its
+* series resonance fs is set so that it oscillates at exactly 32.768 kHz with a 9 pF load.
+.param f0=32768 R1=70k C0=1.2p Cpin=4p Cext=12p CLspec=9p
+.param C1m=2.3f Cpcb=2p
+.param fs={f0/(1+C1m/(2*(C0+CLspec)))}
+.param L1={1/((2*pi*fs)**2*C1m)}
+.param Cside={Cext+Cpin+Cpcb}
+
+* crystal between XL1 and XL2
+Rm xl1 m1 {R1}
+Lm m1 m2 {L1}
+Cm m2 xl2 {C1m}
+C0x xl1 xl2 {C0}
+* load on each side: external capacitor + pin + board stray, to ground
+Cl1 xl1 0 {Cside}
+Cl2 xl2 0 {Cside}
+* amplifier output (broken loop): AC test current into XL2
+Iin 0 xl2 AC 1
+* DC paths only (the chip biases XL1/XL2; 10 GOhm has no effect at 32 kHz)
+Rb1 xl1 0 10G
+Rb2 xl2 0 10G
+
+.ac lin 40001 32758 32778
+.step param Cpcb list 0 1p 2p 3p 4p
+.step param C1m list 2.3f 6.9f
+* The oscillation point (Zt real and negative) and |Zt| there are extracted from the raw file
+* by plot_crystal.py; LTspice's own crossing search finds spurious crossings far from resonance.
+.meas AC CL PARAM Cside/2
+.end

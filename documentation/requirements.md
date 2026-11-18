@@ -31,7 +31,7 @@ To successfully deploy and run the **Illuminate & Automate** project, ensure you
 
 ### 🌐 Networking & Protocols
 *   **OpenThread Border Router (OTBR)**: `ot-br-posix` installed on the Raspberry Pi.
-*   **MQTT-SN / CoAP**: Support for low-power UDP-based messaging (handled by our [Bridge](file:///c:/Users/Johnnie/Documents/Stawberry_Farm/gateway/services/mqtt_sn_bridge.py)).
+*   **MQTT-SN / CoAP**: Support for low-power UDP-based messaging (handled by `gateway/services/coap_receiver.py`).
 
 ### 📊 Research Assistant GUI
 *   **Web Browser**: Latest Chrome, Edge, or Firefox (for the HTML5/JS Dashboard).

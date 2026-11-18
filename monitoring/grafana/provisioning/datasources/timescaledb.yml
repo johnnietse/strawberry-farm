@@ -1,18 +1,17 @@
-# Grafana Datasource Provisioning
-# Auto-configures TimescaleDB connection on startup
-
+# Grafana datasource: the project database, with the credentials from .env (passed to the
+# grafana container in docker-compose.yml; Grafana expands $VARIABLES in provisioning files).
 apiVersion: 1
 
 datasources:
   - name: TimescaleDB
+    uid: gos-timescaledb
     type: postgres
     url: db:5432
-    database: strawberry_research
-    user: researcher
+    user: $POSTGRES_USER
     secureJsonData:
-      password: REMOVED-DEFAULT-PASSWORD # Update via environment variable or volume mount
-
+      password: $POSTGRES_PASSWORD
     jsonData:
+      database: $POSTGRES_DB
       sslmode: disable
       maxOpenConns: 10
       maxIdleConns: 5

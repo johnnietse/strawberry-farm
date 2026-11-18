@@ -1,0 +1,5 @@
+# LTspice run outputs (rerun the .cir files to regenerate)
+*.raw
+*.log
+*.db
+*.op.raw
