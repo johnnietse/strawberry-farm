@@ -12,7 +12,7 @@ model, the curated dataset and Grafana) all pass.
 
 | # | Issue | Effect | Status |
 |---|---|---|---|
-| 39 | `docker-compose.yml` fell back to a fixed database password (in the repository since the first commit) and Grafana to a fixed admin password | anyone could read the default; a stack started without `.env` used it | **fixed**: no defaults; compose refuses to start without the passwords. History: see the PR notes (rewriting `main` needs your decision) |
+| 39 | `docker-compose.yml` fell back to a fixed database password (in the repository since the first commit) and Grafana to a fixed admin password | anyone could read the default; a stack started without `.env` used it | **fixed**: no defaults; compose refuses to start without the passwords. History: both branches and the release tag were rewritten on 2026-11-17 so the old defaults no longer appear in any commit (commit IDs changed; re-clone any older copy) |
 | 40 | Secrets audit of both branches, the PR and the release | none of `.env`, the API token, node keys or `credentials.conf` was ever pushed; the only network key in history is OpenThread's public example key (legacy rev 2 firmware) | **checked** |
 | 41 | Crystal Y1 checked by datasheet only | load capacitance not shown in a circuit | **verified**: Nordic reference circuit uses the same 9 pF crystal with 12 pF NP0; LTspice loop model: +0.3 ppm at the design stray, at most 38 ppm over 0 to 4 pF |
 | 42 | No engineering drawings of the enclosures | nothing to hand to a print shop or reviewer | **added**: two drawing sheets (orthographic views, exploded view, parts list, title block) |

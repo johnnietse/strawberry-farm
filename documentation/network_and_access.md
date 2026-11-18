@@ -48,7 +48,9 @@ so changing the Wi-Fi does not affect them.
 start until `POSTGRES_PASSWORD` and `GF_SECURITY_ADMIN_PASSWORD` are set. Node signing keys
 (`gateway/secrets/`) and each node's `credentials.conf` (Thread network key) are git-ignored too.
 Before the 2026-11-16 change, `docker-compose.yml` fell back to a fixed database password; a
-database created with that default should get a new password.
+database created with that default should get a new password. The default has also been
+removed from the git history (rewritten 2026-11-17), but copies made earlier may still hold it,
+so treat it as public and rotate.
 
 ## The API token
 
