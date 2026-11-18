@@ -16,6 +16,8 @@ around, and that a hardware revision 3.2 should remove. Nothing has run on real 
 
 Two kinds of sensor node, same board, different firmware build:
 
+*Table 1. The two node roles in the deployment plan: where each goes, how it is powered, which firmware build it runs, and why.*
+
 | Role | Where | Power | Firmware build | Why |
 |---|---|---|---|---|
 | **Light node** | at each grow light, with an LED driver board | USB-C, 5 V adapter (the LED board's 24 V adapter cannot power it) | `router.conf` (Thread router) | radio always on: relays for its neighbours, so the network is a real mesh; LED commands arrive at once |
@@ -34,11 +36,15 @@ graph LR
     R2 == "4-wire PWM cable" ==> L2[LED driver board, 24 V]
 ```
 
+*Figure 1. Planned Thread network. USB-powered light nodes are routers, linked to each other and to the border router (solid lines); battery climate nodes attach as sleepy children of the nearest router (dotted); each light node drives one LED driver board over a 4-wire cable.*
+
 A light node must be on USB power: when the LEDs are dimmed (not 0 or 100 %), the PWM keeps the
 nRF52840's 16 MHz clock running, and as a router its radio receiver is on all the time. A climate
 node never drives an LED board, so it sleeps.
 
 ## Part by part
+
+*Table 2. Every part of the system: whether it fits the others, what was found, what was done now, and what revision 3.2 should change.*
 
 | Part | Fits? | Finding | Done now / proposal |
 |---|---|---|---|
@@ -58,6 +64,8 @@ node never drives an LED board, so it sleeps.
 | Models | fits | Plant model, PPO, Chronos all run on the Pi, offline. | Calibrate the plant model on the real cultivar; retrain PPO with measured LED output. |
 
 ## Firmware builds
+
+*Table 3. Firmware builds: the command for each and the flash and RAM it uses.*
 
 | Build | Command (`west build -b raytac_mdbt50q_db_40/nrf52840 pcbs/gos_sensor_node/firmware --`) | Flash / RAM |
 |---|---|---|

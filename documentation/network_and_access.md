@@ -19,7 +19,11 @@ graph LR
     L[laptop / phone on any network<br/>http://PI-ADDRESS:8080] --> NG
 ```
 
+*Figure 1. What talks to what. Nodes reach the Pi only over the Thread radio through the Dongle; the receiver listens on the Thread interface only; the database, the API and MQTT listen on the Pi itself; from any other network only the dashboard on port 8080 is reachable, and it forwards /api to the API.*
+
 ## What is reachable from the network
+
+*Table 1. Ports the stack opens, who can reach each, and how each is protected.*
 
 | Port | What | Reachable from | Protection |
 |---|---|---|---|
@@ -72,6 +76,8 @@ other web site can make a visitor's browser change the lights (no cross-site req
 
 ## Questions that came up
 
+*Table 2. Questions about access that came up, and the answers.*
+
 | Question | Answer |
 |---|---|
 | Can other sites use the API? | Yes, if you list them: `GOS_CORS_ORIGINS=https://site-a,https://site-b`, or `*` for any site. Their pages can read; to change anything they still need the token, which they only have if you give it to them. Default: no other sites (the dashboard needs no entry, it uses the same address). |
@@ -81,6 +87,8 @@ other web site can make a visitor's browser change the lights (no cross-site req
 | Is it safe on any Wi-Fi? | On networks you trust (lab, home): yes. On public or shared Wi-Fi, anyone on that network can read the dashboard, and since it is plain http they could capture the token as it is sent. Use a VPN (Tailscale / WireGuard) there, or put HTTPS in front (for example Caddy with a certificate). The token can be changed at any time in `.env`. |
 
 ## Settings (`.env`)
+
+*Table 3. Access settings in .env: default and meaning.*
 
 | Setting | Default | Meaning |
 |---|---|---|

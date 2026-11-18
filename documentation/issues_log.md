@@ -10,6 +10,8 @@ model, the curated dataset and Grafana) all pass.
 
 ## Round 6: secrets, crystal, drawings (2026-11-16)
 
+*Table 1. Round 6 (secrets, crystal, drawings, assembly): each issue, its effect and its status.*
+
 | # | Issue | Effect | Status |
 |---|---|---|---|
 | 39 | `docker-compose.yml` fell back to a fixed database password (in the repository since the first commit) and Grafana to a fixed admin password | anyone could read the default; a stack started without `.env` used it | **fixed**: no defaults; compose refuses to start without the passwords. History: both branches and the release tag were rewritten on 2026-11-17 so the old defaults no longer appear in any commit (commit IDs changed; re-clone any older copy) |
@@ -23,6 +25,8 @@ model, the curated dataset and Grafana) all pass.
 | 47 | Light node 5 V adapter, Pi case and power supply, USB extension missing from the shopping list | incomplete order | **added** to ordering.md |
 
 ## Round 5: whole-system review (`system_review.md`)
+
+*Table 2. Round 5 (whole-system review): each issue, its effect and its status.*
 
 | # | Issue | Effect | Status |
 |---|---|---|---|
@@ -39,6 +43,8 @@ model, the curated dataset and Grafana) all pass.
 
 ## Round 4: access, models, end-to-end with every model
 
+*Table 3. Round 4 (access, models, end-to-end test with every model): each issue, its effect and its status.*
+
 | # | Issue | Effect | Status |
 |---|---|---|---|
 | 1 | The forecast was made every 15 min but saved only on that one plant-state row; the next 14 rows (one a minute) had none | the API and dashboard showed no forecast most of the time | **fixed**: every row carries the newest forecast; e2e checks it |
@@ -54,6 +60,8 @@ model, the curated dataset and Grafana) all pass.
 
 ## Round 3: security review of the API
 
+*Table 4. Round 3 (security review of the API): each issue, its effect and its status.*
+
 | # | Issue | Effect | Status |
 |---|---|---|---|
 | 11 | No authentication on LED and event changes, CORS open to every site | any web page a researcher visited, or anyone on the network, could change the lights | **fixed**: token in the `Authorization` header for every change; CORS off by default |
@@ -61,6 +69,8 @@ model, the curated dataset and Grafana) all pass.
 | 13 | Dashboard took the API address from `?api=` in the link | a crafted link could send the dashboard, and the token, to another server | **fixed**: removed; the server is chosen inside the page only |
 
 ## Round 2: software review
+
+*Table 5. Round 2 (software review): each issue, its effect and its status.*
 
 | # | Issue | Effect | Status |
 |---|---|---|---|
@@ -74,6 +84,8 @@ model, the curated dataset and Grafana) all pass.
 
 ## Round 1: hardware review
 
+*Table 6. Round 1 (hardware review): each issue, its effect and its status.*
+
 | # | Issue | Effect | Status |
 |---|---|---|---|
 | 21 | LED inductor 47 uH: AL8860 switched up to 1.27 MHz (limit 1 MHz) | current error, heating | **fixed**: 100 uH, 435 to 672 kHz (LTspice) |
@@ -82,6 +94,8 @@ model, the curated dataset and Grafana) all pass.
 | 24 | Raspberry Pi guide's network settings did not match the firmware | nodes would never join | **fixed** |
 
 ## Development PC (not the project)
+
+*Table 7. Problems on the development PC, not in the project, and what to do about each.*
 
 | # | Issue | Effect | What to do |
 |---|---|---|---|

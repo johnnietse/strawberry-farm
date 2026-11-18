@@ -3,6 +3,8 @@
 Two parametric OpenSCAD enclosures, one per board. Board positions come from files that
 `fit_check.py` writes from the KiCad boards, so posts, cut-outs and windows follow the boards.
 
+*Table 1. The two enclosures, what each holds and its outside size.*
+
 | File | Holds | Outer size |
 |---|---|---|
 | `enclosure_gen.scad` | sensor node + one 18650 cell | 85 x 130 x 48 mm (with lid) |
@@ -11,7 +13,12 @@ Two parametric OpenSCAD enclosures, one per board. Board positions come from fil
 Print-ready STL files (base and lid of each, in print orientation): `print/`.
 
 ![Sensor node enclosure, exploded](../docs/images/sensor_enclosure_exploded.png)
+
+*Figure 1. Sensor node enclosure with the lid raised: the board at the front by the USB-C cut-out, the 18650 cell in its cradle at the back, the light tube hanging from the lid over the light sensor, and the gland hole and vents in the right wall.*
+
 ![LED driver enclosure, exploded](../docs/images/led_enclosure_exploded.png)
+
+*Figure 2. LED driver enclosure with the lid raised: the board on four posts, vents along both long walls, the LED-plug openings in the right wall, and the mounting flanges with their slots.*
 
 ## Engineering drawings
 
@@ -21,7 +28,12 @@ model, an exploded isometric view with numbered balloons, a parts list and a tit
 Run it after `fit_check.py` (which exports the board models it draws).
 
 ![Sensor node enclosure drawing](../docs/images/drawings/sensor_node_enclosure_drawing.png)
+
+*Figure 3. Drawing GOS-MECH-001, sensor node enclosure: three views with overall dimensions, exploded view with balloons, parts list and title block.*
+
 ![LED driver enclosure drawing](../docs/images/drawings/led_driver_enclosure_drawing.png)
+
+*Figure 4. Drawing GOS-MECH-002, LED driver enclosure: three views with overall dimensions, exploded view with balloons, parts list and title block.*
 
 It also makes the system assembly drawing GOS-MECH-003 (two sheets), for putting the units
 together after printing:
@@ -36,7 +48,12 @@ together after printing:
 renders); `--sheet2` only its second sheet.
 
 ![System assembly, sheet 1](../docs/images/drawings/system_assembly_sheet1.png)
+
+*Figure 5. Drawing GOS-MECH-003, sheet 1: both enclosures at the same scale (1:2 on A3), one exploded view of both with the control cable, combined parts list and cable-routing notes.*
+
 ![System assembly, sheet 2](../docs/images/drawings/system_assembly_sheet2.png)
+
+*Figure 6. Drawing GOS-MECH-003, sheet 2: installation layout, interconnect list W1 to W7, assembly sequence and Dongle placement.*
 
 **Gateway (Raspberry Pi + nRF52840 Dongle)**: bought boards, no printed enclosure. Use the
 official case for the Pi model; put the Dongle on a short USB extension in a USB 2.0 port,
@@ -71,6 +88,8 @@ Last result (2026-11-15): all 12 checks pass. Rerun after any board change.
 
 ## Sensor node enclosure
 
+*Table 2. Sensor node enclosure: each feature, where it is and why.*
+
 | Feature | Where | Why |
 |---|---|---|
 | Board | four 5 mm posts, USB-C face 0.3 mm inside the front wall | cable reaches the socket through a 12 x 7 mm cut-out |
@@ -83,6 +102,8 @@ Last result (2026-11-15): all 12 checks pass. Rerun after any board change.
 
 ## LED driver enclosure
 
+*Table 3. LED driver enclosure: each feature, where it is and why.*
+
 | Feature | Where | Why |
 |---|---|---|
 | Board | four 4 mm posts (M3) | |
@@ -93,6 +114,8 @@ Last result (2026-11-15): all 12 checks pass. Rerun after any board change.
 | Mounting | flanges on the long sides with 2 x 4.5 mm slots each | screw it to the light fixture or its frame, out of the plants' drip zone |
 
 ## Material and printing
+
+*Table 4. Material and print settings. ASA survives the heat, UV and humidity of a lit phytotron; PLA would soften under the grow lights.*
 
 | | Choice | Why |
 |---|---|---|

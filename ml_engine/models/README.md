@@ -4,6 +4,8 @@ Every model the project runs, where it runs, where its weights are, and how it w
 Nothing runs on the sensor node: it measures, sends readings and applies LED levels. All models
 run on the Raspberry Pi (or any Linux host) next to the database.
 
+*Table 1. Every model G.O.S. uses: its job, kind, size, where its weights are, its license and where it runs.*
+
 | Model | Job | Kind | Size | Where the weights are | License | Runs in |
 |---|---|---|---|---|---|---|
 | Strawberry canopy model (`../plant_model.py`) | photosynthesis, conductance, transpiration, VPD | mechanistic (FvCB, Medlyn, Penman-Monteith) | code only | this repository | project | `biology_engine` |
@@ -30,6 +32,8 @@ are the upstream documentation.
 
 ## How each one was checked
 
+*Table 2. How each model was checked, and the result.*
+
 | Model | Check | Result | File |
 |---|---|---|---|
 | Canopy model | light, CO2 and temperature responses, Fick's law consistency | light-saturated 15.9 umol m-2 s-1 at 25 C (strawberry literature 15 to 20), optimum about 28 C | `../tests/test_plant_and_control.py` |
@@ -38,7 +42,12 @@ are the upstream documentation.
 | Qwen2.5-1.5B | 6 typical notes; end-to-end test through the API | 6 of 6 categories right, about 5 s per note on a PC CPU | `../../tests/e2e/run_e2e.sh` |
 
 ![Plant model](../../docs/images/ml/plant_response.png)
+
+*Figure 1. Plant model check: leaf photosynthesis against light and against temperature, inside the range reported for strawberry.*
+
 ![Forecast error](../../docs/images/ml/forecast_error.png)
+
+*Figure 2. Forecast check: VPD error against lead time for both forecasters and two simple baselines.*
 
 ## Install and retrain
 

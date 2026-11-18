@@ -16,6 +16,8 @@ dashboard / API (manual) ─────────────┘            �
 coap_receiver: newest setpoint ──► led_safety ──► signed LED command in the reply ──► node PWM
 ```
 
+*Table 1. Files in ml_engine and what each is.*
+
 | File | What it is |
 |---|---|
 | `plant_model.py` | The **biology engine's** model: strawberry canopy photosynthesis (Farquhar-von Caemmerer-Berry), stomatal conductance (Medlyn), transpiration (Penman-Monteith), spectrum effects. Mechanistic, not trained. |
@@ -33,6 +35,8 @@ coap_receiver: newest setpoint ──► led_safety ──► signed LED command
 ## Which model for which job
 
 Three different kinds of "model", each picked for what it has to do:
+
+*Table 2. Which kind of model for which job, and why that kind.*
 
 | Job | Model | Why this one |
 |---|---|---|
@@ -59,7 +63,11 @@ so calibrate `vcmax25`, `jmax25` and `g1` with an A-Ci curve when a LI-COR is av
 
 ![Plant model responses](../docs/images/ml/plant_response.png)
 
+*Figure 1. Plant model: leaf photosynthesis against light at three temperatures (left) and against temperature at high light (right). The light-saturated rate, 15.9 umol m-2 s-1, sits inside the 15 to 20 reported for strawberry.*
+
 **LED policy** (`models/led_policy_eval.json`, 60 held-out days, 600 k training steps, 4 min on a PC):
+
+*Table 3. LED policies on 60 held-out days, per board per day: reward (value of extra CO2 fixed minus electricity and penalties), daily light integral, energy and extra CO2 fixed.*
 
 | Policy | Reward ($/day per board) | DLI (mol/m2/day) | kWh/day | Extra CO2 fixed (g/day) |
 |---|---|---|---|---|
@@ -76,10 +84,17 @@ policy finds exactly that. The controller earns its keep when the light budget i
 daylight, a higher electricity price, a bigger board) - change `TaskConfig` and retrain.
 
 ![LED policy comparison](../docs/images/ml/policy_comparison.png)
+
+*Figure 2. Daily reward of each LED policy on 60 held-out days (higher is better). The deployed PPO policy matches the model-based optimiser and always-full light, and beats a fixed mix or no LED light.*
+
 ![LED policy over one day](../docs/images/ml/led_policy_day.png)
+
+*Figure 3. One held-out day. Top: light at the canopy, daylight (yellow) plus the LED board (blue). Bottom: the LED levels the PPO policy chose after the safety rules: full from 06:00 to 22:00, off in the dark period.*
 
 **Climate forecast** (`models/forecast_eval.json`): 120 forecasts over 2025 hourly temperature
 and humidity for Kingston, ON (Open-Meteo archive), 512 h of context each, mean absolute error:
+
+*Table 4. Climate forecast error for each backend over a year of Kingston, ON weather (mean absolute error at 1 h and 6 h ahead), and the time each forecast takes.*
 
 | Backend | Temp 1 h | Temp 6 h | RH 6 h | VPD 1 h | VPD 6 h | Time per forecast (PC CPU) |
 |---|---|---|---|---|---|---|
@@ -92,7 +107,12 @@ Outdoor weather, not phytotron air: rerun `eval_forecast.py` on node data after 
 The same numbers come out when the weights are loaded offline from `models/hf/`.
 
 ![Forecast error vs lead time](../docs/images/ml/forecast_error.png)
+
+*Figure 4. VPD forecast error against lead time, 120 forecasts. Chronos-Bolt Tiny has the lowest error at every lead time; persistence ("no change") is good at 1 h but twice as bad at 6 h.*
+
 ![Example forecast](../docs/images/ml/forecast_example.png)
+
+*Figure 5. An example 12 h temperature forecast: 48 h of measured input, then Chronos-Bolt Tiny (blue) follows the measured warm-up within about 1 C, while persistence stays at the last value.*
 
 ## Run
 
