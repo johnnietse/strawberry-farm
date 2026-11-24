@@ -22,6 +22,7 @@ $fn = 72;
 part = "assembly";       // "assembly", "base" or "lid"
 show_pcb = false;        // assembly view: import pcb_assembly.stl (from fit_check.py)
 show_lid = true;         // assembly view: lid in place
+par_gland = true;        // rev 3.2: hole for the PAR sensor cable gland (left wall); false for rev 3.1 boards
 lid_lift = 0;            // assembly view: raise the lid (exploded view)
 pcb_lift = 0;            // assembly view: raise the board (exploded view)
 cell_lift = 0;           // assembly view: raise the 18650 cell (exploded view)
@@ -133,6 +134,11 @@ module led_cable_gland() { // M12 gland for the cable to the LED driver board, b
     translate([enclosure_width / 2 - wall - 1, j4_led_cable[1], 25]) rotate([0, 90, 0]) cylinder(d = 12.2, h = wall + 2);
 }
 
+module par_cable_gland() { // rev 3.2: M12 gland for the PAR sensor cable (J6), left wall
+    if (par_gland)
+        translate([-enclosure_width / 2 - 1, par_gland_y, 25]) rotate([0, 90, 0]) cylinder(d = 12.2, h = wall + 2);
+}
+
 module floor_holes() {
     for (sx = [-1, 1]) translate([sx * 30, 15, -1]) cylinder(d = 4, h = wall + 2);       // pole/rail mounting
     for (sx = [-1, 1], y = [-55, 30]) translate([sx * 33, y, -1]) cylinder(d = 2, h = wall + 2);  // drainage
@@ -144,6 +150,7 @@ module base() {
         usb_cutout();
         sensor_vents();
         led_cable_gland();
+        par_cable_gland();
         floor_holes();
     }
 }

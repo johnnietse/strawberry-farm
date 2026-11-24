@@ -1,4 +1,4 @@
-"""Stands in for a sensor node: sends signed PACKET_V4 CoAP POSTs (same layout as the
+"""Stands in for a sensor node: sends signed PACKET_V5 CoAP POSTs (rev 3.2, with a PAR reading) (same layout as the
 firmware) to the receiver, waits for the reply and checks the LED command in it."""
 import json
 import os
@@ -22,7 +22,8 @@ n = int(os.getenv("PACKETS", "12"))
 for seq in range(n):
     counter = (epoch << 16) | seq
     temp, rh = 22.0 + 0.1 * seq, 68.0
-    body = struct.pack("<BBQffHHIB", 4, 7, eui, temp, rh, 8000, 3900, counter, 0x80)
+    par = 450 + 10 * seq                    # quantum sensor on J6, umol m-2 s-1
+    body = struct.pack("<BBQffHHHIB", 5, 7, eui, temp, rh, 8000, par, 3900, counter, 0x80)
     pkt = rx.sign_packet(body, key)
     token = os.urandom(4)
     req = bytes([(1 << 6) | (rx.TYPE_NON << 4) | len(token), rx.CODE_POST]) + struct.pack(">H", seq) + token

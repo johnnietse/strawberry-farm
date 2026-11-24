@@ -38,6 +38,12 @@ ANTENNA_CLEAR = 10.0         # minimum distance from the module antenna edge to 
 OX, OY = 100.0, 100.0        # board origin used by generate_pcb.py
 
 
+
+def PAR_GLAND_Y(pos):
+    """Rev 3.2: the PAR cable gland sits in the left wall, mirrored from the LED gland (beside
+    J4) and 3 mm further forward, which keeps it clear of the SHT40 vent slots."""
+    return pos("J4")[1] - 3.0
+
 def fab_box(fp):
     box = None
     for item in fp.GraphicalItems():
@@ -91,6 +97,8 @@ def main():
         "tsl2591 = [%.3f, %.3f];" % pos("U6"),
         "j4_led_cable = [%.3f, %.3f];" % pos("J4"),
         "j5_battery = [%.3f, %.3f];" % pos("J5"),
+        "j6_par = [%.3f, %.3f];" % pos("J6"),
+        f"par_gland_y = {PAR_GLAND_Y(pos):.3f};   // rev 3.2: M12 gland for the PAR sensor cable, left wall",
         "status_led = [%.3f, %.3f];" % pos("D2"),
         "charge_led = [%.3f, %.3f];" % pos("D1"),
         f"antenna_edge_y = {antenna_edge:.3f};",
@@ -121,6 +129,15 @@ def main():
     lead = abs(j5y - battery_y) + abs(j5x)
     check(lead < 150, f"battery lead J5 to cradle about {lead:.0f} mm (a standard 150 mm JST-PH lead reaches)")
     check(pcb_z + PCB_T + 12 < ENC_H, "tallest part (about 12 mm with cable plugs) clears the lid")
+    # rev 3.2: PAR cable gland (12.2 mm hole) in the left wall, clear of the SHT40 vent slots
+    # (7 slots, 3.5 mm pitch, 2 mm wide, centred on the SHT40) by at least 3 mm
+    vent_low = pos("U5")[1] - 3 * 3.5 - 1.0
+    gy = PAR_GLAND_Y(pos)
+    check(gy + 6.1 + 3.0 <= vent_low, f"PAR gland hole {vent_low - gy - 6.1:.1f} mm from the SHT40 vents (need 3)")
+    check(gy - 6.1 - 3.0 >= inner_front, "PAR gland hole clear of the front wall")
+    j6x, j6y = pos("J6")
+    run = abs(j6x + inner_x) + abs(j6y - gy)
+    check(run < 100, f"PAR cable J6 to its gland about {run:.0f} mm inside the enclosure")
 
     # ---- 3D: board with parts, rendered inside the enclosure
     stl = os.path.join(HERE, "pcb_assembly.stl")

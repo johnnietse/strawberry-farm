@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""G.O.S. LED driver board rev 1.0 schematic generator (KiCad 9).
+"""G.O.S. LED driver board rev 1.1 schematic generator (KiCad 9).
 
     "C:\\Program Files\\KiCad\\9.0\\bin\\python.exe" generate_schematic.py --verify
 
@@ -23,11 +23,14 @@ import generate_schematics as gs  # noqa: E402
 gs.HERE = HERE
 gs.PROJECT = "led_driver"
 gs.ROOT_UUID = "6b1c2e8a-6f0e-4d53-9a7e-2f4c4d1a0b01"
-gs.REV = "1.0"
+gs.REV = "1.1"
 
 # ---------------------------------------------------------------- design values
 R_SENSE = "0R30 1%"     # AL8860: I = 0.1 V / R -> 333 mA per channel (datasheet table: 0.3 ohm = 333 mA)
 L_VALUE = "100uH"       # datasheet range 33 to 100 uH; 47 uH would switch above the 1 MHz limit at 333 mA (simulation/led_channel.cir)
+R_SENSE_HI = "0R30 1%"  # rev 1.1: second sense resistor per channel, in parallel when its solder jumper
+                        # is bridged: 0.15 ohm -> 667 mA (deep red Rebel: 700 mA DC maximum; royal blue
+                        # rated at 700 mA). Jumper open (as delivered) = 333 mA, as rev 1.0.
 R_CTRL_PULLDOWN = "1.5k"  # holds CTRL below 0.2 V (off) when unplugged: AL8860 shutdown current is 80 uA max,
                           # so any internal pull-up gives at most 80 uA x 1.5k = 0.12 V (simulation/ctrl_failsafe.cir)
 
@@ -58,7 +61,8 @@ def channel(s, name, x):
 
 def build():
     s = gs.Sheet("root", "Root", "led_driver.kicad_sch", None, "A3", "G.O.S. LED driver board")
-    s.text("Two AL8860 constant-current buck channels from a 24 V adapter. 333 mA per channel (0.1 V / 0.30 ohm).\n"
+    s.text("Two AL8860 constant-current buck channels from a 24 V adapter. 333 mA per channel (0.1 V / 0.30 ohm);\n"
+           "rev 1.1: bridge JP1 (blue) or JP2 (red) to add R5 / R6 in parallel: 0.15 ohm, 667 mA.\n"
            "Each channel drives one off-board string of 4 LEDs on a star heatsink: blue 450 nm on J3, red 660 nm on J4.\n"
            "J2 takes the sensor node's PWM (3.3 V logic, 250 Hz). CTRL above 2.5 V = full current, below 0.2 V = off;\n"
            "the 1.5k pull-downs keep the LEDs off when J2 is unplugged or the node is in reset.\n"
@@ -76,6 +80,21 @@ def build():
     gs.COUNTER["C"] = 1
     channel(s, "BLUE", 25.4)
     channel(s, "RED", 160.02)
+    # rev 1.1 current option, added after both channels so the rev 1.0 references stay the same
+    for name, x, jp in (("BLUE", 25.4, "JP1"), ("RED", 160.02, "JP2")):
+        s.R(R_SENSE_HI, "VIN", f"SET_{name}_HI", x + 60.96, 40.64)
+        s.part(jp, "Jumper:SolderJumper_2_Open", x + 76.2, 40.64, "667 mA",
+               "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
+               {"1": f"SET_{name}_HI", "2": f"SET_{name}"}, stub=2.54,
+               Description="Open: 333 mA. Bridged with solder: second 0.30 ohm in parallel, 667 mA. "
+                           "Use the 1 C/W heatsink and check the adapter (simulation/led_channel_667mA.cir)")
+    # rev 1.1: capacitor across each LED string. The AL8860's hysteretic ripple is about +/-15 %,
+    # so at 667 mA the LED current would peak near 775 mA, above the deep red Rebel's 700 mA.
+    # 10 uF X7R (about 4.7 uF left at the string's 9 to 14 V) takes the ripple; 1 uF (0.5 uF left)
+    # still let it peak at 730 mA (simulation/led_channel_667mA.cir). Fitted on both channels at
+    # either current: with the string's 1.7 ohm it settles in about 10 us, so 250 Hz PWM is unaffected.
+    for name, x in (("BLUE", 25.4), ("RED", 160.02)):
+        s.C("10uF 50V X7R", f"SET_{name}", f"LEDK_{name}", x + 99.06, 101.6, fp="Capacitor_SMD:C_1210_3225Metric")
     s.part("J2", "Connector_Generic:Conn_01x04", 121.92, 152.4, "PWM from sensor node",
            "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
            {"1": "GND", "2": "CTRL_BLUE", "3": "CTRL_RED", "4": "GND"},

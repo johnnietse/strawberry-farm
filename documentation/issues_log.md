@@ -8,9 +8,22 @@ Evidence for "fixed": gateway 81 tests, ml_engine 13 tests, firmware host test, 
 builds, and `tests/e2e/run_e2e.sh` (17 checks, with torch, the Chronos model, the local Qwen
 model, the curated dataset and Grafana) all pass.
 
+## Round 7: revision 3.2 boards (2026-11-22)
+
+*Table 1. Round 7 (sensor node rev 3.2, LED driver rev 1.1): each issue, its effect and its status.*
+
+| # | Issue | Effect | Status |
+|---|---|---|---|
+| 48 | LED board limited to about 120 umol m-2 s-1 | a spectral supplement, not a grow light | **changed**: 667 mA option per channel (solder jumper), LTspice-checked (`rev3.2_changes.md`) |
+| 49 | At 667 mA the AL8860's hysteretic ripple peaks near 775 mA | above the deep red Rebel's 700 mA | **fixed in design**: 1 uF across each LED string; the LEDs see the average |
+| 50 | No photosynthetic light measurement (lux only) | daylight PPFD only estimated | **added**: J6 quantum sensor input, PACKET_V5, gateway and biology engine |
+| 51 | SHT40 warmed by the charger | climate readings high while charging | **reduced**: tongue with edge notches, 30 % less in the 2-D estimate; first design (closed slots) gave only 16 %, so it was changed |
+| 52 | Freerouting could not leave the SHT40's footprint keep-out on one layer, and never routed SW1's reset line on the notched board | unrouted connections | tongue tracks laid by hand; see the board status in `rev3.2_changes.md` |
+| 53 | Windows temp cleanup deleted empty files in the Zephyr workspace | every firmware build failed | development PC only: restored with `git checkout` |
+
 ## Round 6: secrets, crystal, drawings (2026-11-16)
 
-*Table 1. Round 6 (secrets, crystal, drawings, assembly): each issue, its effect and its status.*
+*Table 2. Round 6 (secrets, crystal, drawings, assembly): each issue, its effect and its status.*
 
 | # | Issue | Effect | Status |
 |---|---|---|---|
@@ -26,7 +39,7 @@ model, the curated dataset and Grafana) all pass.
 
 ## Round 5: whole-system review (`system_review.md`)
 
-*Table 2. Round 5 (whole-system review): each issue, its effect and its status.*
+*Table 3. Round 5 (whole-system review): each issue, its effect and its status.*
 
 | # | Issue | Effect | Status |
 |---|---|---|---|
@@ -43,7 +56,7 @@ model, the curated dataset and Grafana) all pass.
 
 ## Round 4: access, models, end-to-end with every model
 
-*Table 3. Round 4 (access, models, end-to-end test with every model): each issue, its effect and its status.*
+*Table 4. Round 4 (access, models, end-to-end test with every model): each issue, its effect and its status.*
 
 | # | Issue | Effect | Status |
 |---|---|---|---|
@@ -60,7 +73,7 @@ model, the curated dataset and Grafana) all pass.
 
 ## Round 3: security review of the API
 
-*Table 4. Round 3 (security review of the API): each issue, its effect and its status.*
+*Table 5. Round 3 (security review of the API): each issue, its effect and its status.*
 
 | # | Issue | Effect | Status |
 |---|---|---|---|
@@ -70,7 +83,7 @@ model, the curated dataset and Grafana) all pass.
 
 ## Round 2: software review
 
-*Table 5. Round 2 (software review): each issue, its effect and its status.*
+*Table 6. Round 2 (software review): each issue, its effect and its status.*
 
 | # | Issue | Effect | Status |
 |---|---|---|---|
@@ -84,7 +97,7 @@ model, the curated dataset and Grafana) all pass.
 
 ## Round 1: hardware review
 
-*Table 6. Round 1 (hardware review): each issue, its effect and its status.*
+*Table 7. Round 1 (hardware review): each issue, its effect and its status.*
 
 | # | Issue | Effect | Status |
 |---|---|---|---|
@@ -95,7 +108,7 @@ model, the curated dataset and Grafana) all pass.
 
 ## Development PC (not the project)
 
-*Table 7. Problems on the development PC, not in the project, and what to do about each.*
+*Table 8. Problems on the development PC, not in the project, and what to do about each.*
 
 | # | Issue | Effect | What to do |
 |---|---|---|---|

@@ -97,6 +97,7 @@ Last result (2026-11-15): all 12 checks pass. Rerun after any board change.
 | Vents | vertical slots in both side walls, level with the SHT40 | air across the humidity sensor |
 | Light window and tube | 10 mm hole in the lid over the TSL2591, a printed tube down to 3 mm above it, 16 x 1.5 mm clear polycarbonate disc glued into a recess on top | the light sensor sees outside light in a defined cone, not light reflected around inside; print the lid black |
 | Cable gland | M12, right wall beside J4 | cable to the LED driver board (LAPP SKINTOP SL-M 12x1.5) |
+| PAR cable gland (rev 3.2) | M12, left wall, 3 mm in front of the LED gland's position (`par_gland`, `par_gland_y`) | cable from the quantum sensor at canopy height to J6; fit check keeps the hole 3 mm or more from the SHT40 vent slots. Nodes without a sensor: M12 x 1.5 blanking plug, or print with `par_gland=false` |
 | Lid | 3 mm with a locating lip, 4 x M3 screws into bosses | closed-cell foam tape on the rim for a dust seal |
 | Floor | 2 x 4 mm mounting holes, 4 x 2 mm drain holes | pole or rail mounting; condensation drains |
 

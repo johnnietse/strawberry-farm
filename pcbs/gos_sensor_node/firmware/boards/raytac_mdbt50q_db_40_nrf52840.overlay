@@ -45,6 +45,8 @@
 
 	/* BQ24074 status outputs. Open drain with 100k pull-ups to 3.3 V on the board. */
 	zephyr,user {
+		/* rev 3.2: J6 PAR sensor through R24 (1k) and C15 (100 nF) on P0.03 / AIN1 */
+		io-channels = <&adc 1>;
 		pgood-gpios = <&gpio0 28 GPIO_ACTIVE_LOW>;	/* low = USB power good */
 		chg-gpios = <&gpio0 29 GPIO_ACTIVE_LOW>;	/* low = charging */
 	};
@@ -159,6 +161,19 @@
 		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 40)>;
 		zephyr,input-positive = <NRF_SAADC_AIN0>;
 		zephyr,resolution = <12>;
+	};
+
+	/* rev 3.2: PAR sensor on P0.03 (AIN1). 0.6 V reference with gain 4 gives 0.15 V full
+	 * scale, 37 uV per count; 256x oversampling averages the noise away (about 1 umol m-2 s-1
+	 * resolution with an Apogee SQ-500-SS, 0.01 mV per umol m-2 s-1). */
+	channel@1 {
+		reg = <1>;
+		zephyr,gain = "ADC_GAIN_4";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 40)>;
+		zephyr,input-positive = <NRF_SAADC_AIN1>;
+		zephyr,resolution = <12>;
+		zephyr,oversampling = <8>;
 	};
 };
 

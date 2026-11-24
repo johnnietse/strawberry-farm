@@ -58,6 +58,11 @@ FIRMWARE_V3_BODY = bytes.fromhex("0307443322110036cef40000a0bf00005e42feff800e03
 # reading taken while charging on USB power (flags 0x83), and with the charger unread (0x00).
 FIRMWARE_V4_BODY = bytes.fromhex("0407443322110036cef40000a0bf00005e42feff800e0300050083")
 FIRMWARE_V4_NO_CHARGER = bytes.fromhex("0407443322110036cef40000a0bf00005e42feff800e0300050000")
+# PACKET_V5 bodies (rev 3.2 firmware, src/packet.c) built on a PC by
+# pcbs/gos_sensor_node/firmware/tests/host/test_packet.c: the same reading with the quantum
+# sensor reading 1234 umol m-2 s-1, and with no PAR sensor configured (0xFFFF).
+FIRMWARE_V5_BODY = bytes.fromhex("0507443322110036cef40000a0bf00005e42feffd204800e0300050083")
+FIRMWARE_V5_NO_PAR = bytes.fromhex("0507443322110036cef40000a0bf00005e42feffffff800e0300050083")
 KEY = bytes.fromhex("00112233445566778899aabbccddeeff")
 EUI = "F4CE360011223344"
 
@@ -98,6 +103,36 @@ def test_signed_v4_packet_carries_charger_flags():
     assert len(signed(body=FIRMWARE_V4_BODY)) == rx.V4_LEN == 43
     assert r["authenticated"] and r["packet_version"] == 4 and r["counter"] == (5 << 16) | 3
     assert r["usb_power"] is True and r["charging"] is True and r["temp_c"] == -1.25
+
+
+def test_signed_v5_packet_carries_par():
+    r = rx.decode_packet(signed(body=FIRMWARE_V5_BODY), keys(eui64=EUI))
+    assert len(signed(body=FIRMWARE_V5_BODY)) == rx.V5_LEN == 45
+    assert r["authenticated"] and r["packet_version"] == 5 and r["counter"] == (5 << 16) | 3
+    assert r["par_umol"] == 1234 and r["battery_mv"] == 3712 and r["light_lux"] == 65534
+    assert r["charging"] is True and r["temp_c"] == -1.25
+
+
+def test_v5_without_par_sensor_reports_none():
+    r = rx.decode_packet(signed(body=FIRMWARE_V5_NO_PAR), keys())
+    assert r["par_umol"] is None and r["battery_mv"] == 3712
+
+
+def test_older_packets_have_no_par():
+    assert rx.decode_packet(signed(body=FIRMWARE_V4_BODY), keys())["par_umol"] is None
+
+
+@pytest.mark.parametrize("i", [20, 28, 44])   # PAR field, flags byte, tag
+def test_v5_any_altered_byte_fails_signature(i):
+    with pytest.raises(rx.AuthError, match="bad signature"):
+        rx.decode_packet(flip(signed(body=FIRMWARE_V5_BODY), i), keys())
+
+
+def test_v5_par_is_stored_and_answered_with_led_command():
+    store = CountingStore()
+    r = rx.CoapReceiver(store, keys=keys())
+    r.handle(coap(signed(body=FIRMWARE_V5_BODY), mtype=rx.TYPE_NON, mid=11), "x")
+    assert store.rows[0][0]["par_umol"] == 1234
 
 
 def test_v4_without_charger_state_reports_unknown():

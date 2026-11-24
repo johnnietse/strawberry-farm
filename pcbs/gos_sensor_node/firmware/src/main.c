@@ -1,11 +1,11 @@
 /*
- * G.O.S. sensor node rev 3.1 application.
+ * G.O.S. sensor node rev 3.2 application (runs on rev 3.1 boards too).
  *
- * Every SAMPLE_PERIOD_S: read SHT40, TSL2591, battery voltage and charger
- * status, log them, flash the status LED. The two PWM channels to the LED
+ * Every SAMPLE_PERIOD_S: read SHT40, TSL2591, battery voltage, charger status
+ * and (rev 3.2, CONFIG_GOS_PAR_SENSOR) the quantum sensor on J6, log them, flash the status LED. The two PWM channels to the LED
  * driver board start at 0 %.
  *
- * After each sample a signed PACKET_V4 research packet goes out over
+ * After each sample a signed PACKET_V5 research packet goes out over
  * Thread (src/uplink.c).
  *
  * Between samples all threads sleep, so Zephyr idles the CPU in System ON
@@ -15,6 +15,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
+#include <zephyr/drivers/adc.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/pwm.h>
 #include <zephyr/drivers/sensor.h>
@@ -51,6 +52,10 @@ static const struct gpio_dt_spec status_led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), g
 
 static const struct pwm_dt_spec pwm_blue = PWM_DT_SPEC_GET(DT_ALIAS(pwm_led0));
 static const struct pwm_dt_spec pwm_red = PWM_DT_SPEC_GET(DT_ALIAS(pwm_led1));
+
+#ifdef CONFIG_GOS_PAR_SENSOR
+static const struct adc_dt_spec par_adc = ADC_DT_SPEC_GET_BY_IDX(USER_NODE, 0);
+#endif
 
 static int wdt_channel = -1;
 
@@ -136,6 +141,49 @@ static int read_battery(struct gos_sensor_data *d)
 	return 0;
 }
 
+#ifdef CONFIG_GOS_PAR_SENSOR
+/* Quantum sensor on J6 (rev 3.2). Gain 4 with the 0.6 V reference: 0.15 V over 4096 counts. */
+#define PAR_FULL_SCALE_UV 150000
+
+static int gos_par_from_raw(int raw)
+{
+	int64_t uv;
+
+	if (raw < 0) {
+		raw = 0;        /* offset noise around 0 V in the dark */
+	}
+	uv = (int64_t)raw * PAR_FULL_SCALE_UV / 4096;
+	return (int)(uv * CONFIG_GOS_PAR_UMOL_PER_MV / 1000);
+}
+
+static int read_par(struct gos_sensor_data *d)
+{
+	static bool setup;
+	int16_t raw;
+	struct adc_sequence seq = { .buffer = &raw, .buffer_size = sizeof(raw) };
+	int err;
+
+	if (!adc_is_ready_dt(&par_adc)) {
+		return -ENODEV;
+	}
+	if (!setup) {
+		err = adc_channel_setup_dt(&par_adc);
+		if (err) {
+			return err;
+		}
+		setup = true;
+	}
+	err = adc_sequence_init_dt(&par_adc, &seq);
+	if (!err) {
+		err = adc_read_dt(&par_adc, &seq);
+	}
+	if (!err) {
+		d->par_umol = gos_par_from_raw(raw);
+	}
+	return err;
+}
+#endif
+
 static int read_charger(struct gos_sensor_data *d)
 {
 	int usb = gpio_pin_get_dt(&pgood);
@@ -163,6 +211,9 @@ static void sample_all(struct gos_sensor_data *d)
 		{ "TSL2591", read_light, GOS_VALID_LIGHT },
 		{ "battery", read_battery, GOS_VALID_BATTERY },
 		{ "charger", read_charger, GOS_VALID_CHARGER },
+#ifdef CONFIG_GOS_PAR_SENSOR
+		{ "PAR", read_par, GOS_VALID_PAR },
+#endif
 	};
 
 	*d = (struct gos_sensor_data){ .uptime_ms = k_uptime_get() };
@@ -193,6 +244,9 @@ static void report(const struct gos_sensor_data *d)
 		if (d->battery_mv < BATTERY_LOW_MV) {
 			LOG_WRN("battery low");
 		}
+	}
+	if (d->valid & GOS_VALID_PAR) {
+		LOG_INF("PAR %d umol m-2 s-1", d->par_umol);
 	}
 	if (d->valid & GOS_VALID_CHARGER) {
 		LOG_INF("usb power %s, %s", d->usb_power ? "present" : "absent",

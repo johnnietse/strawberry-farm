@@ -15,12 +15,14 @@ extern "C" {
 #define GOS_VALID_LIGHT   BIT(1)
 #define GOS_VALID_BATTERY BIT(2)
 #define GOS_VALID_CHARGER BIT(3)
+#define GOS_VALID_PAR     BIT(4)   /* rev 3.2 PAR input (CONFIG_GOS_PAR_SENSOR) */
 
 struct gos_sensor_data {
 	int temp_mc;        /* air temperature, 0.001 degC */
 	int humidity_mpct;  /* relative humidity, 0.001 % */
 	int light_lux;      /* TSL2591 combined reading, lux */
 	int battery_mv;     /* cell voltage at VBAT, mV */
+	int par_umol;       /* PAR at J6, umol m-2 s-1 (rev 3.2, quantum sensor) */
 	bool usb_power;     /* charger reports good USB power */
 	bool charging;      /* charger reports charge in progress */
 	uint8_t valid;      /* GOS_VALID_* */

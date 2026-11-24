@@ -1,4 +1,8 @@
-# G.O.S. LED driver board rev 1.0
+# G.O.S. LED driver board rev 1.1
+
+Rev 1.1 (2026-11-22) adds a 667 mA option per channel (bridge JP1 / JP2) and a 10 uF capacitor
+across each LED string. Rev 1.0 is kept in `pcbs/archive/led_driver_rev1.0/`; the comparison is in
+[`documentation/rev3.2_changes.md`](../../documentation/rev3.2_changes.md).
 
 Two constant-current channels for the phytotron grow light, driven by the sensor node's two
 PWM outputs (sensor node J4).
@@ -54,14 +58,16 @@ top of `generate_schematic.py` or a single part to swap.
 | Supply | 24 V DC adapter, 5.5 x 2.1 mm centre-positive plug (the jack's centre pin is 2.0 mm) | On 12 V a 3-4 LED blue string needs over 80 % switch duty; the AL8860 is specified for 25 to 75 %. On 24 V both strings sit at roughly 35 to 55 %. |
 | Channels | blue 450 nm, red 660 nm | Same spectra as the rev 2 design. |
 | LEDs per channel | 4 in series, off-board | About 1 W per LED. Plain FR-4 cannot shed 8 W, so the LEDs go on star (MCPCB) heatsinks wired to J3 and J4. |
-| Current | 333 mA per channel | AL8860: I = 0.1 V / R_SENSE; 0.30 ohm gives 333 mA (datasheet table). Suits common 1 W horticulture LEDs. Change R_SENSE for other LEDs (1.0 A max in MSOP-8EP at 0.1 ohm, up to 1.5 A at 0.066 ohm). |
+| Current | 333 mA per channel as delivered; 667 mA with the jumper bridged (rev 1.1) | AL8860: I = 0.1 V / R_SENSE; 0.30 ohm gives 333 mA (datasheet table). Rev 1.1: bridging JP1 (blue) or JP2 (red) with solder puts R5 / R6 (0.30 ohm) in parallel: 0.15 ohm, 667 mA, below the deep red Rebel's 700 mA DC maximum. Each channel can be set on its own. Suits common 1 W horticulture LEDs. Change R_SENSE for other LEDs (1.0 A max in MSOP-8EP at 0.1 ohm, up to 1.5 A at 0.066 ohm). |
 | Inductor | 100 uH (Bourns SRN6045TA-101M) | Datasheet range 33 to 100 uH. Its 47 uH example is for 1 A LEDs; at 333 mA the hysteresis band is a third as wide, and LTspice shows 47 uH switching at up to 1.27 MHz, above the 1 MHz limit, with on-times below the 500 ns needed for 4 % accuracy. 100 uH halves the frequency. Rated 0.92 A against a 0.4 A peak. |
 | Dimming | sensor node PWM at 250 Hz into CTRL | Datasheet: CTRL takes 3.3 V logic directly; above 2.5 V = full current, below 0.2 V = off; best accuracy below 500 Hz. |
+| LED-string capacitor (rev 1.1) | 10 uF 50 V X7R 1210 across each string (C6, C7) | The AL8860 regulates by hysteresis: the inductor current ramps about +/-15 % around the set value, so at 667 mA it peaks near 775 mA, above the deep red's 700 mA. The capacitor carries the ramp; the LEDs see the average (LTspice, `simulation/led_channel_667mA.cir`). 1 uF was tried first: with only about 0.5 uF left at 12 V bias it still let the LEDs peak at 730 mA. Fitted at both currents; with the string's 1.7 ohm it settles in about 10 us, so 250 Hz PWM is unaffected. |
 | Fail-safe | 1.5 kOhm pull-down on each CTRL | A floating CTRL means full brightness. The pull-down keeps the LEDs off when the cable is unplugged or the node is in reset. The datasheet does not give the CTRL pull-up, but its 80 uA maximum shutdown current bounds it: at most 80 uA x 1.5 k = 0.12 V, below the 0.2 V off threshold (LTspice, `simulation/ctrl_failsafe.cir`). 2.2 k left only 24 mV of margin. With the node driving through its 100 ohm resistor, CTRL still reaches 3.0 V (above 2.5 V = full current). |
 | Protection | 1.1 A PTC fuse and SS34 series diode on the input | Overload and reversed adapter. The AL8860 has its own open-LED, shorted-LED and over-temperature protection. |
 
 Approximate input power: 333 mA x (4 x 2.75 V blue + 4 x 2.1 V red) = about 6.5 W of LEDs, about
-0.3 A from the 24 V adapter. LTspice puts each channel at 94 to 97 % efficiency. The recommended
+0.3 A from the 24 V adapter (667 mA option: about 14.8 W, 0.7 A worst case, and use a heatsink of
+about 1 C/W per channel instead of 2). LTspice puts each channel at 94 to 97 % efficiency. The recommended
 adapter (Mean Well GST36U24-P1J, 24 V 1.5 A) has ample margin.
 
 ## Recommended LEDs and simulation

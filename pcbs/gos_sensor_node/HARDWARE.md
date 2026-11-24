@@ -1,4 +1,4 @@
-# G.O.S. sensor node rev 3.1 hardware reference
+# G.O.S. sensor node rev 3.2 hardware reference
 
 This replaces the hardware sections of `PROJECT_CONTEXT.md` and all of `WIRING_GUIDE.md`.
 Both describe rev 2 and contain pin tables that contradict the datasheets.
@@ -15,9 +15,25 @@ The schematic is generated. Edit `generate_schematics.py`, then run:
 2. The netlist KiCad exports equals the nets declared in the script, pin for pin.
 3. KiCad ERC reports zero violations at every severity.
 
+## What changed from rev 3.1 (rev 3.2, 2026-11-22)
+
+The rev 3.1 board is kept in `pcbs/archive/gos_sensor_node_rev3.1/`. Full before/after comparison
+with the test results: [`documentation/rev3.2_changes.md`](../../documentation/rev3.2_changes.md).
+
+*Table 1. What changed from rev 3.1 to rev 3.2, and why.*
+
+| Area | Rev 3.1 | Rev 3.2 | Why |
+|---|---|---|---|
+| Light measurement | TSL2591 only (lux) | plus J6, an input for a self-powered quantum (PAR) sensor, e.g. Apogee SQ-500-SS (0.01 mV per umol m-2 s-1), through R24 1k + C15 100 nF to AIN1 (P0.03) | lux is a poor measure of photosynthetic light under narrow-band red and blue LEDs |
+| SHT40 | on the board edge, surrounded by ground pour and both planes | on a tongue cut free by two notches from the edge and a slot (1.0 mm), no pour, planes or vias on it; four 0.127 mm tracks cross a 2.2 mm FR-4 bridge | charging (0.64 W in the BQ24074) warmed the sensor; 2-D thermal estimate: 11.7 K -> 8.2 K above the air (30 % less) |
+| I2C pull-ups R13-R15 | beside the SHT40 | beside J6 | off the tongue |
+| J3 (I2C header) | y 31.0 mm | y 32.5 mm | clear of the lower notch |
+| Firmware packet | PACKET_V4, 43 bytes | PACKET_V5, 45 bytes, PAR after light | carries the PAR reading; the gateway still accepts V4 and V3 |
+| Enclosure | one M12 gland (LED cable, right wall) | plus an M12 gland in the left wall for the PAR cable | the sensor sits outside at canopy height |
+
 ## What changed from rev 2
 
-*Table 1. What changed from rev 2 to rev 3, and why.*
+*Table 2. What changed from rev 2 to rev 3, and why.*
 
 | Area | Rev 2 | Rev 3 | Why |
 |---|---|---|---|
@@ -34,7 +50,7 @@ The schematic is generated. Edit `generate_schematics.py`, then run:
 
 ## Power tree
 
-*Table 2. Power tree: each supply net, its source, voltage and loads.*
+*Table 3. Power tree: each supply net, its source, voltage and loads.*
 
 | Net | Source | Voltage | Loads |
 |---|---|---|---|
@@ -49,7 +65,7 @@ The schematic is generated. Edit `generate_schematics.py`, then run:
 
 ## Charger settings (BQ24074)
 
-*Table 3. BQ24074 charger pin settings: what each connection sets, and the datasheet rule it follows.*
+*Table 4. BQ24074 charger pin settings: what each connection sets, and the datasheet rule it follows.*
 
 | Pin | Connection | Result | Datasheet rule |
 |---|---|---|---|
@@ -67,7 +83,7 @@ The three resistor values are constants at the top of `generate_schematics.py`.
 
 ## Cell protection (DW01A + FS8205A)
 
-*Table 4. Cell protection thresholds (DW01A controller with FS8205A switches).*
+*Table 5. Cell protection thresholds (DW01A controller with FS8205A switches).*
 
 | Event | Threshold |
 |---|---|
@@ -79,7 +95,7 @@ After a cell is fitted the DW01A may stay off until USB is plugged in once.
 
 ## Module pin map (MDBT50Q-1MV2)
 
-*Table 5. Module pin map: each net, its nRF52840 pin, its module pin and where it goes.*
+*Table 6. Module pin map: each net, its nRF52840 pin, its module pin and where it goes.*
 
 | Net | nRF pin | Module pin | Goes to |
 |---|---|---|---|
@@ -91,6 +107,7 @@ After a cell is fitted the DW01A may stay off until USB is plugged in once.
 | `UART_TX` | P0.06 | 22 | TP5 |
 | `UART_RX` | P0.08 | 24 | TP6 |
 | `VBAT_SENSE` | P0.02 / AIN0 | 11 | VBAT / 2 |
+| `PAR_SENSE` | P0.03 / AIN1 | 9 | rev 3.2: J6 pin 2 through R24 (1k), C15 (100 nF) to GND |
 | `PGOOD_N` | P0.28 | 13 | low when USB power is good |
 | `CHG_N` | P0.29 | 10 | low while charging |
 | `LED_STAT_N` | P0.17 | 41 | status LED D2, low = on |
@@ -106,7 +123,7 @@ All other pins carry no-connect flags.
 
 ## Connectors
 
-*Table 6. Connectors on the sensor node.*
+*Table 7. Connectors on the sensor node.*
 
 | Ref | Type | Pins |
 |---|---|---|
@@ -115,14 +132,16 @@ All other pins carry no-connect flags.
 | J3 | 1x4 2.54 mm I2C | 1 `+3V3`, 2 GND, 3 SDA, 4 SCL |
 | J4 | 1x4 2.54 mm LED board PWM | 1 GND, 2 PWM blue, 3 PWM red, 4 GND. Signals only (250 Hz, high-drive 3.3 V); mates with `pcbs/led_driver` J2, which has its own 24 V supply. |
 | J5 | 2-pin JST-PH battery | 1 cell positive, 2 cell negative. The 18650 sits in the enclosure cradle. |
+| J6 | 1x4 2.54 mm PAR sensor (rev 3.2) | 1 GND (shield), 2 sensor signal +, 3 GND (sensor -), 4 `+3V3` (50 mA max, for a powered sensor). Self-powered sensors up to 150 mV full scale (SAADC gain 4). |
 
 ## Sensors, checked against datasheets
 
-*Table 7. Sensors checked against their datasheets: pins and the limits that matter here.*
+*Table 8. Sensors checked against their datasheets: pins and the limits that matter here.*
 
 | Part | Pins | Limits that matter here |
 |---|---|---|
-| SHT40-AD1B | 1 SDA, 2 SCL, 3 VDD, 4 VSS; address 0x44 | 1.08 to 3.6 V. No copper under the part except its pads; centre pad not soldered. Idle 0.08 uA. |
+| SHT40-AD1B | 1 SDA, 2 SCL, 3 VDD, 4 VSS; address 0x44 | 1.08 to 3.6 V. No copper under the part except its pads; centre pad not soldered. Idle 0.08 uA. Rev 3.2: on the isolated tongue (Sensirion design guide: slots, no copper planes near the sensor). |
+| Quantum sensor on J6 (rev 3.2, bought) | 2 wires + shield | Apogee SQ-500-SS: self-powered, 0 to 40 mV, 0.01 mV per umol m-2 s-1, calibration +/-5 %, factor on its certificate (`CONFIG_GOS_PAR_UMOL_PER_MV`). At gain 4 the SAADC counts 37 uV, about 3.7 umol m-2 s-1; 256x oversampling averages below that. |
 | TSL25911FN | 1 SCL, 2 INT (open drain), 3 GND, 4 NC, 5 VDD, 6 SDA; address 0x29 | 2.7 to 3.6 V, -30 to 70 C. Sleep 2.3 uA, active 275 uA. |
 
 Both match the KiCad stock symbols used.
@@ -131,7 +150,7 @@ Both match the KiCad stock symbols used.
 
 Standing current with the node asleep, typical datasheet values, at the battery:
 
-*Table 8. Sleep current budget at the battery, from typical datasheet values (an estimate, not a measurement).*
+*Table 9. Sleep current budget at the battery, from typical datasheet values (an estimate, not a measurement).*
 
 | Consumer | Current |
 |---|---|
@@ -162,7 +181,7 @@ So a sleepy climate node draws an estimated 20 to 30 uA, less than the cell's ow
 west build -b raytac_mdbt50q_db_40/nrf52840
 ```
 
-*Table 9. Firmware files and the role of each.*
+*Table 10. Firmware files and the role of each.*
 
 | File | Role |
 |---|---|
@@ -178,7 +197,7 @@ It uses Zephyr's own SHT4x, TSL2591 and voltage-divider drivers. There are no pr
 
 ### Uplink
 
-*Table 10. Uplink settings: default and how to change each.*
+*Table 11. Uplink settings: default and how to change each.*
 
 | Setting | Default | Change with |
 |---|---|---|
@@ -186,22 +205,23 @@ It uses Zephyr's own SHT4x, TSL2591 and voltage-divider drivers. There are no pr
 | CoAP path | `/telemetry` | `CONFIG_GOS_UPLINK_URI_PATH` |
 | Node index | 1 | `CONFIG_GOS_NODE_INDEX` |
 
-Payload (PACKET_V4), 43 bytes, all fields little-endian, decode with Python `struct.unpack("<BBQffHHIB16s", payload)`:
+Payload (PACKET_V5, rev 3.2 firmware), 45 bytes, all fields little-endian, decode with Python `struct.unpack("<BBQffHHHIB16s", payload)`. Built by `src/packet.c`, which has no Zephyr calls so `tests/host/test_packet.c` checks its bytes against the gateway's format on a PC:
 
-*Table 11. PACKET_V4 payload: 43 bytes, little-endian, field by field.*
+*Table 12. PACKET_V5 payload: 45 bytes, little-endian, field by field (V4 had no PAR field; everything after it moved 2 bytes).*
 
 | Offset | Field | Notes |
 |---|---|---|
-| 0 | version | 4 (signed; the receiver also accepts version 3, which has no flags byte) |
+| 0 | version | 5 (signed; the receiver also accepts version 4, without PAR, and 3, without flags) |
 | 1 | node index | |
 | 2 | EUI-64 | factory address as an integer, first EUI byte most significant |
 | 10 | temperature, float, degC | NaN if the read failed |
 | 14 | humidity, float, %RH | NaN if the read failed |
 | 18 | light, lux | clamped to 65534; 65535 if the read failed |
-| 20 | battery, mV | 65535 if the read failed |
-| 22 | counter, u32 | boot epoch (kept in flash) << 16, plus a sequence number; never repeats |
-| 26 | flags | bit 7 charger state valid, bit 0 USB power present, bit 1 charging. The charger warms the board (up to about 0.65 W), so climate readings taken while charging read high; filter them with `payload->>'charging'`. |
-| 27 | tag, 16 bytes | first 16 bytes of HMAC-SHA256(node key, bytes 0 to 26) |
+| 20 | PAR, umol m-2 s-1 | rev 3.2: quantum sensor on J6; 65535 when `CONFIG_GOS_PAR_SENSOR` is off or the read failed |
+| 22 | battery, mV | 65535 if the read failed |
+| 24 | counter, u32 | boot epoch (kept in flash) << 16, plus a sequence number; never repeats |
+| 28 | flags | bit 7 charger state valid, bit 0 USB power present, bit 1 charging. The charger warms the board (up to about 0.65 W), so climate readings taken while charging read high; filter them with `payload->>'charging'`. |
+| 29 | tag, 16 bytes | first 16 bytes of HMAC-SHA256(node key, bytes 0 to 28) |
 
 ### LED commands
 
@@ -237,14 +257,21 @@ Not implemented: any use of the user button or the TSL2591 interrupt. Sleep curr
 
 ### Builds
 
-*Table 12. Firmware builds and the flash and RAM each uses.*
+*Table 13. Firmware builds and the flash and RAM each uses.*
 
 | Node | Build | Flash / RAM |
 |---|---|---|
-| bench (logging on) | `west build -b raytac_mdbt50q_db_40/nrf52840` | 214.6 KB / 62.4 KB |
+| bench (logging on) | `west build -b raytac_mdbt50q_db_40/nrf52840` | 214.7 KB / 62.4 KB |
 | climate node in the field (battery, sleepy) | `... -- -DEXTRA_CONF_FILE=low_power.conf` | 197.3 KB / 60.1 KB |
 | same, debugger locked (keys cannot be read out) | `... -- -DEXTRA_CONF_FILE="low_power.conf;lock.conf"` | 197.3 KB / 60.1 KB |
 | light node (USB powered, Thread router, relays for others) | `... -- -DEXTRA_CONF_FILE=router.conf` | 261.6 KB / 70.6 KB |
+| rev 3.2 light node with a quantum sensor on J6 | `... -- -DEXTRA_CONF_FILE="router.conf;par_sensor.conf"` | 261.8 KB / 70.6 KB |
+| rev 3.2 climate node with a quantum sensor | `... -- -DEXTRA_CONF_FILE="low_power.conf;par_sensor.conf"` | 197.5 KB / 60.1 KB |
+
+All six built on 2026-11-22 (Zephyr main f8da8ea, SDK 1.0.1). Each prints one Kconfig warning
+from Zephyr's own defaults (`SECURE_STORAGE_ITS_TRANSFORM_AEAD_KEY_PROVIDER_DEVICE_ID_HASH`), the
+same as the rev 3.1 builds; none from the project's code. Set the quantum sensor's calibration
+factor in `par_sensor.conf` (`CONFIG_GOS_PAR_UMOL_PER_MV`, umol m-2 s-1 per mV, from its certificate).
 
 A locked node can only be reflashed after a full chip erase (`nrfjprog --recover`), which also
 erases its message-counter epoch: re-provision it (new key) before reflashing, or the gateway
@@ -288,7 +315,7 @@ Ordering (manufacturer, settings, part availability, items bought separately): `
 
 ## Sources
 
-*Table 13. Datasheets and documents used, and what each was used for.*
+*Table 14. Datasheets and documents used, and what each was used for.*
 
 | Part | Document | Used for |
 |---|---|---|

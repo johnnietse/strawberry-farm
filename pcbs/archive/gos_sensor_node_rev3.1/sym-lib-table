@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "gos")(type "KiCad")(uri "${KIPRJMOD}/libraries/gos.kicad_sym")(options "")(descr "G.O.S. sensor node symbols"))
+)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""G.O.S. sensor node rev 3.1 board generator (KiCad 9 pcbnew API).
+"""G.O.S. sensor node rev 3.2 board generator (KiCad 9 pcbnew API).
 
     "C:\\Program Files\\KiCad\\9.0\\bin\\python.exe" generate_pcb.py
     "C:\\Program Files\\KiCad\\9.0\\bin\\python.exe" route_pcb.py
@@ -18,6 +18,10 @@ Placement rules for this board:
 - USB-C J1 on the bottom edge, socket facing out
 - SHT40 U5 and TSL2591 U6 on the side edges, away from the charger and buck
 - each passive as close as possible to the chip it belongs to
+- rev 3.2: the SHT40 sits on a tongue cut free by routed slots on three sides, with no copper
+  pour and no vias on it, so heat from the charger and buck reaches it only through a narrow
+  FR-4 bridge (Sensirion design guide: slots and no copper planes around the sensor)
+- rev 3.2: PAR sensor header J6 beside the I2C header, its RC filter (R24, C15) next to it
 - no courtyard overlaps (checked here, and again by DRC)
 """
 import json
@@ -73,7 +77,8 @@ CONFIG = {
         "C13": (3.0, 23.7, 180),       # SHT40 decoupling, pads straight above its VDD and GND pads
         "U6": (W - 2.2, 26.0, 90),     # TSL2591, right edge, nothing tall beside it
         "J2": (W - 6.0, 36.0, 0),      # SWD header
-        "J3": (2.6, 31.0, 0),          # I2C header, left edge
+        "J3": (2.6, 32.5, 0),          # I2C header, left edge (rev 3.2: 1.5 mm lower, below the SHT40 slot)
+        "J6": (7.6, 32.5, 0),          # rev 3.2: PAR sensor header, beside J3
         "J4": (W - 2.6, 46.5, 0),      # LED-board PWM header, right edge
         "J5": (3.0, 47.0, 0),          # battery lead, left edge
         "U1": (18.0, 42.0, 0),         # charger
@@ -91,23 +96,38 @@ CONFIG = {
     # Everything else is placed near an anchor part, in this order.
     "near": {
         "U4": ["C10", "C11", "C12", "Y1", "C8", "C9", "R10", "R11", "C7", "D2", "R12"],
-        "U5": ["R13", "R14", "R15"],
+        "U5": [],                      # rev 3.2: its I2C pull-ups moved off the tongue (near J6)
         "U6": ["C14"],
         "U1": ["C1", "C2", "R4", "TH1", "C3", "R1", "R2", "R3", "R5", "R6", "R7", "D1"],  # R4/TH1 early: corner pins 16/1
         "U2": [],
         "U3": ["R8", "C6", "R9"],
         "J1": ["F1", "U7", "R16", "R17", "R18", "R19"],
         "J4": ["R20", "R21", "R22", "R23"],
+        "J6": ["R24", "C15", "R13", "R14", "R15"],
         "J2": ["TP1", "TP2", "TP3", "TP4", "TP5", "TP6", "TP7"],
     },
-    "silk_refs": ("J3", "J5", "SW", "D1"),  # labels kept on silkscreen (the rest collide with pads)
+    "silk_refs": ("J5", "SW", "D1"),  # labels kept on silkscreen (the rest collide with pads; rev 3.2: J3's now meets the slot)
     "overhang": {"J1"},                     # USB-C socket front sits past the board edge by design
     # No other parts in this strip along the top edge (module antenna is the top 4.3 mm).
-    "placement_keepouts": [(0.0, 0.0, W, 6.5)],
+    "placement_keepouts": [(0.0, 0.0, W, 6.5),
+                           (0.0, 22.6, 11.0, 30.0)],  # rev 3.2: SHT40 tongue, bridge and the tracks' exit vias: only U5 and C13
     # No copper at all, either layer, across the full width beside the antenna
     # (Raytac: keep the antenna area clear of copper and ground; the module's own
     # keep-out only covers its width).
     "copper_keepouts": [(0.0, 0.0, W, 4.9)],
+    # rev 3.2: the SHT40 sits on a tongue cut free by two notches milled in from the left edge
+    # (1.0 mm wide, JLCPCB's minimum routed slot) and a slot down its right side, leaving a
+    # 2.2 mm FR-4 bridge (x 6.8 to 7.8, y 26.8 to 29.0) for its four tracks. Notches open to the
+    # edge, not closed slots: no copper-bearing edge strips couple heat into the tongue
+    # (simulation/thermal_sht40.py: 30 % less SHT40 warming from the charger than rev 3.1).
+    # The outline is one polygon (board mm, clockwise from the top-left corner).
+    "outline": [(0, 0), (W, 0), (W, H), (0, H), (0, 30.0), (7.8, 30.0), (7.8, 29.0), (0, 29.0),
+                (0, 22.6), (6.8, 22.6), (6.8, 26.8), (7.8, 26.8), (7.8, 21.6), (0, 21.6)],
+    # the cut-outs as rectangles, for copper (0.5 mm, the board's edge clearance) and placement clearance
+    "slot_rects": [(0.0, 21.6, 7.8, 22.6), (0.0, 29.0, 7.8, 30.0), (6.8, 21.6, 7.8, 26.8)],
+    # no pour and no vias on the tongue (tracks may cross it): copper planes would carry the
+    # board's heat straight to the sensor
+    "thermal_islands": [(0.0, 22.6, 7.8, 29.0)],   # tongue and bridge: the 4 tracks cross by track, no vias
     "netclasses": SENSOR_NETCLASSES,
     "netclass_nets": {"Power": SENSOR_POWER_NETS},
     # Locked copper laid by hand before autorouting: (net, width mm, [(x, y), ...]) on F.Cu,
@@ -121,8 +141,29 @@ CONFIG = {
         ("GND", 0.25, [(28.05, 42.25), (28.75, 42.25)]),
         ("GND", 0.3, [(25.05, 39.0), (24.05, 39.0)]),                      # C4 GND -> via
         ("GND", 0.3, [(27.55, 45.35), (28.55, 45.35)]),                      # C5 GND -> via
+        # rev 3.2: Freerouting 2.0.1 left SW1's reset line unrouted on every attempt on the
+        # notched board, so its first stretch is laid by hand to a via; the router joins the via
+        ("NRESET", 0.2, [(4.8, 15.0), (4.8, 12.0), (9.6, 12.0)]),
     ],
-    "preroute_vias": [("GND", 24.05, 39.0), ("GND", 28.55, 45.35)],
+    "preroute_vias": [("GND", 24.05, 39.0), ("GND", 28.55, 45.35),
+                      ("NRESET", 9.6, 12.0)],   # rev 3.2: see the NRESET track above
+    # rev 3.2: the SHT40 tongue has no vias, and Freerouting cannot get out of the sensor's
+    # keep-out on one layer, so its four tracks are laid by hand on F.Cu (0.2 mm, 0.3 mm or more
+    # apart) through the bridge to x = 9.0, where the autorouter takes over. The pad ends start
+    # just outside the footprint's keep-out (no snapping to the pad centre: the 4th field).
+    "preroute_tongue": [
+        ("GND", 0.127, [(2.6, 25.12), (2.6, 24.1)], False),                               # U5 GND -> C13
+        ("GND", 0.127, [(2.225, 23.7), (1.4, 24.5), (1.4, 28.35), (8.6, 28.35), (9.0, 29.25)], True),
+        ("+3V3", 0.127, [(3.4, 25.12), (3.4, 24.0)], False),                              # U5 VDD -> C13
+        ("+3V3", 0.127, [(3.775, 23.7), (5.9, 23.7), (5.9, 27.45), (8.6, 27.45), (9.0, 26.55)], True),
+        ("I2C_SCL", 0.127, [(3.4, 26.88), (3.4, 27.75), (9.6, 27.75), (10.2, 27.6)], False),
+        ("I2C_SDA", 0.127, [(2.6, 26.88), (2.6, 28.05), (9.6, 28.05), (10.2, 28.6)], False),
+    ],
+    # each tongue track ends on a locked via past the bridge (fanned out to via spacing); the
+    # autorouter joins them there on any layer. Tracks 0.127 mm (JLCPCB 4-layer minimum 0.09 mm):
+    # thin copper carries less heat onto the tongue.
+    "preroute_tongue_vias": [("+3V3", 9.0, 26.55), ("GND", 9.0, 29.25),
+                             ("I2C_SCL", 10.2, 27.6), ("I2C_SDA", 10.2, 28.6)],
 }
 
 
@@ -198,16 +239,17 @@ def rect_outline(x1, y1, x2, y2):
     return poly
 
 
-def add_copper_keepout(board, rect):
+def add_copper_keepout(board, rect, name="antenna keep-out", tracks=False):
+    """Rule area on every copper layer: no pour and no vias; no tracks unless tracks=True."""
     zone = pcbnew.ZONE(board)
     zone.SetIsRuleArea(True)
-    zone.SetDoNotAllowTracks(True)
+    zone.SetDoNotAllowTracks(not tracks)
     zone.SetDoNotAllowVias(True)
     zone.SetDoNotAllowPads(False)
     zone.SetDoNotAllowFootprints(False)
     zone.SetDoNotAllowCopperPour(True)
     zone.SetLayerSet(pcbnew.LSET.AllCuMask(board.GetCopperLayerCount()))  # every copper layer
-    zone.SetZoneName("antenna keep-out")
+    zone.SetZoneName(name)
     zone.Outline().AddOutline(rect_outline(*rect))
     board.Add(zone)
 
@@ -316,7 +358,7 @@ def build(cfg):
         netinfo[name] = ni
 
     # outline
-    pts = [(0, 0), (w, 0), (w, h), (0, h)]
+    pts = cfg.get("outline", [(0, 0), (w, 0), (w, h), (0, h)])
     for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1]):
         seg = pcbnew.PCB_SHAPE(board)
         seg.SetShape(pcbnew.SHAPE_T_SEGMENT)
@@ -325,6 +367,16 @@ def build(cfg):
         seg.SetLayer(pcbnew.Edge_Cuts)
         seg.SetWidth(mm(0.1))
         board.Add(seg)
+
+    for pts in cfg.get("slots", []):                # internal cut-outs (closed slots), if any
+        for (ax, ay), (bx, by) in zip(pts, pts[1:] + pts[:1]):
+            seg = pcbnew.PCB_SHAPE(board)
+            seg.SetShape(pcbnew.SHAPE_T_SEGMENT)
+            seg.SetStart(pcbnew.VECTOR2I(mm(OX + ax), mm(OY + ay)))
+            seg.SetEnd(pcbnew.VECTOR2I(mm(OX + bx), mm(OY + by)))
+            seg.SetLayer(pcbnew.Edge_Cuts)
+            seg.SetWidth(mm(0.1))
+            board.Add(seg)
 
     footprints = {}
     for ref, c in comps.items():
@@ -377,6 +429,8 @@ def build(cfg):
         taken.append((ref, box))
     for i, rect in enumerate(cfg.get("placement_keepouts", [])):
         taken.append((f"keepout{i}", rect))
+    for i, (x1, y1, x2, y2) in enumerate(cfg.get("slot_rects", [])):   # parts stay 0.5 mm off a cut-out
+        taken.append((f"slot{i}", (x1 - 0.5, y1 - 0.5, x2 + 0.5, y2 + 0.5)))
 
     for anchor, group in near.items():
         ax, ay = (pcbnew.ToMM(footprints[anchor].GetPosition().x) - OX,
@@ -406,17 +460,19 @@ def build(cfg):
         near = [c for c in pad_centres.get(net, []) if (c - pt).EuclideanNorm() <= mm(0.3)]
         return min(near, key=lambda c: (c - pt).EuclideanNorm()) if near else pt
 
-    for net, width, pts in cfg.get("preroute_tracks", []):
+    tracks = [(n, w, p, True) for n, w, p in cfg.get("preroute_tracks", [])] + cfg.get("preroute_tongue", [])
+    for net, width, pts, do_snap in tracks:
+        put = snap if do_snap else (lambda _n, x, y: pcbnew.VECTOR2I(mm(OX + x), mm(OY + y)))
         for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
             t = pcbnew.PCB_TRACK(board)
-            t.SetStart(snap(net, x1, y1))
-            t.SetEnd(snap(net, x2, y2))
+            t.SetStart(put(net, x1, y1))
+            t.SetEnd(put(net, x2, y2))
             t.SetWidth(mm(width))
             t.SetLayer(pcbnew.F_Cu)
             t.SetNet(netinfo[net])
             t.SetLocked(True)
             board.Add(t)
-    for net, x, y in cfg.get("preroute_vias", []):
+    for net, x, y in cfg.get("preroute_vias", []) + cfg.get("preroute_tongue_vias", []):
         v = pcbnew.PCB_VIA(board)
         v.SetPosition(pcbnew.VECTOR2I(mm(OX + x), mm(OY + y)))
         v.SetWidth(mm(0.6))
@@ -428,6 +484,10 @@ def build(cfg):
 
     for rect in cfg.get("copper_keepouts", []):
         add_copper_keepout(board, rect)
+    for x1, y1, x2, y2 in cfg.get("slot_rects", []):    # copper keeps the 0.5 mm edge clearance
+        add_copper_keepout(board, (x1 - 0.5, y1 - 0.5, x2 + 0.5, y2 + 0.5), "slot keep-out")
+    for rect in cfg.get("thermal_islands", []):
+        add_copper_keepout(board, rect, "SHT40 thermal island", tracks=True)
 
     board.Save(path)
     write_stackup(path)

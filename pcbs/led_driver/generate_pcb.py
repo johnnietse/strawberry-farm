@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""G.O.S. LED driver board rev 1.0 board generator (KiCad 9 pcbnew API).
+"""G.O.S. LED driver board rev 1.1 board generator (KiCad 9 pcbnew API).
 
     "C:\\Program Files\\KiCad\\9.0\\bin\\python.exe" generate_pcb.py
     "C:\\Program Files\\KiCad\\9.0\\bin\\python.exe" ..\\gos_sensor_node\\route_pcb.py .
@@ -12,6 +12,9 @@ Layout:
 - blue channel (U1) in the top half, red channel (U2) in the bottom half
 - J3 / J4 LED terminals on the right edge, wire entry facing out
 - J2 PWM header along the bottom edge
+- rev 1.1: a 10 uF capacitor across each LED string beside its inductor (C6, C7)
+- rev 1.1: each channel's second sense resistor (R5 blue, R6 red) and its solder jumper (JP1,
+  JP2) beside the first sense resistor, so the 667 mA option keeps the SET loop short
 - each channel's input capacitor, freewheel diode and inductor packed around
   its AL8860 to keep the switching loop (VIN cap, SW, diode) small
 """
@@ -58,11 +61,13 @@ CONFIG = {
         "L2": (37.6, 39.60, 180),   # inductor, pad 2 (SW) under the diode anode
     },
     "near": {
-        "U1": ["C3", "R1", "R2"],
-        "U2": ["C5", "R3", "R4"],
+        "U1": ["C3", "R1", "R2", "R5", "JP1"],
+        "U2": ["C5", "R3", "R4", "R6", "JP2"],
+        "L1": ["C6"],                  # rev 1.1: across the blue string (SET to LEDK), beside its inductor
+        "L2": ["C7"],                  # rev 1.1: across the red string
         "J1": ["F1", "D1", "C1"],
     },
-    "silk_refs": ("J2", "J3", "J4", "L"),  # the rest sit too close to pads; F.Fab has them
+    "silk_refs": ("J2", "J3", "J4"),  # the rest sit too close to pads; F.Fab has them (rev 1.1: L1 / L2 labels now meet C6 / C7)
     "overhang": {"J1", "J3", "J4"},   # connector courtyards reach just past the board edge
     "placement_keepouts": [],
     "copper_keepouts": [],

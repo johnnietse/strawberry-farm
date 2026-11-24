@@ -132,6 +132,7 @@ def prepare_for_router(board):
       against it.
     - Freerouting does not know KiCad's copper-to-edge clearance, so the edges
       get keep-out strips of that width.
+    - Every net class routes with 0.01 mm more clearance than DRC checks (pad-shape rounding).
     """
     shrink = max(c.GetClearance() for c in board.GetDesignSettings().m_NetSettings.GetNetclasses().values())
     shrink = max(shrink, board.GetDesignSettings().m_NetSettings.GetDefaultNetclass().GetClearance())
@@ -159,6 +160,11 @@ def prepare_for_router(board):
             fp.Remove(zone)
             for i in range(poly.OutlineCount()):
                 rule_area(board, poly.Outline(i), layers, f"{fp.GetReference()} keep-out (router)")
+    # Freerouting approximates rounded and custom pad shapes (the solder jumpers' half-round pads)
+    # and can land a few micrometres inside KiCad's clearance; route with 0.01 mm to spare
+    ns = board.GetDesignSettings().m_NetSettings
+    for nc in list(ns.GetNetclasses().values()) + [ns.GetDefaultNetclass()]:
+        nc.SetClearance(nc.GetClearance() + pcbnew.FromMM(0.01))
     edge = board.GetDesignSettings().m_CopperEdgeClearance
     box = board.GetBoardEdgesBoundingBox()
     x1, y1, x2, y2 = box.GetLeft(), box.GetTop(), box.GetRight(), box.GetBottom()
@@ -223,6 +229,38 @@ def autoroute(path, passes):
     return board
 
 
+def drop_single_layer_vias(board):
+    """A via whose tracks all arrive on one layer joins nothing (DRC: via_dangling). That
+    happens when the router meets a hand-laid end via on the same layer. Remove those, except
+    on GND, where vias also tie into the poured planes."""
+    gnd = board.FindNet("GND").GetNetCode()
+    tracks = [t for t in board.GetTracks() if t.GetClass() == "PCB_TRACK"]
+    removed = 0
+    for v in [t for t in board.GetTracks() if t.GetClass() == "PCB_VIA"]:
+        if v.GetNetCode() == gnd:
+            continue
+        p, r = v.GetPosition(), v.GetWidth(pcbnew.F_Cu) // 2
+        touching = [t for t in tracks if t.GetNetCode() == v.GetNetCode()
+                    and ((t.GetStart() - p).EuclideanNorm() <= r or (t.GetEnd() - p).EuclideanNorm() <= r)]
+        if len({t.GetLayer() for t in touching}) == 1:
+            # tracks may end anywhere on the via's pad, not at its centre: join each end to the
+            # centre on its own layer first, so removing the via keeps them connected
+            for t in touching:
+                for end in (t.GetStart(), t.GetEnd()):
+                    if 0 < (end - p).EuclideanNorm() <= r:
+                        j = pcbnew.PCB_TRACK(board)
+                        j.SetStart(end)
+                        j.SetEnd(p)
+                        j.SetWidth(t.GetWidth())
+                        j.SetLayer(t.GetLayer())
+                        j.SetNet(t.GetNet())
+                        board.Add(j)
+            board.Remove(v)
+            removed += 1
+    if removed:
+        print(f"removed {removed} via(s) joined on one layer only")
+
+
 def copper_layers(board):
     return list(board.GetEnabledLayers().CuStack())
 
@@ -260,6 +298,10 @@ def add_ground_pour(board, layers=None, fill=True):
         pcbnew.ZONE_FILLER(board).Fill(board.Zones())
 
 
+ROUTER_MADE = {"shorting_items", "tracks_crossing", "clearance", "copper_edge_clearance",
+               "track_dangling", "via_dangling", "hole_clearance", "hole_to_hole", "starved_thermal"}
+
+
 def drc(path, report):
     run([KICAD_CLI, "pcb", "drc", "--schematic-parity", "--severity-all", "--format", "json",
          "--units", "mm", "-o", report, path], capture_output=True)
@@ -272,6 +314,8 @@ def drc(path, report):
             print(f"  {kind}: [{item.get('severity')}] {item.get('type')}: {item.get('description')} | {where}")
     counts = {k: len(v) for k, v in found.items()}
     print("DRC:", counts)
+    # violations the autorouter can cause and a new routing attempt can clear
+    counts["router_made"] = sum(1 for v in found["violations"] if v.get("type") in ROUTER_MADE)
     return counts
 
 
@@ -449,7 +493,7 @@ def main():
     path = board_file(board_dir)
     if "--fab-only" in sys.argv:           # board already routed: check it and write the outputs
         counts = drc(path, os.path.join(tempfile.mkdtemp(prefix="gos_drc_"), "drc.json"))
-        if any(counts.values()):
+        if any(v for k, v in counts.items() if k != "router_made"):
             raise SystemExit("DRC not clean; fabrication files not written")
         fabrication(path, board_dir)
         documentation(path, board_dir)
@@ -472,6 +516,7 @@ def main():
             print(" ", e)
             counts = None
             continue
+        drop_single_layer_vias(board)
         add_ground_pour(board, fill=False)
         if len(copper_layers(board)) > 2:
             stitch_ground(board)
@@ -479,12 +524,13 @@ def main():
         stats(board)
         board.Save(path)
         counts = drc(path, os.path.join(tempfile.mkdtemp(prefix="gos_drc_"), "drc.json"))
-        if counts["violations"] or counts["schematic_parity"] or not counts["unconnected_items"]:
+        rule_problem = counts["schematic_parity"] or counts["violations"] > counts["router_made"]
+        if rule_problem or not (counts["unconnected_items"] or counts["router_made"]):
             break                          # clean, or a rule problem rerouting will not fix
     else:
         if counts is None:
             raise SystemExit(f"Freerouting failed {ATTEMPTS} times")
-    if any(counts.values()):
+    if any(v for k, v in counts.items() if k != "router_made"):
         raise SystemExit("DRC not clean; fabrication files not written")
     fabrication(path, board_dir)
     documentation(path, board_dir)

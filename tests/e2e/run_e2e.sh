@@ -64,6 +64,7 @@ check "8/8 replies carry a valid signed LED command" 'echo "$out" | grep -q "RES
 
 plant=$(curl -sf "$API/api/plant")
 check "plant state for RF-NODE-07" "echo '$plant' | $PY -c \"import json,sys; d=[x for x in json.load(sys.stdin) if x['node_id']=='RF-NODE-07']; assert d[0]['photosynthesis_umol_m2_s'] > 0\""
+check "rev 3.2 PAR reading (PACKET_V5) stored for RF-NODE-07" "curl -sf $API/api/nodes | $PY -c \"import json,sys; d=[x for x in json.load(sys.stdin) if x['node_id']=='RF-NODE-07'][0]; assert d['par_umol'] is not None and d['par_umol'] >= 450\""
 check "Chronos forecast in plant state" "echo '$plant' | $PY -c \"import json,sys; d=[x for x in json.load(sys.stdin) if x['node_id']=='RF-NODE-07'][0]['forecast']; assert d and d['backend']=='chronos' and len(d['vpd_kpa'])==8, d\""
 
 check "dashboard page served" '[ "$(curl -s -o /dev/null -w "%{http_code}" $DASH/)" = 200 ]'
