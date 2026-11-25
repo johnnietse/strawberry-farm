@@ -1,7 +1,9 @@
-# Design review: G.O.S. sensor node rev 3.1, LED driver rev 1.0, enclosures
+# Design review: G.O.S. sensor node rev 3.1 / 3.2, LED driver rev 1.0 / 1.1, enclosures
 
 A review of the whole hardware path as an electrical, firmware and mechanical engineer would do it
-before ordering. Each finding says what was checked, how, and what was done. Date: 2026-11-15.
+before ordering. Each finding says what was checked, how, and what was done. Date: 2026-11-15;
+revision 3.2 / 1.1 changes reviewed 2026-11-22 (summary at the end, details in
+[`rev3.2_changes.md`](rev3.2_changes.md)).
 
 **Evidence used:** KiCad DRC at every severity with schematic parity (both boards clean),
 `pcbs/gos_sensor_node/review_layout.py` (layout measurements), LTspice simulations
@@ -20,7 +22,7 @@ yet, so every result below is a design check, not a measurement.
                  │  SHT40 temperature/humidity, TSL2591 light           │
                  │  J4: 2 x 250 Hz PWM ───── 4-wire cable ─────────► J2: CTRL inputs
                  └── Thread radio (802.15.4, 2.4 GHz)
-                           │  signed CoAP PACKET_V4 every 60 s, to ff03::1
+                           │  signed CoAP PACKET_V5 every 60 s, to ff03::1
                            ▼
    Raspberry Pi + nRF52840 Dongle (OpenThread border router, RCP)
      └── coap_receiver (Docker): verify HMAC + counter ──► TimescaleDB ──► API / dashboard / ML
@@ -48,7 +50,7 @@ which keeps 24 V switching currents away from the sensors and the radio.
 | Radio | Antenna on the board edge, full-width copper keep-out on all four layers, solid ground under the module, 18650 can 35.6 mm away, plastic enclosure | OK: no copper, via or pour in the keep-out (measured) |
 | Crystal | 9 pF crystal, 12 pF caps; load = (12 + 4 pin + about 2 pF board) / 2 = 9 pF | **Verified**: matches Nordic's reference circuit (9 pF crystal, 12 pF NP0) and the nRF52840 LFXO table; LTspice: +0.3 to +0.9 ppm at the design stray, at most 38 ppm over 0 to 4 pF |
 | Noise | 4 layers, two solid ground planes 0.076 mm under the outer layers, ground stitching every 1.6 mm (one twentieth of the 2.4 GHz wavelength in FR-4 is about 3 mm) | OK |
-| Thermal coupling | The charger dissipates up to about 0.65 W while charging; that warms the whole 40 x 65 mm board, including the SHT40 | **Mitigated in firmware and gateway**: PACKET_V4 adds a charging flag; filter `payload->>'charging'` when analysing temperature. A milled slot around the SHT40 would reduce it further (see open items) |
+| Thermal coupling | The charger dissipates up to about 0.65 W while charging; that warms the whole 40 x 65 mm board, including the SHT40 | **Mitigated in firmware and gateway**: the packet (V4 and later) carries a charging flag; **reduced in rev 3.2** by the SHT40 tongue (30 % less, estimate); filter `payload->>'charging'` when analysing temperature. A milled slot around the SHT40 would reduce it further (see open items) |
 | Charger thermistor | TH1 sits on the board, not on the cell, so charge temperature limits follow board temperature | Accepted for a first build: the board stays close to the cell's temperature in a 15 to 35 C phytotron. A cell with a built-in 10 k NTC wired to TS would sense the cell itself |
 | Humidity | Phytotron humidity can condense on the board | **Recommendation**: conformal coating (acrylic, for example MG Chemicals 419D) after assembly, masking the SHT40, TSL2591, connectors and buttons. JLCPCB does not coat; spray it yourself or use a coating service |
 
@@ -129,3 +131,18 @@ proxy. Models now load offline from the repository. Each finding with its effect
 6. Thread range across the phytotron: if nodes cannot reach the border router, add a mains-powered
    router node (any nRF52840 board with a full-Thread-device build).
 7. Supply: re-check the pre-order and low-stock parts on the day of ordering (`ordering.md`).
+
+## Revision 3.2 / 1.1 review (2026-11-22)
+
+*Table 6. Review of the revision 3.2 sensor node and the revision 1.1 LED driver.*
+
+| Area | Check | Result |
+|---|---|---|
+| LED current option | LTspice, 12 corners, R_SENSE 0.15 ohm: current, peaks, frequency, on-time, losses | **Pass after a fix**: the AL8860 ramp would take the deep red LEDs to 775 mA (limit 700); 10 uF across each string holds them at 680 mA (1 uF was not enough). Inductor 0.775 A of 0.92 A |
+| PWM with the new capacitor | LTspice, 10 / 50 / 90 % at both currents | **Pass**: proportional (67.5 / 337 / 607 mA at 667 mA) |
+| Power at 667 mA | adapter, PTC, heatsink | 0.7 A worst case of 1.5 A; 1.1 A PTC holds; heatsink about 1 C/W per channel |
+| PAR input | ERC, SAADC range (gain 4, 0.15 V full scale against a 0 to 40 mV sensor), RC filter | OK: about 3.7 umol m-2 s-1 per count, averaged by 256x oversampling |
+| Packet V5 | host test of `src/packet.c` against the gateway format, gateway tests, end to end | **Pass** (4 of 4; 88 gateway tests; PAR stored end to end) |
+| SHT40 isolation | 2-D thermal model of four designs | 30 % less warming as built; tracks carry most of the remaining heat, so they are 0.127 mm |
+| Board layout | DRC with parity, both boards; hand-laid tongue tracks, notches at the 0.5 mm edge clearance | **Pass**: 0 / 0 / 0 on both |
+| Enclosure | PAR cable gland vs SHT40 vents, front wall | **Pass**: 15 fit checks |

@@ -14,7 +14,7 @@ Print-ready STL files (base and lid of each, in print orientation): `print/`.
 
 ![Sensor node enclosure, exploded](../docs/images/sensor_enclosure_exploded.png)
 
-*Figure 1. Sensor node enclosure with the lid raised: the board at the front by the USB-C cut-out, the 18650 cell in its cradle at the back, the light tube hanging from the lid over the light sensor, and the gland hole and vents in the right wall.*
+*Figure 1. Sensor node enclosure with the lid raised (rev 3.2), seen from the front left: the board by the USB-C cut-out, the 18650 cell in its cradle at the back, the light tube hanging from the lid, vents in both side walls, the PAR sensor cable gland hole in the left wall (front) and the LED cable gland hole in the right wall. Rendered with `openscad -o ../docs/images/sensor_enclosure_exploded.png --imgsize=1400,1100 --camera=0,0,30,55,0,325,420 -D show_pcb=true -D lid_lift=45 enclosure_gen.scad`.*
 
 ![LED driver enclosure, exploded](../docs/images/led_enclosure_exploded.png)
 
@@ -84,7 +84,7 @@ wires through the dome nut, seal and gland body, then refit the pins in the same
    `led_fit_*.png`.
 4. Writes the print STLs in `print/`.
 
-Last result (2026-11-15): all 12 checks pass. Rerun after any board change.
+Last result (2026-11-23, rev 3.2 boards): all 15 checks pass (3 new: the PAR cable gland clears the SHT40 vents by 5.9 mm and the front wall, and the J6 cable is about 45 mm). Rerun after any board change.
 
 ## Sensor node enclosure
 

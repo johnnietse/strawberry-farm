@@ -41,7 +41,7 @@ We use the official `ot-br-posix` stack to handle IPv6 routing.
 
 ## 3. Receiving the sensor data
 
-The nodes send a signed CoAP packet (PACKET_V4, see `hardware_protocol.md`) to `ff03::1`, UDP
+The nodes send a signed CoAP packet (PACKET_V5 with rev 3.2 firmware, see `hardware_protocol.md`) to `ff03::1`, UDP
 5683, every 60 s. On the Pi, the `coap_receiver` service receives it on the Thread interface
 only, checks the signature and counter, and writes it to TimescaleDB:
 
@@ -50,7 +50,7 @@ python gateway/tools/provision_node.py --index 1 --network-key <your 32-hex-digi
 docker compose --profile hardware up -d coap_receiver
 ```
 
-(The earlier MQTT-SN bridge is not used by the rev 3.1 nodes.)
+(The earlier MQTT-SN bridge is not used by the rev 3 nodes.)
 
 ## 3b. Running the whole stack
 

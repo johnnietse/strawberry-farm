@@ -1,4 +1,4 @@
-# Sensor node bring-up (rev 3.1)
+# Sensor node bring-up (rev 3.2, LED driver rev 1.1)
 
 Step-by-step first power-on, once the assembled boards arrive (ordered as in `ordering.md`).
 Each step says what "pass" looks like; stop at the first failure. Pin map: `nrf52840_pinout.md`.
@@ -53,7 +53,7 @@ Use the bench build first (debug console on). For nodes going into the phytotron
 
 Connect the USB-serial adapter: its RX to TP5, its TX to TP6, GND to TP4. 115200 8N1.
 
-**Pass:** at boot it prints `G.O.S. sensor node rev 3.1`, `uplink signing ready`, and
+**Pass:** at boot it prints `G.O.S. sensor node rev 3.2 firmware`, `uplink signing ready`, and
 `node 1, EUI-64 XXXXXXXXXXXXXXXX`, then every 60 s a temperature, humidity, light, battery and
 charger line. Pin the chip to its index:
 
@@ -66,6 +66,16 @@ python gateway/tools/provision_node.py --index 1 --eui64 XXXXXXXXXXXXXXXX
 - Breathe on the SHT40: humidity rises within a reading or two.
 - Cover the TSL2591: light drops near 0 lux.
 - Battery reading within about 2 % of a meter on TP3.
+- Rev 3.2, quantum sensor on J6 (build with `par_sensor.conf`, its calibration factor in
+  `CONFIG_GOS_PAR_UMOL_PER_MV`): a `PAR ... umol m-2 s-1` line every sample; cover the sensor:
+  near 0; under the grow light or daylight it should agree with a reference quantum meter
+  within the sensor's 5 %. Without a sensor configured the packet carries 0xFFFF and the
+  dashboard shows no PAR for the node.
+- Rev 3.2, SHT40 isolation: with a flat cell, charge from USB for 30 minutes next to a reference
+  thermometer in the same enclosure air. The SHT40 should read high by clearly less than on a
+  rev 3.1 board (the thermal model estimates 8 K instead of 12 K on the bare board; inside the
+  closed enclosure the air warms too). Record the offset: readings flagged `charging` can be
+  corrected or dropped.
 
 ## 6. Thread and the database
 
@@ -115,11 +125,19 @@ with the adapter connected.
    (`CONFIG_GOS_LED_HOLD_S`) the node logs `no LED command for 900 s: fallback levels` and the
    LEDs go off. Then "Back to automatic" on the dashboard hands the node to the controller.
 
+### LED driver rev 1.1: the 667 mA option
+
+As delivered JP1 and JP2 are open: 333 mA per channel, exactly as rev 1.0. To use 667 mA on a
+channel, bridge its jumper with solder (JP1 blue, JP2 red) with the adapter unplugged, fit the
+heatsink of about 1 C/W per channel, then check with a meter in series with that string: about
+672 mA at full PWM (LTspice 672 to 675 mA). Set `LedParams.for_current(667)` in the ML engine so
+the plant model and the controller know the light doubled, and measure the real PPFD at plant
+height with the quantum sensor.
+
 ## 8. Sleep current (field build)
 
 Flash with `low_power.conf`, unplug USB, measure battery current with a meter in series with the
-cell. Expected average about 40 to 60 uA with Thread polling every second (estimate in
-`HARDWARE.md`). A reading in the hundreds of uA means something is not sleeping: start with the TSL2591.
+cell. Expected average about 20 to 30 uA with the 30 s Thread poll (estimate in `HARDWARE.md`). A reading in the hundreds of uA means something is not sleeping: start with the TSL2591.
 
 ## 9. Into the enclosure
 

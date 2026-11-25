@@ -352,7 +352,7 @@ int main(void)
 	struct gos_sensor_data data;
 	int err;
 
-	LOG_INF("G.O.S. sensor node rev 3.1");
+	LOG_INF("G.O.S. sensor node rev 3.2 firmware");
 
 	err = gpio_init();
 	if (err) {

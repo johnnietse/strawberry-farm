@@ -187,7 +187,7 @@ west build -b raytac_mdbt50q_db_40/nrf52840
 |---|---|
 | `boards/raytac_mdbt50q_db_40_nrf52840.overlay` | turns the demo board into this board: pins, sensors, battery divider, charger status |
 | `src/main.c` | every 60 s reads SHT40, TSL2591, battery voltage and charger status, logs them and sends them over Thread; feeds the watchdog; LED-board PWM starts at 0 % and falls back to `CONFIG_GOS_LED_FALLBACK_*` if no LED command arrives for `CONFIG_GOS_LED_HOLD_S` |
-| `src/uplink.c` | builds and signs the 43-byte PACKET_V4 and sends it as a non-confirmable CoAP POST; its response handler applies the LED command in the gateway's reply |
+| `src/uplink.c` | builds (with `src/packet.c`) and signs the 45-byte PACKET_V5 and sends it as a non-confirmable CoAP POST; its response handler applies the LED command in the gateway's reply |
 | `src/downlink.c` | checks an LED command (version, tag, counter, range); host test in `tests/host/test_downlink.c` |
 | `Kconfig` | node index (1 to 40), uplink address, port and CoAP path, LED hold time and fallback levels |
 | `credentials.conf` | Thread network key, node index and the node's own signing key; git-ignored. `gateway/tools/provision_node.py --index N` prints it. Without a valid signing key the node sends nothing. |
@@ -287,6 +287,7 @@ Two scripts, both run with KiCad's Python (`C:\Program Files\KiCad\9.0\bin\pytho
    - all 70 footprints with every net, placed in groups: module on the top edge with a 6.5 mm part-free strip for the antenna, USB-C on the bottom edge, sensors on the side edges away from the charger and buck, battery connector and protection parts down the left side
    - a copper keep-out (tracks, vias and pour, all four layers) across the full width beside the antenna, wider than the module footprint's own keep-out
    - net classes in `gos_sensor_node.kicad_pro`: 0.2 mm signal tracks with 0.15 mm clearance and 0.6/0.3 mm vias; 0.3 mm for VBUS, VSYS, VBAT, the cell path (BAT_P, BAT_N, FET_D) and the buck switch node. The highest current on any of them is the charger's 0.54 A input limit. +3V3 (300 mA buck limit) and GND use signal width: GND current flows in the planes and pours.
+   - rev 3.2: the outline is one polygon with two 1.0 mm notches milled in from the left edge and a 1.0 mm slot, which cut the SHT40 free on a tongue joined to the board by a 2.2 mm bridge; a rule area keeps pour and vias off the tongue and bridge, keep-outs hold all copper 0.5 mm from the cut-outs, and the SHT40's four tracks (0.127 mm) are laid by hand across the bridge to vias, because Freerouting could not leave the sensor's footprint keep-out on one layer. SW1's reset line also starts with a short hand-laid track to a via (the router skipped it on the notched board)
    - the drill/place origin at the board's bottom-left corner, fabrication notes on User.Comments, small-part reference labels on the fab (assembly) layer
 2. Before autorouting, the buck converter's switching loop is placed and routed by hand (locked copper in `generate_pcb.py`: L1 at the SW pin, C4 at VIN, C5 at L1's output, 2.6 mm switch node with no vias). `route_pcb.py` then autoroutes the rest with Freerouting, adds thermal vias in the charger and buck exposed pads, pours GND on all four layers, adds ground stitching vias on a 1.6 mm grid wherever they fit (about 230), runs DRC with schematic parity and, only if that is clean, writes:
    - `fab/`: Gerbers for all layers, Excellon drill files with drill maps, KiCad and JLCPCB placement files, the JLCPCB BOM (LCSC part numbers) and `gos_sensor_node_gerbers.zip`
@@ -307,7 +308,7 @@ Freerouting 2.0.1 runs on Java 21 or later; 2.2 and later need Java 25. 2.5.0 (J
 
 The two inner layers are unbroken ground planes. Every track on the outer layers runs 0.076 mm above one, so its return current flows directly underneath: small current loops, low radiated noise, and low coupling between the buck converter's switch node and the I2C sensors, the battery ADC input and the 32 kHz crystal. The radio module sits over solid ground (except the antenna strip, which has no copper on any layer), and the USB pair has a continuous reference. The stitching vias tie the outer ground pours to both planes every 1.6 mm (2.4 GHz wavelength in FR-4 is about 62 mm; the usual limit is one twentieth of that, about 3 mm).
 
-Current result: KiCad DRC at every severity, with schematic parity: 0 violations, 0 unconnected items, 0 parity issues. No tracks on the inner layers.
+Current result (rev 3.2, 2026-11-23): KiCad DRC at every severity, with schematic parity: 0 violations, 0 unconnected items, 0 parity issues; 943 track segments, 313 vias. No tracks on the inner layers.
 
 Layout review (`review_layout.py`, results in `documentation/design_review.md`): USB pair matched to 0.1 mm, buck switch node 2.6 mm on one layer with no vias and the input capacitor 2.1 mm from VIN, no copper, via or pour in the antenna strip on any layer. Both scripts regenerate the board from scratch, so hand edits in KiCad are lost if they are rerun.
 

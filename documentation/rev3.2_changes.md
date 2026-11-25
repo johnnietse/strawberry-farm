@@ -59,6 +59,12 @@ lines are the deep red LED's 700 mA limit and the inductor's 0.92 A rating. The 
 is the LED current at 667 mA behind the new 10 uF capacitor: the inductor ramps from 575 to
 775 mA, the LEDs stay between 668 and 680 mA.*
 
+![LED driver before and after](../docs/images/rev3.2/led_driver_before_after.png)
+
+*Figure 2. LED driver rev 1.0 (left) and rev 1.1 (right), 3D render of the top side. New on rev
+1.1: R5 and JP1 beside the blue AL8860 (top), R6 and JP2 beside the red one (bottom), and the
+10 uF capacitors C6 and C7 beside the inductors. Same 60 x 45 mm board, same connectors.*
+
 What else bridging a jumper changes, and has to be allowed for:
 
 *Table 3. System effects of the 667 mA option.*
@@ -100,6 +106,7 @@ PAR directly. The lux reading stays, so rev 3.1 boards and nodes without a senso
 | Host test `tests/host/test_packet.c`: the C packet builder against the gateway's format | 4 of 4 |
 | Gateway tests (5 new: V5 decode, no-sensor value, altered bytes fail, stored, V4 has no PAR) | 88 passed |
 | ML tests (2 new: node PAR has the LED share removed, never negative; 667 mA parameters) | 15 passed |
+| End to end in Docker (production images): the fake node sends PACKET_V5 with PAR; new check that PAR reaches the database; the override check now sends 5 packets so the 25 % ramp limit cannot fail it | 17 of 17 checks pass |
 
 Resolution with an SQ-500-SS: one SAADC count is 37 uV, about 3.7 umol m-2 s-1; averaging 256
 samples brings the noise well below one count. The SAADC's own offset (a few counts) reads as
@@ -113,9 +120,17 @@ board. **After:** two 1.0 mm notches milled in from the left edge and a 1.0 mm s
 6.8 x 6.4 mm tongue; no pour, no planes and no vias on it; the four sensor tracks (0.127 mm,
 laid by hand) leave over a 2.2 mm FR-4 bridge, ending on vias where the autorouter takes over.
 
+![Sensor node before and after](../docs/images/rev3.2/sensor_node_before_after.png)
+
+*Figure 3. Sensor node rev 3.1 and rev 3.2, 3D renders of the top side with close-ups of the SHT40
+corner (cyan box). Rev 3.1: the SHT40 in the copper pour, its I2C pull-ups beside it. Rev 3.2:
+the two notches and the slot (black) cut the tongue free; no pour on it (darker green); four thin
+tracks leave over the bridge to vias; J6 (PAR sensor) sits beside J3, with R24, C15 and the
+pull-ups below.*
+
 ![SHT40 thermal comparison](../simulation/plots/thermal_sht40.png)
 
-*Figure 2. Board temperature rise while charging (0.64 W in the charger, U1), rev 3.1 (left)
+*Figure 4. Board temperature rise while charging (0.64 W in the charger, U1), rev 3.1 (left)
 against rev 3.2 (middle), and along the row through the SHT40 (right). The rest of the board
 warms about the same; the tongue stays cooler because heat reaches it only through the bridge
 and the four thin tracks. Steady-state 2-D model, h = 10 W/m2 K on both faces.*
