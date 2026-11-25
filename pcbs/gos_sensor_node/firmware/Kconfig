@@ -45,6 +45,25 @@ config GOS_LED_FALLBACK_RED
 	range 0 100
 	default 0
 
+config GOS_PAR_SENSOR
+	bool "Quantum (PAR) sensor fitted on J6 (board rev 3.2)"
+	default n
+	help
+	  Read a self-powered quantum sensor on J6 through AIN1 (P0.03) at every sample and
+	  send it in the packet. Leave off on rev 3.1 boards and on nodes without a sensor:
+	  the packet then reports PAR as not measured (0xFFFF) and the gateway estimates
+	  daylight PAR from the lux reading as before.
+
+config GOS_PAR_UMOL_PER_MV
+	int "Quantum sensor calibration factor, umol m-2 s-1 per mV"
+	depends on GOS_PAR_SENSOR
+	range 1 10000
+	default 100
+	help
+	  From the sensor's calibration certificate. Apogee SQ-500-SS nominal: 100
+	  (0.01 mV per umol m-2 s-1, 0 to 40 mV). The SAADC reads J6 at gain 4, a 0.15 V
+	  full scale, so sensors up to 150 mV fit.
+
 config GOS_UPLINK_URI_PATH
 	string "CoAP URI path for the uplink"
 	default "telemetry"

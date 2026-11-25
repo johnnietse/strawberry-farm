@@ -1,4 +1,4 @@
-# G.O.S. Sensor Node rev 3.1: Pinout and Assembly Guide
+# G.O.S. Sensor Node rev 3.2: Pinout and Assembly Guide
 
 For the Electronics/Embedded team. Full design reference: [`pcbs/gos_sensor_node/HARDWARE.md`](../pcbs/gos_sensor_node/HARDWARE.md).
 The rev 2 version of this guide (bare nRF52840 chip) is in [`archive/nrf52840_pinout_rev2.md`](archive/nrf52840_pinout_rev2.md).
@@ -15,6 +15,7 @@ The MCU is a Raytac MDBT50Q-1MV2 module (nRF52840 inside). Firmware pin names ar
 | LED board PWM blue / red | P0.13 / P0.14 | J4 pins 2 / 3 through 100 Ohm; 100 kOhm pull-downs |
 | Debug UART TX / RX | P0.06 / P0.08 | test points TP5 / TP6, 115200 8N1 |
 | Battery voltage | P0.02 (AIN0) | VBAT through 2.2 MOhm / 2.2 MOhm divider |
+| PAR sensor (rev 3.2) | P0.03 (AIN1) | J6 pin 2 through 1 kOhm (R24), 100 nF (C15) to GND; SAADC gain 4 |
 | USB power good / charging | P0.28 / P0.29 | BQ24074 PGOOD / CHG, active low |
 | Status LED | P0.17 | D2, on when low |
 | User button | P0.24 | SW2 to ground |
@@ -32,6 +33,7 @@ The MCU is a Raytac MDBT50Q-1MV2 module (nRF52840 inside). Firmware pin names ar
 | J3 | I2C expansion, 1x4 2.54 mm | 1 3.3 V, 2 GND, 3 SDA, 4 SCL |
 | J4 | LED driver board, 1x4 2.54 mm | 1 GND, 2 PWM blue, 3 PWM red, 4 GND. Signals only. |
 | J5 | Battery, 2-pin JST-PH | 1 cell positive, 2 cell negative |
+| J6 (rev 3.2) | PAR (quantum) sensor, 1x4 2.54 mm | 1 GND (shield), 2 sensor +, 3 GND (sensor -), 4 3.3 V (50 mA max) |
 
 ## 3. Assembly notes
 

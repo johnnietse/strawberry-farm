@@ -4,7 +4,8 @@ LTspice netlists for the analog parts of both boards, with pass criteria taken f
 datasheets. Open a `.cir` file in LTspice and run it; the `.meas` results appear in the log.
 `plot_results.py` turns exported results into the plots in `plots/`.
 
-Run with LTspice 26.1.1 on 2026-11-15.
+Run with LTspice 26.1.1 on 2026-11-15; the revision 3.2 circuits and the thermal model on
+2026-11-22 (before/after comparison: `documentation/rev3.2_changes.md`).
 
 ## Results
 
@@ -18,6 +19,10 @@ Run with LTspice 26.1.1 on 2026-11-15.
 | `vbat_sense.cir` | Sensor node: 2.2 M / 2.2 M battery divider, 100 nF, SAADC sampling load; cell step 3.0 to 4.2 V; resistor tolerance corners | Reading accuracy and settling within the 60 s sample period | **Pass**: error +/-1.1 % worst case (+/-46 mV at 4.2 V) from the 1 % resistors, 0.1 % from sampling; 1 % settling 0.38 s; 0.96 uA standing drain |
 | `crystal_lfxo.cir` | Sensor node: Y1 (ABS07-32.768KHZ-9) in the nRF52840 LFXO Pierce loop, 12 pF load capacitors, 4 pF pin capacitance, 0 to 4 pF board stray per side, motional capacitance 2.3 and 6.9 fF (from the datasheet's Q and ESR) | nRF52840 PS LFXO table (C_L max 12.5 pF, C0 max 2 pF, ESR max 100 kOhm, drive max 0.5 uW, +/-500 ppm for BLE), Nordic reference circuit (C_L 9 pF crystal, 12 pF NP0) | **Pass**: +0.3 to +0.9 ppm from 32.768 kHz at the design 2 pF stray; -29 to +38 ppm over 0 to 4 pF (the closed-form formula agrees within 1 ppm); minimum oscillator gm 1.0 to 1.5 uA/V; drive level reaches 0.5 uW only at 2 V peak to peak |
 | `cell_reverse.cir` | Sensor node: 18650 the right way round and reversed, through Q2 (AO3401A) and Q1 (FS8205A), 500 mA load | No current and no voltage on the board when reversed | **Pass**: reversed, 0 V on the board and 8 pA from the cell; correct, 3.61 V on the board, 29 mV and 15 mW in Q2 |
+| `led_channel_667mA.cir` | LED board rev 1.1, jumper bridged: R_SENSE 0.15 ohm, 10 uF across the LED string (about 4.7 uF at bias), same 12 corners | deep red Rebel 700 mA DC maximum, inductor 0.92 A, AL8860 limits as above | **Pass**: LED 672 to 675 mA average, 680 mA peak; inductor peak 775 mA; 210 to 356 kHz, on-time 1.07 to 3.42 us, duty 35 to 72 %; 92 to 96 % efficient. With 1 uF (0.5 uF at bias) the LEDs peaked at 730 mA: fail, so 10 uF |
+| `led_channel_rev11_333mA.cir` | LED board rev 1.1, jumper open: 0.30 ohm with the new 10 uF capacitor | same as `led_channel.cir` | **Pass**: same as rev 1.0 (335 to 339 mA, 434 to 672 kHz); LED peak 340 mA instead of 392 mA |
+| `led_pwm_rev11.cir` | PWM dimming at 250 Hz with the 10 uF capacitor, 0.30 and 0.15 ohm | average proportional to duty | **Pass**: 33.7 / 168.4 / 303.1 mA and 67.5 / 337 / 607 mA at 10 / 50 / 90 % |
+| `thermal_sht40.py` (Python, not LTspice) | sensor node rev 3.1 against rev 3.2: 2-D steady-state board heat model, charger 0.64 W, natural convection 10 W/m2 K | how much the charger warms the SHT40 | rev 3.1 11.7 K, rev 3.2 8.2 K above the enclosure air (30 % less); estimate, measure on the bench |
 
 ![LED channel at 24 V](plots/led_channel_24V.png)
 
@@ -67,3 +72,11 @@ is found, together with the smallest gain that sustains it. Run `crystal_lfxo.ci
 - **Not simulated**: the TPS62740 buck and BQ24074 charger (TI publishes PSpice models only),
   the nRF52840 radio module, the I2C sensors, firmware and the Thread network. These need
   bench measurements; `documentation/bring_up.md` lists them.
+
+![LED current option](plots/led_current_option.png)
+
+*Figure 5. LED driver rev 1.1 at 24 V: inductor current at 333 mA (grey) and 667 mA (light red), and the LED current at 667 mA behind the 10 uF capacitor (thick red), which stays between 668 and 680 mA, under the deep red LED's 700 mA. Made by `plot_led_option.py` from both runs.*
+
+![SHT40 thermal comparison](plots/thermal_sht40.png)
+
+*Figure 6. Board temperature rise while charging, rev 3.1 against rev 3.2 (`thermal_sht40.py`): the SHT40 on rev 3.2's tongue warms 8.2 K instead of 11.7 K above the enclosure air.*

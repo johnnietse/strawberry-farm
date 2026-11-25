@@ -120,6 +120,27 @@ def test_biology_engine_state_and_light_integral():
     assert compute_state({**reading, "temp_c": None}, (0, 0), None, now, timezone.utc) is None
 
 
+def test_node_par_sensor_reading_has_the_led_share_removed():
+    """Rev 3.2: the node's quantum sensor sees daylight plus the LED board; the engine keeps
+    only daylight as ambient PPFD (the LED share is added back from the LED level)."""
+    now = datetime(2026, 11, 15, 12, 0, tzinfo=timezone.utc)
+    node = {"temp_c": 22.0, "humidity_pct": 70.0, "par_umol": 360.0, "par_source": "node", "light_lux": 9000}
+    s = compute_state(node, (50, 50), None, now, timezone.utc)
+    assert s["ppfd_ambient"] == 300 and s["ppfd_led"] == 60
+    dark = compute_state({**node, "par_umol": 40.0}, (50, 50), None, now, timezone.utc)
+    assert dark["ppfd_ambient"] == 0                      # never negative
+    other = compute_state({**node, "par_source": None}, (50, 50), None, now, timezone.utc)
+    assert other["ppfd_ambient"] == 360                   # a separate PAR instrument: as measured
+
+
+def test_led_parameters_for_the_667_ma_option():
+    from plant_model import LedParams
+    lo, hi = LedParams.for_current(333), LedParams.for_current(667)
+    assert hi.blue_ppfd_100 == 2 * lo.blue_ppfd_100 and hi.blue_watts_100 > 2 * lo.blue_watts_100 * 0.9
+    with pytest.raises(ValueError):
+        LedParams.for_current(500)
+
+
 def test_persistence_forecast_shape():
     p = PersistenceForecaster().predict(np.array([[20, 21, 22], [60, 61, 62]]), 4)
     assert p.shape == (2, 4) and (p[0] == 22).all()

@@ -1,0 +1,41 @@
+* G.O.S. LED driver rev 1.1: PWM dimming with the 10 uF LED-string capacitor (C6 / C7, about
+* 4.7 uF at bias), jumper open (0.30 ohm) and bridged (0.15 ohm). Otherwise as led_pwm.cir.
+* Pass: LED current still proportional to duty (the capacitor holds the string voltage
+* when the AL8860 stops, so it must not add a tail that bends the dimming curve).
+* Sensor node GPIO (3.3 V, high-drive, about 50 ohm) -> R20 100 ohm on the node -> 0.5 m cable
+* (about 50 pF) -> AL8860 CTRL with the 1.5 k pull-down on the LED board.
+* AL8860 (DS39014): CTRL above 0.25 V enables, below 0.2 V disables; above 2.5 V gives full
+* current. Same behavioural power stage as led_channel.cir. Firmware PWM: 250 Hz.
+* Steps: duty 10 / 50 / 90 %.
+
+.param duty=0.5 Vf=2.60 Rd=0.43 Nled=4 Rsense=0.30   ; SP-01-V4 royal blue, typical
+Vgpio gpio 0 PULSE(0 3.3 100u 20n 20n {duty*4m} 4m)
+Rgpio gpio n1 50
+R20 n1 cable 100
+Ccable cable 0 50p
+Rpd cable 0 1.5k
+
+Vsup vin 0 24
+C1 vin 0 47u Rser=0.3
+C2 vin 0 4u Rser=5m
+Rs vin set {Rsense}
+Cled set ledk 4.7u Rser=10m
+Dled set ledk LEDSTR
+L1 ledk sw 100u Rser=0.456
+Dfw sw vin SS34
+S1 sw 0 ctl 0 AL8860SW
+Bctl ctl 0 V=if(V(cable) > 0.25, delay(-V(vin,set), 45n), -1)
+
+.model LEDSTR D(Vfwd={Nled*Vf} Ron={Nled*Rd} Roff=10Meg)
+.model SS34 D(Vfwd=0.35 Ron=0.08 Roff=10Meg Epsilon=0.05)
+.model AL8860SW SW(Ron=0.2 Roff=10Meg Vt=-0.101 Vh=0.014)
+
+.tran 0 20.1m 4.1m 50n uic
+.step param Rsense list 0.30 0.15
+.step param duty list 0.1 0.5 0.9
+
+.meas TRAN I_led_avg AVG I(Dled) FROM 4.1m TO 20.1m
+.meas TRAN I_led_max MAX I(Dled) FROM 4.1m TO 20.1m
+.meas TRAN ctrl_high MAX V(cable) FROM 4.1m TO 20.1m
+.meas TRAN ctrl_low MIN V(cable) FROM 4.1m TO 20.1m
+.end

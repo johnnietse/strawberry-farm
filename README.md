@@ -94,8 +94,8 @@ LED board's pull-downs keep the LEDs off.
 
 | Piece | What it is | Docs |
 |---|---|---|
-| **Sensor node** rev 3.1, 40 x 65 mm, 4 layers | Raytac MDBT50Q (nRF52840) module; SHT40 temperature and humidity; TSL2591 light; 18650 cell with BQ24074 USB-C charger, DW01A/FS8205A protection, reverse-cell FET; TPS62740 3.3 V buck; 4-pin LED cable connector | [`pcbs/gos_sensor_node/HARDWARE.md`](pcbs/gos_sensor_node/HARDWARE.md) |
-| **LED driver** rev 1.0, 60 x 45 mm, 4 layers | two AL8860 constant-current channels, 333 mA, 24 V input; blue 448 nm and red 655 nm strings of 4 LEDs; off when the control cable is unplugged | [`pcbs/led_driver/README.md`](pcbs/led_driver/README.md) |
+| **Sensor node** rev 3.2, 40 x 65 mm, 4 layers | Raytac MDBT50Q (nRF52840) module; SHT40 temperature and humidity on a thermally isolated tongue; TSL2591 light; J6 input for a quantum (PAR) sensor; 18650 cell with BQ24074 USB-C charger, DW01A/FS8205A protection, reverse-cell FET; TPS62740 3.3 V buck; 4-pin LED cable connector | [`pcbs/gos_sensor_node/HARDWARE.md`](pcbs/gos_sensor_node/HARDWARE.md) |
+| **LED driver** rev 1.1, 60 x 45 mm, 4 layers | two AL8860 constant-current channels, 333 mA or 667 mA (solder jumper per channel), 24 V input; blue 448 nm and red 655 nm strings of 4 LEDs; off when the control cable is unplugged | [`pcbs/led_driver/README.md`](pcbs/led_driver/README.md) |
 | **Border router** | Raspberry Pi + Nordic nRF52840 Dongle (OpenThread border router); runs all the software in Docker | [`documentation/raspberry_pi_setup.md`](documentation/raspberry_pi_setup.md) |
 | **Enclosures** | printed in ASA, generated from the KiCad boards and fit-checked | [`mechanical/README.md`](mechanical/README.md) |
 
@@ -174,10 +174,21 @@ LED driver: [schematic](docs/images/schematics/led_driver.svg)
 every part with its stock, what to buy separately), then
 [`documentation/bring_up.md`](documentation/bring_up.md) (first power-on, step by step).
 
-**Known limits of this revision** (details and proposals in `system_review.md`): one LED board
-adds about 120 umol m-2 s-1 over 0.25 m2, a spectral treatment rather than a main grow light; the
-TSL2591 measures lux, so daylight PAR is estimated; the charger warms the SHT40 while charging
-(those readings are flagged).
+**Revision 3.2** (2026-11-22) answers the three limits of rev 3.1 that `system_review.md`
+listed: a 667 mA option on the LED driver (about twice the light, at most 240 umol m-2 s-1 per board),
+a quantum (PAR) sensor input so the plant model gets photosynthetic light directly instead of an
+estimate from lux, and a thermally isolated SHT40 (30 % less warming from the charger in a 2-D
+estimate; readings taken while charging are still flagged). Before/after comparison, with every
+test: [`documentation/rev3.2_changes.md`](documentation/rev3.2_changes.md). The rev 3.1 and
+rev 1.0 boards are kept in [`pcbs/archive/`](pcbs/archive).
+
+![Sensor node before and after](docs/images/rev3.2/sensor_node_before_after.png)
+
+*Figure 10. Sensor node rev 3.1 against rev 3.2 with close-ups of the SHT40 corner: on rev 3.2 two notches and a slot (black) cut the sensor free on a tongue with no copper pour, and the PAR sensor header J6 sits beside J3.*
+
+![LED driver before and after](docs/images/rev3.2/led_driver_before_after.png)
+
+*Figure 11. LED driver rev 1.0 against rev 1.1: the second sense resistors with their solder jumpers (R5 / JP1, R6 / JP2) beside each AL8860, and the 10 uF capacitors (C6, C7) beside the inductors.*
 
 ---
 
@@ -218,7 +229,7 @@ Details and how to retrain: [`ml_engine/README.md`](ml_engine/README.md).
 | ![Plant model](docs/images/ml/plant_response.png) | ![LED policy day](docs/images/ml/led_policy_day.png) |
 | ![Forecast error](docs/images/ml/forecast_error.png) | ![Policy comparison](docs/images/ml/policy_comparison.png) |
 
-*Figure 10. Model checks. Top left: leaf photosynthesis against light at 15, 25 and 32 C, and against temperature; it saturates at 15.9 umol m-2 s-1, inside the 15 to 20 reported for strawberry, with an optimum at 28 C. Top right: one held-out day, daylight plus LED light at the canopy, and the LED levels the PPO policy chose (full through the photoperiod, off in the dark period). Bottom left: VPD forecast error against lead time over a year of measured weather; Chronos-Bolt Tiny has the lowest error, half that of "no change" at 6 h. Bottom right: daily reward of five LED strategies on 60 held-out days; PPO matches the model-based optimiser and beats fixed or no LED light.*
+*Figure 12. Model checks. Top left: leaf photosynthesis against light at 15, 25 and 32 C, and against temperature; it saturates at 15.9 umol m-2 s-1, inside the 15 to 20 reported for strawberry, with an optimum at 28 C. Top right: one held-out day, daylight plus LED light at the canopy, and the LED levels the PPO policy chose (full through the photoperiod, off in the dark period). Bottom left: VPD forecast error against lead time over a year of measured weather; Chronos-Bolt Tiny has the lowest error, half that of "no change" at 6 h. Bottom right: daily reward of five LED strategies on 60 held-out days; PPO matches the model-based optimiser and beats fixed or no LED light.*
 
 ---
 
@@ -263,7 +274,7 @@ bash tests/e2e/run_e2e.sh                            # the whole loop in Docker,
 
 ![Dashboard](docs/images/dashboard.png)
 
-*Figure 11. The research dashboard during a run with the simulator. Top: latest reading per node. Middle: plant state from the biology engine and the LED level each node is set to. Bottom: set the LEDs by hand, log an event in plain words, and the LED commands actually sent after the safety monitor ("Asked" is the setpoint before it).*
+*Figure 13. The research dashboard during a run with the simulator. Top: latest reading per node. Middle: plant state from the biology engine and the LED level each node is set to. Bottom: set the LEDs by hand, log an event in plain words, and the LED commands actually sent after the safety monitor ("Asked" is the setpoint before it).*
 
 The dashboard shows each node, the plant state and forecast, the LED level each node was sent
 (with any safety note) and recent events; it sets LEDs by hand (timed, or until switched back)
@@ -293,7 +304,7 @@ are from the end-to-end test, for its test node `RF-NODE-07`, at the last hour.
 
 ![Grafana: air temperature, humidity, VPD, canopy photosynthesis](docs/images/grafana/grafana_climate_biology.png)
 
-*Figure 12. Grafana, test node RF-NODE-07, last hour: air temperature and relative humidity measured by the SHT40, VPD and canopy photosynthesis computed by the biology engine.*
+*Figure 14. Grafana, test node RF-NODE-07, last hour: air temperature and relative humidity measured by the SHT40, VPD and canopy photosynthesis computed by the biology engine.*
 
 **Air temperature and relative humidity**: the node's SHT40 readings. The test seeds 24 h of
 history as a daily sine wave (temperature falling and humidity rising through this hour); the
@@ -304,7 +315,7 @@ kPa, comfortable for strawberries, and about 5 umol m-2 s-1 of net CO2 uptake at
 
 ![Grafana: transpiration and daily light integral](docs/images/grafana/grafana_transpiration_dli.png)
 
-*Figure 13. Grafana: transpiration and daily light integral, computed by the biology engine.*
+*Figure 15. Grafana: transpiration and daily light integral, computed by the biology engine.*
 
 **Transpiration** (Penman-Monteith, about 45 g of water per m2 per hour) tells how fast the
 plants use water. **Daily light integral** is the light summed since midnight; it is still
@@ -312,7 +323,7 @@ tiny here because the test started its light record minutes before the screensho
 
 ![Grafana: LED levels sent, battery, light at the node](docs/images/grafana/grafana_led_battery_light.png)
 
-*Figure 14. Grafana: LED duty cycles sent to the node after the safety monitor, battery voltage and light at the node.*
+*Figure 16. Grafana: LED duty cycles sent to the node after the safety monitor, battery voltage and light at the node.*
 
 **LED level sent, blue and red**: the duty cycle in the signed command the node received in its
 reply, after the safety monitor (about 63 % blue and 78 % red here, set by the LED
@@ -334,22 +345,32 @@ running they fill in every cycle, like the temperature panel.
 | LTspice: LED current and frequency, PWM dimming, CTRL fail-safe, battery sense, reversed cell | all pass after two fixes ([`simulation/README.md`](simulation/README.md)) |
 | Datasheet checks: crystal load (nRF52840 LFXO table and Nordic's reference circuit), TSL2591 decoupling, FS8205A pinout | match ([`HARDWARE.md`](pcbs/gos_sensor_node/HARDWARE.md#not-verified)) |
 | LTspice: crystal oscillator loop (frequency error, required gain, drive level) | +0.3 ppm at the design stray, at most 38 ppm over 0 to 4 pF |
-| Firmware: four builds, devicetree with `dtc` | no warnings from the project's code |
-| Firmware LED-command check against commands made by the gateway (PC) | passes |
-| Gateway tests | 81 pass |
-| ML engine tests | 13 pass |
-| End to end in Docker with the production images (torch, Chronos, Qwen): signed commands verified by the node, plant state and forecast, dashboard proxy, token refusals, manual override, assistant, ML dataset columns, Grafana | 17 of 17 checks pass |
-| Enclosure fit | 12 checks pass |
+| LTspice: LED driver rev 1.1, 667 mA option, 12 corners, PWM dimming | 672 to 675 mA, LEDs at most 680 mA (limit 700), inductor 0.775 A (rated 0.92 A), dimming proportional |
+| Thermal model: SHT40 warming while charging, rev 3.1 against rev 3.2 | 11.7 K -> 8.2 K above the enclosure air (estimate) |
+| Firmware: six builds (rev 3.2 adds two with the PAR sensor), devicetree with `dtc` | all build; no warnings from the project's code |
+| Firmware host tests on a PC: LED-command check, and the PACKET_V5 builder against the gateway's format | both pass |
+| Gateway tests | 88 pass |
+| ML engine tests | 15 pass |
+| End to end in Docker with the production images (torch, Chronos, Qwen): signed commands verified by the node, plant state and forecast, dashboard proxy, token refusals, manual override, assistant, ML dataset columns, Grafana; rev 3.2: PACKET_V5 with PAR stored | 17 of 17 checks pass (2026-11-24) |
+| Enclosure fit (rev 3.2: PAR cable gland added) | 15 checks pass |
 
 | LED channel at 24 V (LTspice) | PWM dimming 50 % (LTspice) |
 |---|---|
 | ![LED channel](simulation/plots/led_channel_24V.png) | ![PWM dimming](simulation/plots/led_pwm_50pct.png) |
 
-*Figure 15. LTspice, LED driver. Left: current in one AL8860 channel at 24 V for the blue and red strings, switching at about 0.55 MHz with 104 mA ripple around the 333 mA target. Right: 50 % PWM dimming at 250 Hz; the LED current follows the CTRL signal and averages 168 mA, exactly half of full.*
+*Figure 17. LTspice, LED driver. Left: current in one AL8860 channel at 24 V for the blue and red strings, switching at about 0.55 MHz with 104 mA ripple around the 333 mA target. Right: 50 % PWM dimming at 250 Hz; the LED current follows the CTRL signal and averages 168 mA, exactly half of full.*
 
 ![Crystal oscillator loop (LTspice)](simulation/plots/crystal_lfxo.png)
 
-*Figure 16. LTspice, sensor node 32.768 kHz crystal. Left: frequency error against board stray capacitance, +0.3 to +0.9 ppm at the 2 pF design value and at most 38 ppm over 0 to 4 pF, far inside the +/-500 ppm the radio needs. Middle: the loop's transimpedance peaks at 32 768.010 Hz, where it oscillates; this needs an oscillator gain of at least 1.24 uA/V. Right: the power dissipated in the crystal stays under its 0.5 uW limit up to 2 V peak to peak.*
+*Figure 18. LTspice, sensor node 32.768 kHz crystal. Left: frequency error against board stray capacitance, +0.3 to +0.9 ppm at the 2 pF design value and at most 38 ppm over 0 to 4 pF, far inside the +/-500 ppm the radio needs. Middle: the loop's transimpedance peaks at 32 768.010 Hz, where it oscillates; this needs an oscillator gain of at least 1.24 uA/V. Right: the power dissipated in the crystal stays under its 0.5 uW limit up to 2 V peak to peak.*
+
+![LED current option (LTspice)](simulation/plots/led_current_option.png)
+
+*Figure 19. LTspice, LED driver rev 1.1: inductor current of one channel at 24 V with the jumper open (333 mA, grey) and bridged (667 mA, red). The ramp is the AL8860's hysteresis; at 667 mA it would peak above the deep red LED's 700 mA limit, which is why rev 1.1 also adds a 10 uF capacitor across each string: the LEDs (thick red line) stay between 668 and 680 mA.*
+
+![SHT40 thermal comparison](simulation/plots/thermal_sht40.png)
+
+*Figure 20. Board temperature rise while charging (0.64 W in the charger), rev 3.1 against rev 3.2, from a 2-D thermal model. On rev 3.2 the SHT40 sits on a tongue cut free by two notches and a slot, so it warms 8.2 K instead of 11.7 K above the enclosure air; the rest of the board warms the same.*
 
 **Not verified yet (needs hardware):** sleep current and battery life, Thread range, charging,
 the LED current and light output, the plant-model parameters for your cultivar, the forecast on
@@ -380,7 +401,8 @@ phytotron air. Every issue found so far and its status:
 
 | Document | |
 |---|---|
-| [`system_review.md`](documentation/system_review.md) | how the parts fit together, deployment plan, proposals for revision 3.2 |
+| [`system_review.md`](documentation/system_review.md) | how the parts fit together, deployment plan |
+| [`rev3.2_changes.md`](documentation/rev3.2_changes.md) | revision 3.2: the three board changes, before and after, with test results |
 | [`design_review.md`](documentation/design_review.md) | electrical, firmware and mechanical review with evidence |
 | [`issues_log.md`](documentation/issues_log.md) | every issue found, its effect and status |
 | [`ordering.md`](documentation/ordering.md) | ordering both boards from JLCPCB, part stock, items bought separately |
@@ -395,7 +417,7 @@ phytotron air. Every issue found so far and its status:
 
 | Requirement | Where | Status |
 |---|---|---|
-| Wireless sensor network | sensor node rev 3.1, Thread mesh with router nodes | designed and simulated; not built |
+| Wireless sensor network | sensor node rev 3.2, Thread mesh with router nodes | designed and simulated; not built |
 | Database and data backbone | TimescaleDB, `sync.py` (readings, LED commands, plant state, met, events, harvests) | tested |
 | Preserved sample identity | EUI-64 in every reading; per-node keys | tested |
 | GUI with event annotation | dashboard, research assistant | tested |

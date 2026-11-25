@@ -82,6 +82,18 @@ class LedParams:
     red_watts_100: float = 2.95   # 4 x 2.1 V x 0.333 A / 0.95
     area_m2: float = 0.25         # canopy area one LED board lights
 
+    @classmethod
+    def for_current(cls, current_ma: int) -> "LedParams":
+        """LED driver rev 1.1: 333 mA (solder jumpers open, as delivered) or 667 mA (JP1 / JP2
+        bridged). At 667 mA the photon flux is taken as twice the 333 mA value, an upper bound:
+        LED efficacy falls as current rises, so measure it with a quantum sensor. Electrical
+        input at 100 % from LTspice (simulation/led_channel_667mA.cir, 24 V, typical LEDs)."""
+        if current_ma == 667:
+            return cls(blue_ppfd_100=120.0, red_ppfd_100=120.0, blue_watts_100=8.24, red_watts_100=6.54)
+        if current_ma != 333:
+            raise ValueError("LED driver current is 333 or 667 mA")
+        return cls()
+
 
 @dataclass
 class LightMix:

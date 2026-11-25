@@ -14,7 +14,7 @@ Print-ready STL files (base and lid of each, in print orientation): `print/`.
 
 ![Sensor node enclosure, exploded](../docs/images/sensor_enclosure_exploded.png)
 
-*Figure 1. Sensor node enclosure with the lid raised: the board at the front by the USB-C cut-out, the 18650 cell in its cradle at the back, the light tube hanging from the lid over the light sensor, and the gland hole and vents in the right wall.*
+*Figure 1. Sensor node enclosure with the lid raised (rev 3.2), seen from the front left: the board by the USB-C cut-out, the 18650 cell in its cradle at the back, the light tube hanging from the lid, vents in both side walls, the PAR sensor cable gland hole in the left wall (front) and the LED cable gland hole in the right wall. Rendered with `openscad -o ../docs/images/sensor_enclosure_exploded.png --imgsize=1400,1100 --camera=0,0,30,55,0,325,420 -D show_pcb=true -D lid_lift=45 enclosure_gen.scad`.*
 
 ![LED driver enclosure, exploded](../docs/images/led_enclosure_exploded.png)
 
@@ -84,7 +84,7 @@ wires through the dome nut, seal and gland body, then refit the pins in the same
    `led_fit_*.png`.
 4. Writes the print STLs in `print/`.
 
-Last result (2026-11-15): all 12 checks pass. Rerun after any board change.
+Last result (2026-11-23, rev 3.2 boards): all 15 checks pass (3 new: the PAR cable gland clears the SHT40 vents by 5.9 mm and the front wall, and the J6 cable is about 45 mm). Rerun after any board change.
 
 ## Sensor node enclosure
 
@@ -97,6 +97,7 @@ Last result (2026-11-15): all 12 checks pass. Rerun after any board change.
 | Vents | vertical slots in both side walls, level with the SHT40 | air across the humidity sensor |
 | Light window and tube | 10 mm hole in the lid over the TSL2591, a printed tube down to 3 mm above it, 16 x 1.5 mm clear polycarbonate disc glued into a recess on top | the light sensor sees outside light in a defined cone, not light reflected around inside; print the lid black |
 | Cable gland | M12, right wall beside J4 | cable to the LED driver board (LAPP SKINTOP SL-M 12x1.5) |
+| PAR cable gland (rev 3.2) | M12, left wall, 3 mm in front of the LED gland's position (`par_gland`, `par_gland_y`) | cable from the quantum sensor at canopy height to J6; fit check keeps the hole 3 mm or more from the SHT40 vent slots. Nodes without a sensor: M12 x 1.5 blanking plug, or print with `par_gland=false` |
 | Lid | 3 mm with a locating lip, 4 x M3 screws into bosses | closed-cell foam tape on the rim for a dust seal |
 | Floor | 2 x 4 mm mounting holes, 4 x 2 mm drain holes | pole or rail mounting; condensation drains |
 

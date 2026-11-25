@@ -1,26 +1,28 @@
 /*
- * Thread / CoAP uplink: sends one signed research packet (PACKET_V4) per sample.
+ * Thread / CoAP uplink: sends one signed research packet (PACKET_V5) per sample.
  *
- * Packet, 43 bytes, every field little-endian:
+ * Packet, 45 bytes, every field little-endian (V5 = V4 plus the PAR field at 0x14):
  *
  *   offset  size  field
- *   0x00    1     protocol version, 0x04
+ *   0x00    1     protocol version, 0x05
  *   0x01    1     node index (CONFIG_GOS_NODE_INDEX)
  *   0x02    8     factory EUI-64 as an unsigned integer; byte 0 of the
  *                 EUI-64 is the most significant byte
  *   0x0A    4     temperature, IEEE 754 float, degC   (NaN if the read failed)
  *   0x0E    4     relative humidity, float, %RH       (NaN if the read failed)
  *   0x12    2     light, lux, clamped to 65534        (0xFFFF if the read failed)
- *   0x14    2     battery, mV                         (0xFFFF if the read failed)
- *   0x16    4     message counter: boot epoch << 16 | sequence. Strictly
+ *   0x14    2     PAR, umol m-2 s-1, from the quantum sensor on J6 (rev 3.2)
+ *                 (0xFFFF if no sensor is configured or the read failed)
+ *   0x16    2     battery, mV                         (0xFFFF if the read failed)
+ *   0x18    4     message counter: boot epoch << 16 | sequence. Strictly
  *                 increasing for the life of the node, so the gateway can
  *                 reject replayed packets.
- *   0x1A    1     flags: bit 7 charger state valid, bit 0 USB power present,
+ *   0x1C    1     flags: bit 7 charger state valid, bit 0 USB power present,
  *                 bit 1 charging (the charger warms the board: climate readings
  *                 taken while charging read high)
- *   0x1B    16    tag: first 16 bytes of HMAC-SHA256(node key, bytes 0x00..0x1A)
+ *   0x1D    16    tag: first 16 bytes of HMAC-SHA256(node key, bytes 0x00..0x1C)
  *
- * Python decode: struct.unpack("<BBQffHHIB16s", payload)
+ * Python decode: struct.unpack("<BBQffHHHIB16s", payload)
  *
  * The node key (CONFIG_GOS_UPLINK_KEY, 32 hex digits) comes from the
  * git-ignored credentials.conf and must match the gateway's key file
@@ -56,14 +58,15 @@
 
 #include "downlink.h"
 #include "gos_main.h"
+#include "packet.h"
 #include "uplink.h"
 
 LOG_MODULE_REGISTER(gos_uplink, LOG_LEVEL_INF);
 
-#define PACKET_VERSION 0x04
-#define BODY_LEN       27
-#define TAG_LEN        16
-#define PACKET_LEN     (BODY_LEN + TAG_LEN)
+/* body builder and sizes: src/packet.c (also built by tests/host/test_packet.c) */
+#define BODY_LEN       GOS_PACKET_BODY_LEN
+#define TAG_LEN        GOS_PACKET_TAG_LEN
+#define PACKET_LEN     GOS_PACKET_LEN
 #define KEY_LEN        16
 #define U16_INVALID    0xFFFFU
 #define EPOCH_KEY      "gos/epoch"
@@ -102,48 +105,6 @@ static void fast_poll_handler(struct k_work *work)
 	if (i < (atomic_val_t)ARRAY_SIZE(FAST_POLL_DELAYS_MS)) {
 		k_work_schedule(&fast_poll_work, K_MSEC(FAST_POLL_DELAYS_MS[i]));
 	}
-}
-
-static void put_float(float v, uint8_t *dst)
-{
-	uint32_t bits;
-
-	memcpy(&bits, &v, sizeof(bits));
-	sys_put_le32(bits, dst);
-}
-
-static uint16_t clamp_u16(int v)
-{
-	if (v < 0) {
-		return 0;
-	}
-	return v >= (int)U16_INVALID ? (uint16_t)(U16_INVALID - 1U) : (uint16_t)v;
-}
-
-/* Fills bytes 0..BODY_LEN-1. Exposed for the host-side packet test. */
-void gos_uplink_build_body(uint8_t body[BODY_LEN], const otExtAddress *eui,
-			   const struct gos_sensor_data *d, uint32_t counter)
-{
-	bool climate = d->valid & GOS_VALID_CLIMATE;
-	uint64_t id = 0;
-
-	for (size_t i = 0; i < sizeof(eui->m8); i++) {
-		id = (id << 8) | eui->m8[i];
-	}
-
-	body[0] = PACKET_VERSION;
-	body[1] = CONFIG_GOS_NODE_INDEX;
-	sys_put_le64(id, &body[2]);
-	put_float(climate ? d->temp_mc / 1000.0f : NAN, &body[10]);
-	put_float(climate ? d->humidity_mpct / 1000.0f : NAN, &body[14]);
-	sys_put_le16((d->valid & GOS_VALID_LIGHT) ? clamp_u16(d->light_lux) : U16_INVALID, &body[18]);
-	sys_put_le16((d->valid & GOS_VALID_BATTERY) ? clamp_u16(d->battery_mv) : U16_INVALID, &body[20]);
-	sys_put_le32(counter, &body[22]);
-	/* bit 7: charger state read; bit 0: USB power present; bit 1: charging. The charger
-	 * warms the board, so the gateway can flag climate readings taken while charging. */
-	body[26] = (d->valid & GOS_VALID_CHARGER)
-			   ? (uint8_t)(0x80U | (d->usb_power ? 0x01U : 0U) | (d->charging ? 0x02U : 0U))
-			   : 0U;
 }
 
 static int epoch_load(const char *key, size_t len, settings_read_cb read_cb, void *cb_arg, void *param)
@@ -300,7 +261,7 @@ int gos_uplink_send(const struct gos_sensor_data *d)
 	}
 
 	otLinkGetFactoryAssignedIeeeEui64(ot, &eui);
-	gos_uplink_build_body(pkt, &eui, d, (epoch << 16) | sequence);
+	gos_packet_build_body(pkt, eui.m8, CONFIG_GOS_NODE_INDEX, d, (epoch << 16) | sequence);
 	atomic_set(&sent_counter, (atomic_val_t)((epoch << 16) | sequence));
 	atomic_set(&has_sent, 1);
 	sequence++; /* never reuse a counter, even if the send below fails */

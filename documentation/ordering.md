@@ -83,7 +83,7 @@ or you can send it parts as consignment).
 | L1 | 2.2 uH, 3 x 3 mm | Sunlord SWPA3015S2R2MT | C43389 | 33,659 | - |
 | J1 | USB-C | GCT USB4105-GF-A | C3020560 | 16,850 | 384,480 |
 | J2 | SWD 2x5 1.27 mm | Samtec FTSH-105-01-L-DV-K | C5155080 | **pre-order (about 9 days)** | 89,650 |
-| J3, J4 | 1x4 2.54 mm header | LXWCONN 254PZ-1x4P-V | C53055674 | 46,506 | - |
+| J3, J4, J6 (rev 3.2, PAR sensor) | 1x4 2.54 mm header | LXWCONN 254PZ-1x4P-V | C53055674 | 46,506 | - |
 | J5 | battery, JST-PH 2-pin | JST S2B-PH-K-S(LF)(SN) | C173752 | 180,893 | - |
 | SW1, SW2 | buttons | Omron B3U-1000P | C231329 | 71,328 | - |
 | F1 | USB fuse 0.75 A | RUILON SMD1206P075TF | C20987 | 4,512 | - |
@@ -92,9 +92,9 @@ or you can send it parts as consignment).
 | TH1 | NTC 10k B3380 | Murata NCP18XH103F03RB | C13564 | 280,553 | - |
 | C1, C14 | 1 uF 50 V X5R 0603 | Samsung CL10A105KB8NNNC | C15849 | 13.3 M (Basic) | - |
 | C2-C5, C10, C12 | 10 uF 25 V X5R 0805 | Samsung CL21A106KAYNNNE | C15850 | 8.9 M (Basic) | - |
-| C6, C7, C11, C13 | 100 nF 50 V X7R 0603 | YAGEO CC0603KRX7R9BB104 | C14663 | 34.5 M (Basic) | - |
+| C6, C7, C11, C13, C15 (rev 3.2) | 100 nF 50 V X7R 0603 | YAGEO CC0603KRX7R9BB104 | C14663 | 34.5 M (Basic) | - |
 | C8, C9 | 12 pF C0G 0603 | Samsung CL10C120JB8NNNC | C38523 | 521,239 (Basic) | - |
-| resistors | 0603 1 % thick film | UNI-ROYAL 0603WAF.... | C25803 (100k), C23231 (68k), C4211 (3.0k), C4177 (1.8k), C21190 (1k), C22775 (100R), C22938 (2.2M), C23162 (4.7k), C23186 (5.1k), C25190 (27R) | all above 180,000 | - |
+| resistors (rev 3.2 adds R24, 1k) | 0603 1 % thick film | UNI-ROYAL 0603WAF.... | C25803 (100k), C23231 (68k), C4211 (3.0k), C4177 (1.8k), C21190 (1k), C22775 (100R), C22938 (2.2M), C23162 (4.7k), C23186 (5.1k), C25190 (27R) | all above 180,000 | - |
 
 ### LED driver board
 
@@ -112,7 +112,9 @@ or you can send it parts as consignment).
 | C1 | 47 uF 50 V electrolytic | ROQANG RVT1H470M0607 | C72523 | 254,389 | - |
 | C2, C4 | 10 uF 50 V X7R 1210 | Samsung CL32B106KBJNNNE | C138687 | 137,993 | - |
 | C3, C5 | 100 nF 50 V X7R 0603 | YAGEO CC0603KRX7R9BB104 | C14663 | 34.5 M (Basic) | - |
-| R1, R3 | 0.30 ohm 1 % | YAGEO RL0603FR-070R3L | C309621 | 22,780 | - |
+| C6, C7 (rev 1.1) | 10 uF 50 V X7R 1210, across each LED string | Samsung CL32B106KBJNNNE | C138687 | 137,993 | - |
+| R1, R3, R5, R6 (R5 / R6 rev 1.1: the 667 mA option) | 0.30 ohm 1 % | YAGEO RL0603FR-070R3L | C309621 | 22,780 | - |
+| JP1, JP2 (rev 1.1) | solder jumper, copper only | - | - | - | - |
 | R2, R4 | 1.5 k 1 % | UNI-ROYAL 0603WAF1501T5E | C22843 | 2.9 M (Basic) | - |
 
 **Stock risks:** the radio module and the SWD header are pre-order only at JLCPCB; the light sensor
@@ -150,6 +152,8 @@ All schematics, boards, BOMs, Gerbers and documents were regenerated after each 
 | Thread radio for the Raspberry Pi | border router | Nordic nRF52840-Dongle | Mouser 4,904 in stock |
 | Raspberry Pi | border router and gateway | Raspberry Pi 4 Model B (2 GB or more) or Raspberry Pi 5 | Raspberry Pi approved resellers |
 | Cable gland | sensor enclosure, LED cable | LAPP S1507, SKINTOP SL-M 12x1.5 with locknut | Mouser 127 in stock |
+| Quantum (PAR) sensor, optional (rev 3.2) | sensor node J6, at canopy height | Apogee SQ-500-SS (full spectrum, self-powered, 0.01 mV per umol m-2 s-1, 0 to 40 mV); any self-powered quantum sensor up to 150 mV full scale works. Set its calibration factor in `par_sensor.conf` | apogeeinstruments.com and its distributors |
+| Second cable gland (rev 3.2) | sensor enclosure, PAR cable, left wall | LAPP S1507, as above; nodes without a quantum sensor: M12 x 1.5 blanking plug | Mouser |
 | Light window | sensor enclosure lid | clear polycarbonate disc 16 mm x 1.5 mm (cut from sheet, or a laser-cut service) | - |
 | Screws | enclosures | sensor: 4 x M2.5x6 + 4 x M3x10 self-tapping; LED: 4 x M3x6 + 4 x M3x10 self-tapping | - |
 | USB-C dust plug | sensor enclosure | silicone USB-C port plug, keeps the cut-out closed when not charging | - |

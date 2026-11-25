@@ -1,14 +1,18 @@
 """
 G.O.S. CoAP Receiver
 ====================
-Receives signed PACKET_V4 (and older V3) research packets that sensor nodes send over Thread,
+Receives signed PACKET_V5 (and older V4 / V3) research packets that sensor nodes send over Thread,
 checks each one against that node's key, and stores it in raw_telemetry.
 
 Nodes send a CoAP POST to /telemetry on UDP 5683, by default to the
 realm-local all-nodes multicast address ff03::1. Run this on the Thread
 border router host (network_mode: host) so it can see the Thread interface.
 
-Packet (documentation/hardware_protocol.md, firmware src/uplink.c), 42 bytes,
+PACKET_V5 (rev 3.2 firmware, src/uplink.c): V4 plus PAR u16 (umol m-2 s-1 from the quantum
+sensor on J6, 0xFFFF = none) after the light field, 45 bytes: "<BBQffHHHIB16s". The node's PAR
+sensor sees the LED board too, so it is stored in par_umol with payload.par_source = "node"
+and the biology engine subtracts the LED share. V4 adds a flags byte to V3. V3 packet,
+42 bytes,
 little-endian: version u8 (=3), node index u8, EUI-64 u64, temperature f32 degC,
 humidity f32 %RH, light u16 lux, battery u16 mV, counter u32, then a 16-byte tag
 = first 16 bytes of HMAC-SHA256(node key, first 26 bytes). NaN / 0xFFFF =
@@ -76,6 +80,8 @@ V3_BODY_LEN = V3_LEN - 16                    # bytes covered by the tag (verify 
 V4_FORMAT = "<BBQffHHIB16s"                  # signed, adds a flags byte (current firmware)
 V4_LEN = struct.calcsize(V4_FORMAT)          # 43
 V4_BODY_LEN = V4_LEN - 16
+V5_FORMAT = "<BBQffHHHIB16s"                 # signed, adds PAR (rev 3.2 firmware)
+V5_LEN = struct.calcsize(V5_FORMAT)          # 45
 FLAG_VALID, FLAG_USB, FLAG_CHARGING = 0x80, 0x01, 0x02
 LED_CMD_VERSION = 0xC1
 LED_CMD_BODY_LEN = 7
@@ -255,7 +261,13 @@ def decode_packet(payload: bytes, keys: Optional[NodeKeys] = None) -> dict:
     Without keys (bench mode), v2, v3 and v4 are decoded with no checks."""
     version = payload[0] if payload else None
     flags = None
-    if version == 4 and len(payload) == V4_LEN:
+    par = U16_INVALID
+    if version == 5 and len(payload) == V5_LEN:
+        _, index, eui, temp, hum, lux, par, batt, counter, flags, tag = struct.unpack(V5_FORMAT, payload)
+        if keys is not None:
+            keys.verify(payload, index, eui, tag)
+        authenticated = keys is not None
+    elif version == 4 and len(payload) == V4_LEN:
         _, index, eui, temp, hum, lux, batt, counter, flags, tag = struct.unpack(V4_FORMAT, payload)
         if keys is not None:
             keys.verify(payload, index, eui, tag)
@@ -271,7 +283,8 @@ def decode_packet(payload: bytes, keys: Optional[NodeKeys] = None) -> dict:
         _, index, eui, temp, hum, lux, batt = struct.unpack(V2_FORMAT, payload)
         counter, authenticated = None, False
     else:
-        raise ValueError(f"not a v2 ({V2_LEN} bytes), v3 ({V3_LEN} bytes) or v4 ({V4_LEN} bytes) "
+        raise ValueError(f"not a v2 ({V2_LEN} bytes), v3 ({V3_LEN} bytes), v4 ({V4_LEN} bytes) "
+                         f"or v5 ({V5_LEN} bytes) "
                          f"packet: version {version}, {len(payload)} bytes")
     known = flags is not None and flags & FLAG_VALID
     return {
@@ -284,6 +297,7 @@ def decode_packet(payload: bytes, keys: Optional[NodeKeys] = None) -> dict:
         "temp_c": None if math.isnan(temp) else round(temp, 3),
         "humidity_pct": None if math.isnan(hum) else round(hum, 3),
         "light_lux": None if lux == U16_INVALID else lux,
+        "par_umol": None if par == U16_INVALID else par,
         "battery_mv": None if batt == U16_INVALID else batt,
         "usb_power": bool(flags & FLAG_USB) if known else None,
         "charging": bool(flags & FLAG_CHARGING) if known else None,
@@ -315,9 +329,11 @@ class PostgresStore:
                         reading["sample_identity"],
                         reading["temp_c"],
                         reading["humidity_pct"],
-                        None,  # the node measures lux, not PAR; see payload.light_lux
+                        reading.get("par_umol"),  # rev 3.2 quantum sensor, else None (lux only)
                         reading["battery_mv"],
                         json.dumps({"light_lux": reading["light_lux"], "source": source,
+                                    # the node's PAR sensor sees the LED board as well as daylight
+                                    "par_source": "node" if reading.get("par_umol") is not None else None,
                                     "node_index": reading["node_index"],
                                     "packet_version": reading["packet_version"],
                                     "counter": reading["counter"],

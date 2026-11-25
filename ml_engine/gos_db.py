@@ -22,14 +22,16 @@ def active_nodes(conn) -> list[dict]:
     with conn.cursor() as cur:
         cur.execute(f"""
             SELECT DISTINCT ON (node_id) node_id, time, temp_c, humidity_pct, par_umol,
-                   (payload->>'light_lux')::double precision, (payload->>'charging')::boolean
+                   (payload->>'light_lux')::double precision, (payload->>'charging')::boolean,
+                   payload->>'par_source'
             FROM raw_telemetry
             WHERE time > NOW() - INTERVAL '{ACTIVE_MINUTES} minutes'
             ORDER BY node_id, time DESC
         """)
         rows = cur.fetchall()
     conn.commit()
-    return [dict(zip(("node_id", "time", "temp_c", "humidity_pct", "par_umol", "light_lux", "charging"), r))
+    return [dict(zip(("node_id", "time", "temp_c", "humidity_pct", "par_umol", "light_lux", "charging",
+                      "par_source"), r))
             for r in rows]
 
 

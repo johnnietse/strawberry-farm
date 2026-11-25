@@ -29,7 +29,7 @@ PROJECT_FP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "libra
 KICAD_CLI = os.environ.get("KICAD_CLI", KICAD + r"\bin\kicad-cli.exe")
 
 PROJECT = "gos_sensor_node"
-REV = "3.1"
+REV = "3.2"
 ROOT_UUID = "c897bbcf-82b3-4b94-b14c-2b8219114053"
 GENERATOR = "gos_sensor_node_generator"
 
@@ -237,7 +237,8 @@ def sym_flag(node, name, default="yes"):
 # ---------------------------------------------------------------- schematic model
 LIBS = Libs()
 POWER = {"GND": "power:GND", "+3V3": "power:+3V3", "VBUS": "power:VBUS"}
-NOT_IN_BOM = {"Connector:TestPoint"}  # bare copper pads, nothing to buy
+NOT_IN_BOM = {"Connector:TestPoint",           # bare copper pads, nothing to buy
+              "Jumper:SolderJumper_2_Open"}    # (LED driver) bridged with solder by hand
 
 # Ordering data for JLCPCB assembly, matched to the JLCPCB/LCSC catalogue on 2026-11-14
 # (stock and ordering notes in documentation/ordering.md). Key: (value as written in the schematic, footprint name).
@@ -523,7 +524,7 @@ def build():
     mcu = Sheet("mcu", "MCU", "MCU.kicad_sch", "4cf87c83-fa01-4d12-9c1c-c6c5074a6016", "A4",
                 "MCU: Raytac MDBT50Q-1MV2 (nRF52840)")
     sens = Sheet("sensors", "Sensors", "sensors.kicad_sch", "87bf3c30-a1e6-40d0-a09a-250d6d07ca80", "A4",
-                 "Sensors: SHT40, TSL2591")
+                 "Sensors: SHT40, TSL2591, PAR input")
     conn = Sheet("connectors", "Connectors", "connectors.kicad_sch", "8aa840d5-f7bd-4929-a259-30ad40fabe7f",
                  "A3", "Connectors: USB-C, SWD, I2C, LED board, test points")
 
@@ -600,7 +601,7 @@ def build():
     used = {"GND": "GND", "VDD": "+3V3", "VDDH": "+3V3", "VBUS": "VBUS",
             "P0.00": "XL1", "P0.01": "XL2", "P0.26": "I2C_SDA", "P0.27": "I2C_SCL", "P0.15": "TSL_INT",
             "P0.13": "PWM_BLUE", "P0.14": "PWM_RED", "P0.06": "UART_TX", "P0.08": "UART_RX",
-            "P0.02": "VBAT_SENSE", "P0.28": "PGOOD_N", "P0.29": "CHG_N", "P0.18": "NRESET",
+            "P0.02": "VBAT_SENSE", "P0.03": "PAR_SENSE", "P0.28": "PGOOD_N", "P0.29": "CHG_N", "P0.18": "NRESET",
             "SWDIO": "SWDIO", "SWDCLK": "SWDCLK", "P1.00": "SWO", "D+": "USB_DP", "D-": "USB_DN",
             "P0.17": "LED_STAT_N", "P0.24": "BTN_USER"}
     names = {p.name for p in sym_pins(LIBS.get("RF_Module:MDBT50Q-1MV2"))}
@@ -642,6 +643,7 @@ def build():
     s.R("4.7k", "+3V3", "I2C_SCL", 93.98, 139.7)
     s.R("100k", "+3V3", "TSL_INT", 111.76, 139.7)
 
+
     # ---------------- connectors
     s = conn
     s.text("J1: USB 2.0 device. 5.1k on each CC pin asks the host for 5 V.\n"
@@ -674,6 +676,19 @@ def build():
     s.R("100R", "PWM_RED", "PWM_RED_C", 276.86, 142.24)
     s.R("100k", "PWM_BLUE_C", "GND", 259.08, 180.34)
     s.R("100k", "PWM_RED_C", "GND", 276.86, 180.34)
+
+    # rev 3.2: input for a self-powered (unamplified) quantum sensor, e.g. Apogee SQ-500-SS,
+    # 0.01 mV per umol m-2 s-1 (0 to 40 mV). Read by the SAADC on AIN1 at gain 4 (0.15 V full
+    # scale). R + C: RC filter (0.1 ms) and current limit for cable transients.
+    s.text("Rev 3.2 PAR input: J6 takes a self-powered quantum sensor (0 to 40 mV, e.g. Apogee SQ-500-SS).\n"
+           "PAR_SENSE goes to AIN1 (P0.03); the SAADC reads it at gain 4 (0.15 V full scale). 1k + 100 nF: RC filter\n"
+           "and current limit for cable transients. J6 pin 4 gives 3.3 V (50 mA max) for a powered sensor.", 254.0, 200.66)
+    s.part("J6", "Connector_Generic:Conn_01x04", 317.5, 172.72, "PAR sensor",
+           "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+           {"1": "GND", "2": "PAR_IN", "3": "GND", "4": "+3V3"},
+           Description="1 shield, 2 sensor signal (+), 3 sensor ground (-), 4 +3.3 V for a powered sensor")
+    s.R("1k", "PAR_IN", "PAR_SENSE", 345.44, 172.72)
+    s.C("100nF 50V X7R", "PAR_SENSE", "GND", 370.84, 185.42)
     for i, net in enumerate(["+3V3", "VSYS", "VBAT", "GND", "UART_TX", "UART_RX", "VBUS"]):
         s.part("TP%d" % (i + 1), "Connector:TestPoint", 45.72 + 17.78 * i, 220.98, net,
                "TestPoint:TestPoint_Pad_D1.0mm", {"1": net})
@@ -693,7 +708,8 @@ def write_all():
         sh.write()
     root = Sheet("root", "Root", PROJECT + ".kicad_sch", None, "A4", "G.O.S. sensor node")
     root.text("G.O.S. sensor node rev %s\n\n"
-              "18650 cell + USB-C charging, nRF52840 module (Thread / BLE), SHT40 and TSL2591 over I2C.\n"
+              "18650 cell + USB-C charging, nRF52840 module (Thread / BLE), SHT40 and TSL2591 over I2C,\n"
+              "PAR (quantum) sensor input J6 on AIN1 (rev 3.2).\n"
               "LED drivers live on a separate, separately powered board; J4 gives it the two PWM signals.\n"
               "The 18650 sits in the enclosure and plugs into J5. LoRa and GNSS are not fitted.\n\n"
               "Sheets share nets through global labels and power symbols; the sheet symbols below carry no pins.\n"

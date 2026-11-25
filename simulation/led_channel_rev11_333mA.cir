@@ -1,0 +1,62 @@
+md * G.O.S. LED driver board rev 1.1: one AL8860 channel, jumper open (333 mA), with the new LED-string capacitor,
+* steady state at full brightness. Same model as led_channel.cir with R_SENSE 0.15 ohm and the
+* rev 1.1 capacitor across the LED string.
+* Behavioural AL8860 model from Diodes DS39014 Rev. 8-2 (June 2023):
+*   mean sense threshold 100 mV across R_SENSE (VIN to SET), hysteresis 115 / 87 mV
+*   (datasheet threshold graph), switch on-resistance 0.2 ohm, comparator delay 45 ns.
+* Board values: R_SENSE 0.30 ohm || 0.30 ohm = 0.15 ohm (JP1 / JP2 bridged), L 100 uH (Bourns SRN6045TA-101M, DCR 0.456 ohm),
+*   SS34 freewheel diode, 10 uF X7R (about 4 uF at 24 V bias) + 47 uF electrolytic on VIN.
+* LED strings: 4 x Luxeon Star SP-01-V4 royal blue (Vf 2.9 V typ / 3.5 V max at 700 mA)
+*   or 4 x SP-01-D2 deep red (Vf 2.1 V typ / 2.8 V max at 350 mA), luxeonstar.com product pages.
+*   Each LED is modelled as a threshold plus 0.43 ohm, fitted to those points.
+* Steps: colour (blue, red) x forward-voltage corner (typical, maximum) x supply 20 / 24 / 28 V.
+* Pass: average LED current 667 mA +/- 5 % (below the deep red's 700 mA DC maximum), switching frequency below 1 MHz (datasheet maximum),
+*   switch on-time above 500 ns (datasheet, for 4 % accuracy), duty 25 to 75 %, inductor peak
+*   below its 0.92 A rating, AL8860 switch and diode losses for the heating check.
+
+.param Vsup=24 colour=0 corner=0 Rsense=0.30 Cled=4.7u
+.param Vf={if(colour==0, if(corner==0, 2.60, 3.15), if(corner==0, 1.95, 2.65))} Rd=0.43 Nled=4
+
+Vsup vin 0 {Vsup}
+C1 vin 0 47u Rser=0.3
+C2 vin 0 4u Rser=5m
+Rs vin set {Rsense}
+* rev 1.1: 10 uF 50 V X7R 1210 across each LED string (C6 blue, C7 red); about 4.7 uF left at the
+* string's 9 to 14 V bias. The inductor still ripples; the LEDs see the average.
+Cled set ledk {Cled} Rser=10m
+Dled set ledk LEDSTR
+L1 ledk sw 100u Rser=0.456
+Dfw sw vin SS34
+S1 sw 0 ctl 0 AL8860SW
+Bctl ctl 0 V=delay(-V(vin,set), 45n)
+
+.model LEDSTR D(Vfwd={Nled*Vf} Ron={Nled*Rd} Roff=10Meg)
+.model SS34 D(Vfwd=0.35 Ron=0.08 Roff=10Meg Epsilon=0.05)
+* switch closes when V(VIN,SET) < 87 mV and opens when it reaches 115 mV
+.model AL8860SW SW(Ron=0.2 Roff=10Meg Vt=-0.101 Vh=0.014)
+
+Bon on 0 V=if(V(sw) < 1, 1, 0)
+
+.tran 0 3m 2m 10n uic
+.step param colour list 0 1
+.step param corner list 0 1
+.step param Vsup list 20 24 28
+
+.meas TRAN I_led_avg AVG I(Rs) FROM 2m TO 3m
+.meas TRAN I_L_max MAX I(L1) FROM 2m TO 3m
+.meas TRAN I_L_min MIN I(L1) FROM 2m TO 3m
+.meas TRAN I_led_max MAX I(Dled) FROM 2m TO 3m
+.meas TRAN I_led_min MIN I(Dled) FROM 2m TO 3m
+.meas TRAN I_led_dc AVG I(Dled) FROM 2m TO 3m
+.meas TRAN duty AVG V(on) FROM 2m TO 3m
+.meas TRAN t1 FIND time WHEN V(sw)={Vsup/2} FALL=5
+.meas TRAN t2 FIND time WHEN V(sw)={Vsup/2} FALL=25
+.meas TRAN f_sw PARAM 20/(t2-t1)
+.meas TRAN t_on PARAM duty/f_sw
+.meas TRAN P_in AVG -V(vin)*I(Vsup) FROM 2m TO 3m
+.meas TRAN P_led AVG V(set,ledk)*I(Dled) FROM 2m TO 3m
+.meas TRAN efficiency PARAM P_led/P_in
+.meas TRAN P_switch AVG 0.2*I(S1)*I(S1) FROM 2m TO 3m
+.meas TRAN P_diode AVG V(vin,sw)*I(Dfw) FROM 2m TO 3m
+.meas TRAN P_rsense AVG V(vin,set)*I(Rs) FROM 2m TO 3m
+.end

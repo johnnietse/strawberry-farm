@@ -40,6 +40,8 @@ Bon on 0 V=if(V(sw) < 1, 1, 0)
 .meas TRAN I_led_avg AVG I(Rs) FROM 2m TO 3m
 .meas TRAN I_L_max MAX I(L1) FROM 2m TO 3m
 .meas TRAN I_L_min MIN I(L1) FROM 2m TO 3m
+.meas TRAN I_led_max MAX I(Dled) FROM 2m TO 3m
+.meas TRAN I_led_min MIN I(Dled) FROM 2m TO 3m
 .meas TRAN duty AVG V(on) FROM 2m TO 3m
 .meas TRAN t1 FIND time WHEN V(sw)={Vsup/2} FALL=5
 .meas TRAN t2 FIND time WHEN V(sw)={Vsup/2} FALL=25
@@ -48,4 +50,7 @@ Bon on 0 V=if(V(sw) < 1, 1, 0)
 .meas TRAN P_in AVG -V(vin)*I(Vsup) FROM 2m TO 3m
 .meas TRAN P_led AVG V(set,ledk)*I(Dled) FROM 2m TO 3m
 .meas TRAN efficiency PARAM P_led/P_in
+.meas TRAN P_switch AVG 0.2*I(S1)*I(S1) FROM 2m TO 3m
+.meas TRAN P_diode AVG V(vin,sw)*I(Dfw) FROM 2m TO 3m
+.meas TRAN P_rsense AVG V(vin,set)*I(Rs) FROM 2m TO 3m
 .end

@@ -42,8 +42,11 @@ def compute_state(reading: dict, led_pct: tuple, prev: tuple | None, now: dateti
     t, rh = reading["temp_c"], reading["humidity_pct"]
     if t is None or rh is None:
         return None
-    if reading.get("par_umol") is not None:
-        sun = max(float(reading["par_umol"]), 0.0)
+    if reading.get("par_umol") is not None and reading.get("par_source") == "node":
+        # rev 3.2 quantum sensor on the node: it sees the LED board too, so take its share off
+        sun = max(float(reading["par_umol"]) - led_light(*led_pct, led=led).total, 0.0)
+    elif reading.get("par_umol") is not None:
+        sun = max(float(reading["par_umol"]), 0.0)   # e.g. a separate PAR instrument (MQTT)
     else:
         sun = ambient_ppfd_from_lux(reading.get("light_lux") or 0.0, *led_pct, led=led)
     mix = led_light(*led_pct, led=led)

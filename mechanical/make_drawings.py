@@ -55,6 +55,7 @@ ENCLOSURES = {
             ("7", "Cable gland M12", "LED cable (ordering.md)", 1, None),
             ("8", "Clear disc 16 x 1.5 mm", "polycarbonate, light window, glued", 1, None),
             ("9", "USB-C dust plug", "silicone", 1, None),
+            ("10", "Cable gland M12 (rev 3.2)", "PAR sensor cable, left wall", 1, None),
         ],
     },
     "led_driver": {
@@ -230,7 +231,7 @@ def title_block(fig, title, number, sheet_no, scale, source, overall, material="
         ["MATERIAL", material, "UNITS", "mm", "SCALE", scale],
         ["PROJECTION", "third angle", "TOLERANCE", "+/-0.3 unless noted (FDM)", "DATE",
          datetime.date.today().isoformat()],
-        ["SOURCE", source, "OVERALL", overall, "REV", "A"],
+        ["SOURCE", source, "OVERALL", overall, "REV", "B (rev 3.2 boards)"],
     ], loc="center", cellLoc="left", colWidths=[0.08, 0.3, 0.09, 0.2, 0.06, 0.17])
     tb.auto_set_font_size(False)
     tb.set_fontsize(8)
@@ -324,7 +325,7 @@ def sheet(key: str, cfg: dict, tmp: str):
         ["MATERIAL", "ASA (PETG acceptable, not PLA)", "UNITS", "mm", "SCALE", "views to scale, iso NTS"],
         ["PROJECTION", "third angle", "TOLERANCE", "+/-0.3 unless noted (FDM)", "DATE",
          datetime.date.today().isoformat()],
-        ["SOURCE", f"mechanical/{scad} (OpenSCAD), generated", "OVERALL", f"{W:.1f} x {L:.1f} x {H:.1f}", "REV", "A"],
+        ["SOURCE", f"mechanical/{scad} (OpenSCAD), generated", "OVERALL", f"{W:.1f} x {L:.1f} x {H:.1f}", "REV", "B (rev 3.2)"],
     ], loc="center", cellLoc="left", colWidths=[0.08, 0.3, 0.09, 0.2, 0.06, 0.17])
     tb.auto_set_font_size(False)
     tb.set_fontsize(8)
@@ -359,6 +360,7 @@ SYSTEM_PARTS = [
     ("9", "Cable gland M12", "LAPP S1507 SKINTOP SL-M 12x1.5, sensor right wall", 1),
     ("10", "Self-tapping screws", "4 x M2.5x6 + 4 x M3x10 (sensor); 4 x M3x6 + 4 x M3x10 (LED)", 16),
     ("11", "Clear disc 16 x 1.5 mm", "polycarbonate, glued into the sensor lid", 1),
+    ("12", "Cable gland M12 (rev 3.2)", "PAR sensor cable to J6, sensor left wall", 1),
 ]
 SYSTEM_BALLOONS = {"sensor_node": {"base": "1", "lid": "2", "pcb": "3", "cell": "4"},
                    "led_driver": {"base": "5", "lid": "6", "pcb": "7"}}
@@ -467,7 +469,7 @@ def system_sheet_1(models, tmp):
 
     table(fig.add_axes([0.03, 0.135, 0.60, 0.235]), [[n, p, q, s] for n, p, s, q in SYSTEM_PARTS],
           ["ITEM", "PART", "QTY", "MATERIAL / SOURCE / NOTE"], [0.06, 0.30, 0.05, 0.59],
-          "PARTS LIST (items 8 to 11 are not drawn as parts; item 8 is shown as a line)", fontsize=7.5, scale=1.12)
+          "PARTS LIST (items 8 to 12 are not drawn as parts; item 8 is shown as a line)", fontsize=7.5, scale=1.12)
     a_n = fig.add_axes([0.64, 0.135, 0.34, 0.235])
     a_n.axis("off")
     notes = [
@@ -488,7 +490,7 @@ def system_sheet_1(models, tmp):
     a_n.text(0.0, 1.0, "\n".join(notes), va="top", ha="left", fontsize=8, family="monospace", color=INK)
 
     s, l = models["sensor_node"], models["led_driver"]
-    title_block(fig, "G.O.S. SYSTEM ASSEMBLY: LIGHT NODE + LED DRIVER", "GOS-MECH-003", "1 OF 2",
+    title_block(fig, "G.O.S. SYSTEM ASSEMBLY: LIGHT NODE + LED DRIVER (REV 3.2 / 1.1)", "GOS-MECH-003", "1 OF 2",
                 "1:2 (views, A3), iso NTS", "make_drawings.py from both .scad files",
                 f"{s['W']:.0f}x{s['L']:.0f}x{s['H']:.0f} + {l['W']:.1f}x{l['L']:.0f}x{l['H']:.1f}")
     out = os.path.join(OUT, "system_assembly_sheet1.png")
@@ -577,6 +579,7 @@ def system_sheet_2(tmp):
         ["W5", "5 V USB-C adapter", "light node USB-C (front)", "power; climate nodes: charging only"],
         ["W6", "Pi USB 2.0 port", "nRF52840 Dongle", "short USB extension, not by USB 3.0"],
         ["W7", "Pi Ethernet / Wi-Fi", "LAN", "dashboard, API, Grafana"],
+        ["W8", "quantum sensor (rev 3.2)", "light node J6 (gland 12)", "2 wires + shield, 1 GND, 2 +, 3 GND"],
         ["R1", "nodes", "Dongle", "Thread, 2.4 GHz radio, no cable"],
     ]
     table(fig.add_axes([0.61, 0.62, 0.37, 0.33]), rows, ["ID", "FROM", "TO", "CABLE / NOTE"],

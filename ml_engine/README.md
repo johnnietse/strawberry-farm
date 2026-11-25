@@ -136,6 +136,11 @@ very small device (the forecast then uses persistence). The end-to-end test runs
 
 - No real plant has been measured: model parameters are literature values.
 - LED photon flux at the canopy (`LedParams`, 60 umol m-2 s-1 per channel at 100 %) is a design
-  estimate; measure it with a quantum sensor at plant height.
-- The TSL2591 lux-to-PPFD conversion assumes daylight; it is approximate under the LEDs.
+  estimate; measure it with a quantum sensor at plant height. LED driver rev 1.1 can run at
+  667 mA per channel: `LedParams.for_current(667)` doubles the flux (an upper bound; LED efficacy
+  falls with current) and uses the LTspice input power (8.24 W blue, 6.54 W red at 100 %).
+- The TSL2591 lux-to-PPFD conversion assumes daylight; it is approximate under the LEDs. Rev 3.2
+  nodes with a quantum sensor on J6 send PAR directly (`payload.par_source = "node"`); the
+  biology engine then uses measured PAR minus the LEDs' calculated share as daylight, and lux
+  only when no PAR is sent.
 - The blue-light stomatal effect (`blue_g1_gain`) is an assumption.

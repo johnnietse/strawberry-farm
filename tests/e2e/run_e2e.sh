@@ -64,6 +64,7 @@ check "8/8 replies carry a valid signed LED command" 'echo "$out" | grep -q "RES
 
 plant=$(curl -sf "$API/api/plant")
 check "plant state for RF-NODE-07" "echo '$plant' | $PY -c \"import json,sys; d=[x for x in json.load(sys.stdin) if x['node_id']=='RF-NODE-07']; assert d[0]['photosynthesis_umol_m2_s'] > 0\""
+check "rev 3.2 PAR reading (PACKET_V5) stored for RF-NODE-07" "curl -sf $API/api/nodes | $PY -c \"import json,sys; d=[x for x in json.load(sys.stdin) if x['node_id']=='RF-NODE-07'][0]; assert d['par_umol'] is not None and d['par_umol'] >= 450\""
 check "Chronos forecast in plant state" "echo '$plant' | $PY -c \"import json,sys; d=[x for x in json.load(sys.stdin) if x['node_id']=='RF-NODE-07'][0]['forecast']; assert d and d['backend']=='chronos' and len(d['vpd_kpa'])==8, d\""
 
 check "dashboard page served" '[ "$(curl -s -o /dev/null -w "%{http_code}" $DASH/)" = 200 ]'
@@ -73,7 +74,9 @@ check "write with a wrong token refused (401)" '[ "$(curl -s -o /dev/null -w "%{
 
 curl -sf -XPOST "$DASH/api/led" "${AUTH[@]}" -H "Content-Type: application/json" \
   -d '{"node":"RF-NODE-07","blue_pct":10,"red_pct":90,"minutes":0}' >/dev/null
-out=$("${P[@]}" --profile e2e run --rm -e PACKETS=1 -e PERIOD_S=0 fake_node)
+# five packets: the safety monitor's ramp limit (25 % per command) may need up to four commands to
+# reach the override from where the controller left the LEDs
+out=$("${P[@]}" --profile e2e run --rm -e PACKETS=5 -e PERIOD_S=1 fake_node)
 check "manual override (until cleared) reaches the node" 'echo "$out" | grep -q "blue 10 %, red 90 %"'
 check "override listed with no expiry" "curl -sf $API/api/plant | $PY -c \"import json,sys; s=[x for x in json.load(sys.stdin) if x['node_id']=='RF-NODE-07'][0]['led_setpoint']; assert s['source']=='manual' and s['expires_at'] is None\""
 ended=$(curl -sf -XDELETE "$DASH/api/led/override?node=RF-NODE-07" "${AUTH[@]}")
